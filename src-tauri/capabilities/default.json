@@ -1,0 +1,23 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-capability",
+  "description": "Full CRUD access scoped recursively to Documents/SkaterXL",
+  "windows": ["main"],
+  "permissions": [
+    "fs:default",
+    "fs:allow-read",
+    "fs:allow-read-dir",
+    "fs:allow-write",
+    "fs:allow-remove",
+    "fs:allow-rename",
+    "fs:allow-create",
+    "fs:allow-mkdir",
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        { "path": "$DOCUMENT/SkaterXL/" },
+        { "path": "$DOCUMENT/SkaterXL/**" }
+      ]
+    }
+  ]
+}

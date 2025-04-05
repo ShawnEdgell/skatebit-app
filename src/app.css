@@ -1,0 +1,7 @@
+@import "tailwindcss";
+@plugin "daisyui";
+
+html,
+body {
+  @apply h-screen w-screen;
+}
