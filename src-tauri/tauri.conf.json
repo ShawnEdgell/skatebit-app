@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "tauri-app",
+  "productName": "XL File Manager",
   "version": "0.1.0",
   "identifier": "com.tauri-app.app",
   "build": {
@@ -17,8 +17,8 @@
     "windows": [
       {
         "title": "XL File Manager",
-        "width": 800,
-        "height": 600,
+        "width": 475,
+        "height": 550,
         "minimizable": false,
         "maximizable": false,
         "fullscreen": false,
