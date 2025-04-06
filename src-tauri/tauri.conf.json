@@ -16,9 +16,13 @@
     },
     "windows": [
       {
-        "title": "Skatebit File Manager",
+        "title": "XL File Manager",
         "width": 800,
         "height": 600,
+        "minimizable": false,
+        "maximizable": false,
+        "fullscreen": false,
+        "resizable": false,
         "label": "main"
       }
     ]

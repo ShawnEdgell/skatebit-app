@@ -12,12 +12,16 @@
     "fs:allow-rename",
     "fs:allow-create",
     "fs:allow-mkdir",
+    "fs:allow-stat",
+    "fs:allow-copy-file",
     {
       "identifier": "fs:scope",
       "allow": [
         { "path": "$DOCUMENT/SkaterXL/" },
         { "path": "$DOCUMENT/SkaterXL/**" }
       ]
-    }
+    },
+    "core:path:default",
+    "core:path:allow-resolve-directory"
   ]
 }
