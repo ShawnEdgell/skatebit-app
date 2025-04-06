@@ -17,12 +17,8 @@
     "windows": [
       {
         "title": "XL File Manager",
-        "width": 475,
-        "height": 550,
-        "minimizable": false,
-        "maximizable": false,
-        "fullscreen": false,
-        "resizable": false,
+        "width": 600,
+        "height": 800,
         "label": "main"
       }
     ]

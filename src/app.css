@@ -1,7 +1,8 @@
 @import "tailwindcss";
 @plugin "daisyui";
+@plugin "@tailwindcss/typography";
 
 html,
 body {
-  @apply h-screen w-screen;
+  @apply h-screen;
 }
