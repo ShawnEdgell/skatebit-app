@@ -1,19 +1,23 @@
-import type { ModsData } from "$lib/types/modio";
-import { fetchModsByCategory } from "$lib/api/modio";
-import { MODIO_API_KEY } from "$env/static/private";
+// src/routes/modio/+page.server.ts
+import type { Mod } from "$lib/types/modio";
+import { db } from "$lib/firebase/firebase";
+import { doc, getDoc } from "firebase/firestore";
 
-export const load = async (): Promise<{ modsData: ModsData }> => {
+export const load = async (): Promise<{ mapMods: Mod[] }> => {
   try {
-    const gameId = "629"; // Skater XL game ID
-    // Fetch mod data concurrently for each category.
-    const [gearMods, mapMods, scriptMods] = await Promise.all([
-      fetchModsByCategory(MODIO_API_KEY, gameId, "Gear", 10),
-      fetchModsByCategory(MODIO_API_KEY, gameId, "Map", 10),
-      fetchModsByCategory(MODIO_API_KEY, gameId, "Script", 10),
-    ]);
-    return { modsData: { gearMods, mapMods, scriptMods } };
+    // Read the first page of cached mods from Firestore
+    const docRef = doc(db, "mods", "page_1");
+    const snapshot = await getDoc(docRef);
+    let mapMods: Mod[] = [];
+    if (snapshot.exists()) {
+      const data = snapshot.data();
+      if (data.mods) {
+        mapMods = data.mods;
+      }
+    }
+    return { mapMods };
   } catch (error) {
-    console.error("Error fetching mod data:", error);
-    return { modsData: { gearMods: [], mapMods: [], scriptMods: [] } };
+    console.error("Error fetching cached mods:", error);
+    return { mapMods: [] };
   }
 };

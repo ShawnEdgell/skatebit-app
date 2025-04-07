@@ -6,7 +6,7 @@
   export let onDelete: (name: string) => void;
 </script>
 
-<div class="overflow-y-auto h-96 bg-base-200 p-2 w-full">
+<div class="overflow-y-auto h-96 bg-base-200 p-2 w-full ">
   {#if entries.length > 0}
     <ul class="menu w-full">
       {#each entries as entry}
