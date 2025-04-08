@@ -2,23 +2,24 @@
 import { join, documentDir } from "@tauri-apps/api/path";
 import {
   readDir,
+  stat,
   BaseDirectory,
   create,
   mkdir,
   rename,
   remove,
+  type DirEntry,
 } from "@tauri-apps/plugin-fs";
-import type { DirEntry } from "@tauri-apps/plugin-fs";
 import { handleError } from "./errorHandler";
 import { normalizePath } from "./pathUtils";
 
-// Update baseFolder to include "Documents", so our allowed scope is "Documents/SkaterXL"
+// The baseFolder is relative to Documents.
 export const baseFolder = "SkaterXL";
 
 /**
  * Loads the contents of a folder (e.g. Documents/SkaterXL/Maps)
  * and returns entries that are either directories or files that do not have
- * disallowed image extensions.
+ * disallowed image extensions. For files, we additionally fetch the file size.
  */
 export async function loadLocalMapsSimple(
   mapsFolder: string
@@ -32,15 +33,36 @@ export async function loadLocalMapsSimple(
     // List of file extensions to filter out (in lowercase)
     const disallowedExts = [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"];
 
-    const filtered = entries.filter((entry) => {
-      // Always keep directories.
+    // Filter out unwanted files (keeping directories).
+    let filtered = entries.filter((entry) => {
       if (entry.isDirectory) return true;
-      // For files, check if the extension is disallowed.
       const lowerName = entry.name.toLowerCase();
-      // Return true if none of the disallowed extensions match.
       return !disallowedExts.some((ext) => lowerName.endsWith(ext));
     });
 
+    // For each non-directory, retrieve file size via stat.
+    filtered = await Promise.all(
+      filtered.map(async (entry) => {
+        if (!entry.isDirectory) {
+          try {
+            // Use join to build an accurate file path.
+            const filePath = await join(mapsFolder, entry.name);
+            // Call stat on the joined path.
+            const statInfo = await stat(filePath, {
+              baseDir: BaseDirectory.Document,
+            });
+            // Attach the size property (casting to any because DirEntry doesn't include it).
+            (entry as any).size = statInfo.size;
+            console.debug(`File "${entry.name}" size:`, statInfo.size);
+          } catch (e) {
+            console.error("Error retrieving stat for", entry.name, e);
+          }
+        }
+        return entry;
+      })
+    );
+
+    console.debug("Filtered entries after attaching size:", filtered);
     return filtered.sort((a, b) => a.name.localeCompare(b.name));
   } catch (error) {
     console.error("Error loading local maps:", error);
@@ -106,19 +128,15 @@ export async function promptNewFile(currentPath: string): Promise<void> {
 }
 
 export async function renameEntry(
-  currentPath: string, // This should be the relative path, e.g. "SkaterXL"
+  currentPath: string,
   oldName: string
 ): Promise<void> {
   const newEntryName = prompt("New name:", oldName);
   if (!newEntryName) return;
   try {
-    // Get the absolute Documents directory.
-    const docsDir = await documentDir();
-    // Build absolute paths. For example, if docsDir is "C:/Users/username/Documents",
-    // currentPath is "SkaterXL", and oldName is "11111", then:
-    // oldPath -> "C:/Users/username/Documents/SkaterXL/11111"
-    const oldPath = await join(docsDir, currentPath, oldName);
-    const newPath = await join(docsDir, currentPath, newEntryName);
+    const oldPath = await join(currentPath, oldName);
+    const newPath = await join(currentPath, newEntryName);
+    // Call rename without extra options.
     await rename(oldPath, newPath);
   } catch (error) {
     handleError(error, "renaming entry");

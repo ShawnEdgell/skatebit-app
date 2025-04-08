@@ -124,7 +124,7 @@
   });
 </script>
 
-<main class="mx-auto w-full flex flex-col space-y-10">
+<main class="mx-auto w-full flex flex-col space-y-6">
   <!-- Mod.io maps section -->
   <section>
     <SortBadges {sortOptions} {selectedSort} {loading} on:selectSort={handleSelectSort} />
@@ -132,7 +132,7 @@
       {#if mods.length > 0}
         <MapList {mods} {visibleCount} {loading} on:loadMore={loadMore} />
       {:else if loading}
-        <div class="grid place-content-center h-60 bg-base-200">
+        <div class="grid place-content-center h-51 bg-base-200">
           <span class="loading loading-spinner loading-lg"></span>
         </div>
       {:else}
@@ -145,7 +145,7 @@
   <section>
     <h2 class="text-2xl font-bold mb-4">Local Maps</h2>
     {#if localMapsLoading}
-      <div class="grid place-content-center h-60 bg-base-200">
+      <div class="grid place-content-center h-51 bg-base-200">
         <span class="loading loading-spinner loading-lg"></span>
       </div>
     {:else}

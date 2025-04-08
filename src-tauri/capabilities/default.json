@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main-capability",
-  "description": "Full CRUD access scoped recursively to Documents/SkaterXL",
+  "description": "Windows-only: FS access for SkaterXL docs and opener permissions.",
   "windows": ["main"],
   "permissions": [
     "fs:default",
@@ -27,7 +27,14 @@
     "core:path:allow-resolve-directory",
     "core:event:default",
     "core:event:allow-listen",
-    "shell:default",
-    "shell:allow-open"
+    "os:default",
+    {
+      "identifier": "opener:allow-reveal-item-in-dir",
+      "allow": [{ "path": "$DOCUMENT/SkaterXL/Maps/**" }]
+    },
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [{ "path": "$DOCUMENT/SkaterXL/Maps/**" }]
+    }
   ]
 }

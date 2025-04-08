@@ -1,10 +1,9 @@
-<!-- src/lib/components/MapCard.svelte -->
 <script lang="ts">
   import type { Mod } from '$lib/types/modio';
   export let mod: Mod;
 </script>
 
-<div role="listitem" class="relative rounded-lg card shadow-md overflow-hidden flex-shrink-0 group aspect-video bg-base-200 w-96">
+<div role="listitem" class="relative rounded-lg card shadow-md overflow-hidden flex-shrink-0 group aspect-video bg-base-200 w-80">
   {#if mod.logo?.thumb_320x180}
     <img src={mod.logo.thumb_320x180} alt="{mod.name} thumbnail" class="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-110" loading="lazy" draggable="false" />
   {:else}
