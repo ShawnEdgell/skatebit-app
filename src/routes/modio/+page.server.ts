@@ -3,9 +3,11 @@ import type { Mod } from "$lib/types/modio";
 import { db } from "$lib/firebase/firebase";
 import { doc, getDoc } from "firebase/firestore";
 
+/**
+ * Loads the first page of cached mods from Firestore.
+ */
 export const load = async (): Promise<{ mapMods: Mod[] }> => {
   try {
-    // Read the first page of cached mods from Firestore
     const docRef = doc(db, "mods", "page_1");
     const snapshot = await getDoc(docRef);
     let mapMods: Mod[] = [];

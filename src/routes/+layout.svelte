@@ -3,5 +3,10 @@
     import NavBar from "$lib/components/NavBar.svelte";
 </script>
 
+
+
 <NavBar />
-<slot />
+<div class="p-4">
+    <slot />
+</div>
+

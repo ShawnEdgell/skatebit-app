@@ -17,8 +17,8 @@
     "windows": [
       {
         "title": "XL File Manager",
-        "width": 600,
-        "height": 800,
+        "width": 900,
+        "height": 650,
         "label": "main"
       }
     ]

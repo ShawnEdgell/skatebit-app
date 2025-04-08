@@ -26,6 +26,8 @@
     "core:path:default",
     "core:path:allow-resolve-directory",
     "core:event:default",
-    "core:event:allow-listen"
+    "core:event:allow-listen",
+    "shell:default",
+    "shell:allow-open"
   ]
 }

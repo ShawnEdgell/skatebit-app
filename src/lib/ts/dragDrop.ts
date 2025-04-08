@@ -3,6 +3,8 @@ import { documentDir, join } from "@tauri-apps/api/path";
 import { readFile, writeFile } from "@tauri-apps/plugin-fs";
 import { readDir, mkdir, stat } from "@tauri-apps/plugin-fs";
 import { BaseDirectory } from "@tauri-apps/plugin-fs";
+import { handleError } from "./errorHandler";
+import { normalizePath } from "./pathUtils";
 
 export async function copyFile(source: string, destDir: string): Promise<void> {
   try {
@@ -15,7 +17,7 @@ export async function copyFile(source: string, destDir: string): Promise<void> {
     await writeFile(targetPath, fileData, { baseDir: BaseDirectory.Document });
     console.log(`Copied file from ${source} to ${targetPath}`);
   } catch (error) {
-    console.error("Error processing dropped file", source, error);
+    handleError(error, `processing dropped file ${source}`);
   }
 }
 
@@ -23,25 +25,29 @@ export async function copyFolder(
   source: string,
   destDir: string
 ): Promise<void> {
-  console.log("Dropped folder detected:", source);
-  const folderName = source.split(/[\\/]/).pop();
-  if (!folderName) return;
-  const docDir = await documentDir();
-  const targetFolder = await join(docDir, destDir, folderName);
-  await mkdir(targetFolder, { baseDir: BaseDirectory.Document }).catch(
-    () => {}
-  );
-  const items = await readDir(source);
-  const newDestDir = await join(destDir, folderName);
-  for (const item of items) {
-    const itemSourcePath = `${source}/${item.name}`;
-    if (item.isDirectory) {
-      await copyFolder(itemSourcePath, newDestDir);
-    } else {
-      await copyFile(itemSourcePath, newDestDir);
+  try {
+    console.log("Dropped folder detected:", source);
+    const folderName = source.split(/[\\/]/).pop();
+    if (!folderName) return;
+    const docDir = await documentDir();
+    const targetFolder = await join(docDir, destDir, folderName);
+    await mkdir(targetFolder, { baseDir: BaseDirectory.Document }).catch(
+      () => {}
+    );
+    const items = await readDir(source);
+    const newDestDir = await join(destDir, folderName);
+    for (const item of items) {
+      const itemSourcePath = `${source}/${item.name}`;
+      if (item.isDirectory) {
+        await copyFolder(itemSourcePath, newDestDir);
+      } else {
+        await copyFile(itemSourcePath, newDestDir);
+      }
     }
+    console.log(`Copied folder ${source} to ${targetFolder}`);
+  } catch (error) {
+    handleError(error, `processing dropped folder ${source}`);
   }
-  console.log(`Copied folder ${source} to ${targetFolder}`);
 }
 
 export async function handleDroppedPaths(
@@ -58,7 +64,7 @@ export async function handleDroppedPaths(
         await copyFile(p, currentPath);
       }
     } catch (error) {
-      console.error("Error processing dropped path", p, error);
+      handleError(error, `processing dropped path ${p}`);
     }
   }
 }

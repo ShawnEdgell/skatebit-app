@@ -17,6 +17,7 @@
     "@tauri-apps/api": "^2.4.1",
     "@tauri-apps/plugin-fs": "^2.2.1",
     "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/plugin-shell": "~2",
     "daisyui": "^5.0.12",
     "firebase": "^11.6.0",
     "tailwindcss": "^4.1.3"
