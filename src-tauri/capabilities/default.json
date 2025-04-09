@@ -35,6 +35,10 @@
     {
       "identifier": "opener:allow-open-path",
       "allow": [{ "path": "$DOCUMENT/SkaterXL/Maps/**" }]
-    }
+    },
+    "core:window:allow-close",
+    "core:window:allow-maximize",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize"
   ]
 }

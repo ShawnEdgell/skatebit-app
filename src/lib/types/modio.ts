@@ -4,10 +4,16 @@ export interface Mod {
   summary: string;
   logo: { thumb_320x180: string };
   profile_url: string;
-  modfile: { download: { binary_url: string } };
+  modfile: {
+    download: { binary_url: string };
+    // Add an optional filesize in bytes:
+    filesize?: number;
+    // Optionally, you can also store the uncompressed size or filename if needed:
+    filesize_uncompressed?: number;
+    filename?: string;
+  };
   date_added: number;
   tags?: Array<{ name: string }>;
-  // Add stats as an optional property with the fields you expect.
   stats?: {
     date_expires?: number;
     downloads_today?: number;

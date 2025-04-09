@@ -10,3 +10,4 @@ export { default as FileList } from "./components/FileList.svelte";
 export { default as PathHeader } from "./components/PathHeader.svelte";
 export { default as FileActions } from "./components/FileActions.svelte";
 export { default as NavBar } from "./components/NavBar.svelte";
+export { default as Toast } from "./components/Toast.svelte";

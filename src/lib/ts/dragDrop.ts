@@ -4,7 +4,7 @@ import { readFile, writeFile } from "@tauri-apps/plugin-fs";
 import { readDir, mkdir, stat } from "@tauri-apps/plugin-fs";
 import { BaseDirectory } from "@tauri-apps/plugin-fs";
 import { handleError } from "./errorHandler";
-import { normalizePath } from "./pathUtils";
+import { toastStore } from "$lib/stores/toastStore";
 
 export async function copyFile(source: string, destDir: string): Promise<void> {
   try {
@@ -16,6 +16,12 @@ export async function copyFile(source: string, destDir: string): Promise<void> {
     const targetPath = await join(docDir, destDir, fileName);
     await writeFile(targetPath, fileData, { baseDir: BaseDirectory.Document });
     console.log(`Copied file from ${source} to ${targetPath}`);
+    // Show success toast for file copy
+    toastStore.addToast(
+      `Copied file "${fileName}" successfully.`,
+      "alert-success",
+      3000
+    );
   } catch (error) {
     handleError(error, `processing dropped file ${source}`);
   }
@@ -45,6 +51,12 @@ export async function copyFolder(
       }
     }
     console.log(`Copied folder ${source} to ${targetFolder}`);
+    // Show success toast for folder copy
+    toastStore.addToast(
+      `Copied folder "${folderName}" successfully.`,
+      "alert-success",
+      3000
+    );
   } catch (error) {
     handleError(error, `processing dropped folder ${source}`);
   }

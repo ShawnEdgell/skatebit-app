@@ -2,7 +2,6 @@
   import { createEventDispatcher } from 'svelte';
   import type { DirEntry } from '@tauri-apps/plugin-fs';
   import { documentDir, join } from '@tauri-apps/api/path';
-  // Import the CORRECT functions from opener plugin
   import { revealItemInDir } from '@tauri-apps/plugin-opener';
   import { deleteEntry, baseFolder } from '$lib/ts/fsOperations';
   import { normalizePath } from '$lib/ts/pathUtils';

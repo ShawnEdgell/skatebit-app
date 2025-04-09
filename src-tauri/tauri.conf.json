@@ -19,7 +19,8 @@
         "title": "XL File Manager",
         "width": 900,
         "height": 630,
-        "label": "main"
+        "label": "main",
+        "decorations": false
       }
     ]
   },

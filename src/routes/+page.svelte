@@ -4,7 +4,7 @@
   import { getCurrentWebview } from '@tauri-apps/api/webview';
   import { invoke } from '@tauri-apps/api/core';
   import { join } from '@tauri-apps/api/path';
-  import { TabSwitcher, FileList, PathHeader, FileActions } from '$lib';
+  import { TabSwitcher, FileList, PathHeader, FileActions, Toast } from '$lib';
   import {
     loadEntries,
     baseFolder,
@@ -144,6 +144,8 @@
 
   onDestroy(() => { unlisten?.(); });
 </script>
+
+<Toast />
 
 <div class="space-y-4 w-full">
   <TabSwitcher {tabs} {currentPath} baseFolder={baseFolder} onSwitchTab={handleSwitchTab} />
