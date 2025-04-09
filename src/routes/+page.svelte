@@ -18,14 +18,6 @@
   import { handleDroppedPaths } from '$lib';
   import type { DirEntry } from '@tauri-apps/plugin-fs';
 
-  let currentPath = baseFolder;
-  let entries: DirEntry[] = [];
-  let fileInput: HTMLInputElement;
-  let isDraggingOverZone = false;
-  let dropZone: HTMLElement;
-  let unlisten: (() => void) | null = null;
-  let isLoadingEntries = false;
-
   const tabs = [
     { label: "Maps", subfolder: "Maps" },
     { label: "Gear", subfolder: "Gear" },
@@ -34,8 +26,22 @@
     { label: "Stance", subfolder: "XXLMod3/StanceCollections" },
     { label: "Steeze", subfolder: "XXLMod3/SteezeCollections" },
     { label: "BonedOllieMod", subfolder: "BonedOllieMod" },
-    // … other tabs
+    { label: "Walking Mod", subfolder: "walking-mod/animations" }
+    // … add other tabs as needed
   ];
+
+  let currentPath = baseFolder;
+  let entries: DirEntry[] = [];
+  let fileInput: HTMLInputElement;
+  let isDraggingOverZone = false;
+  let unlisten: (() => void) | null = null;
+  let isLoadingEntries = false;
+
+  // Since we want the entire viewport to be the drop zone, we update this function
+  // to always return true.
+  function isInsideDropZone(x: number, y: number): boolean {
+    return true;
+  }
 
   async function refreshEntries() {
     isLoadingEntries = true;
@@ -58,7 +64,9 @@
         const buffer = await file.arrayBuffer();
         const path = await join(currentPath, file.name);
         await invoke("save_file", { path, contents: Array.from(new Uint8Array(buffer)) });
-      } catch (err) { console.error(`Save Error: ${file.name}`, err); }
+      } catch (err) { 
+        console.error(`Save Error: ${file.name}`, err);
+      }
     }
     target.value = "";
     await refreshEntries();
@@ -68,7 +76,7 @@
     try {
       currentPath = await openDirectory(baseFolder, subfolder);
       await refreshEntries();
-    } catch(e) {
+    } catch (e) {
       console.error("Tab switch error", e);
     }
   }
@@ -92,27 +100,30 @@
     }
   }
 
-  async function handleNewFolder() { await promptNewFolder(currentPath); await refreshEntries(); }
-  async function handleNewFile() { await promptNewFile(currentPath); await refreshEntries(); }
-  async function handleRename(name: string) { await renameEntry(currentPath, name); await refreshEntries(); }
-  async function handleDelete(name: string) { await deleteEntry(currentPath, name); await refreshEntries(); }
+  async function handleNewFolder() { 
+    await promptNewFolder(currentPath);
+    await refreshEntries();
+  }
+  async function handleNewFile() { 
+    await promptNewFile(currentPath);
+    await refreshEntries();
+  }
+  async function handleRename(name: string) { 
+    await renameEntry(currentPath, name); 
+    await refreshEntries();
+  }
+  async function handleDelete(name: string) { 
+    await deleteEntry(currentPath, name); 
+    await refreshEntries();
+  }
   async function handleUpload() { fileInput?.click(); }
 
-  function allowDrop(event: DragEvent) { event.preventDefault(); }
-  function isInsideDropZone(x: number, y: number): boolean {
-    if (!dropZone) return false;
-    const rect = dropZone.getBoundingClientRect();
-    return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
-  }
-
   onMount(async () => {
+    // Wait for the DOM to update.
     await tick();
-    if (!dropZone) {
-      console.error("Drop zone element not bound");
-      return;
-    }
     await refreshEntries();
 
+    // Listen to drag drop events globally.
     unlisten = await getCurrentWebview().onDragDropEvent(async (event) => {
       let isInside = false;
       if (event.payload.type === 'over' || event.payload.type === 'drop') {
@@ -142,7 +153,9 @@
     });
   });
 
-  onDestroy(() => { unlisten?.(); });
+  onDestroy(() => {
+    unlisten?.();
+  });
 </script>
 
 <Toast />
@@ -150,22 +163,21 @@
 <div class="space-y-4 w-full">
   <TabSwitcher {tabs} {currentPath} baseFolder={baseFolder} onSwitchTab={handleSwitchTab} />
   <PathHeader {currentPath} {baseFolder} onGoBack={handleGoUp} />
-  <div
-    class="relative w-full bg-base-200"
-    bind:this={dropZone}
-    on:dragover={allowDrop}
-    on:drop={allowDrop}
-    class:border-primary={isDraggingOverZone}
-    class:border-base-300={!isDraggingOverZone}
-    role="region"
-    aria-label="File list and drop zone">
-    {#if isDraggingOverZone}
-      <div class="absolute inset-0 bg-neutral/60 bg-opacity-50 flex items-center justify-center pointer-events-none z-10 rounded-box backdrop-blur-sm">
-        <p class="text-xl font-bold">Drop files or folders here</p>
-      </div>
-    {/if}
+  
+  <!-- File list container without the dropzone binding -->
+  <div class="relative w-full bg-base-200" role="region" aria-label="File list">
     <FileList {entries} onOpenDirectory={handleOpenDirectory} onRename={handleRename} onDelete={handleDelete} />
   </div>
+
   <input type="file" multiple bind:this={fileInput} on:change={handleFileChange} class="hidden" />
   <FileActions onNewFolder={handleNewFolder} onNewFile={handleNewFile} onUpload={handleUpload} />
 </div>
+
+<!-- Full-screen drop zone overlay -->
+{#if isDraggingOverZone}
+  <div class="fixed inset-0 z-50 flex items-center justify-center pointer-events-none mt-16 bg-neutral/60 bg-opacity-75 backdrop-blur-sm">
+    <div class="rounded-box p-8">
+      <p class="text-xl font-bold text-white">Drop files or folders here</p>
+    </div>
+  </div>
+{/if}

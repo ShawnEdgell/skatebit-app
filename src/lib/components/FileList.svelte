@@ -1,6 +1,4 @@
 <script lang="ts">
-  import PathHeader from "./PathHeader.svelte";
-  // Assuming you have these props and functions defined in your component script
   export let entries: Array<{ name: string; isDirectory: boolean; size?: number; modifiedAt?: Date | number | null }> = [];
   export let onOpenDirectory: (name: string) => void;
   export let onRename: (name: string) => void;
