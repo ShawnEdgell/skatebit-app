@@ -24,10 +24,12 @@
   role="banner"
   on:dblclick={toggleMaximize}
 >
-  <div class="flex-1">
-    <ul class="menu menu-horizontal px-1">
+  <div class="flex justify-between w-full">
+    <ul class="menu menu-horizontal">
       <li><a href="/">File Explorer</a></li>
       <li><a href="/modio">Maps</a></li>
+    </ul>
+    <ul class="menu menu-horizontal">
       <li>
         <ThemeController />
       </li>

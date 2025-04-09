@@ -16,7 +16,6 @@
     "fs:allow-copy-file",
     "fs:allow-document-write",
     "fs:allow-document-write-recursive",
-
     {
       "identifier": "fs:scope",
       "allow": [
