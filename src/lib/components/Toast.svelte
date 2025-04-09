@@ -13,7 +13,7 @@
   });
 </script>
 
-<div class="toast toast-center">
+<div class="toast toast-center z-999">
   {#each toasts as toast (toast.id)}
     <div class="alert {toast.variant}">
       <span>{toast.message}</span>

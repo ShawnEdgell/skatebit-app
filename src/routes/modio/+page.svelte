@@ -11,6 +11,7 @@
   import { handleError } from '$lib/ts/errorHandler';
   import { baseFolder, loadLocalMapsSimple } from '$lib/ts/fsOperations';
   import { normalizePath } from '$lib/ts/pathUtils';
+  import DropZone from '$lib/components/DropZone.svelte';
 
   const sortOptions = [
     { label: 'Most Recent', value: 'recent' },
@@ -123,7 +124,7 @@
     loadLocalMaps();
   });
 </script>
-
+ <DropZone />
 <main class="mx-auto w-full flex flex-col space-y-6">
   <!-- Mod.io maps section -->
   <section>

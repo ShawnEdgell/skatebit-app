@@ -4,7 +4,7 @@
   import { getCurrentWebview } from '@tauri-apps/api/webview';
   import { invoke } from '@tauri-apps/api/core';
   import { join } from '@tauri-apps/api/path';
-  import { TabSwitcher, FileList, PathHeader, FileActions, Toast } from '$lib';
+  import { TabSwitcher, FileList, PathHeader, FileActions } from '$lib';
   import {
     loadEntries,
     baseFolder,
@@ -158,8 +158,6 @@
   });
 </script>
 
-<Toast />
-
 <div class="space-y-4 w-full">
   <TabSwitcher {tabs} {currentPath} baseFolder={baseFolder} onSwitchTab={handleSwitchTab} />
   <PathHeader {currentPath} {baseFolder} onGoBack={handleGoUp} />
@@ -177,7 +175,7 @@
 {#if isDraggingOverZone}
   <div class="fixed inset-0 z-50 flex items-center justify-center pointer-events-none mt-16 bg-neutral/60 bg-opacity-75 backdrop-blur-sm">
     <div class="rounded-box p-8">
-      <p class="text-xl font-bold text-white">Drop files or folders here</p>
+      <p class="text-xl font-bold">Drop files or folders here</p>
     </div>
   </div>
 {/if}
