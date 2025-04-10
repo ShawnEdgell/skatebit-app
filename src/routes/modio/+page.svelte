@@ -3,35 +3,31 @@
   import SortBadges from '$lib/components/SortBadges.svelte';
   import MapList from '$lib/components/MapList.svelte';
   import LocalMapList from '$lib/components/LocalMapList.svelte';
+  import DropZone from '$lib/components/DropZone.svelte';
+  
+  // Mod.io maps (unchanged)
   import type { Mod } from '$lib/types/modio';
   import { DISPLAY_PAGE_SIZE, FIRESTORE_PAGE_SIZE_ESTIMATE } from '$lib/api/constants';
   import { fetchModsPage, fetchAllMods, sortMods } from '$lib/ts/modApi';
   import { handleError } from '$lib/ts/errorHandler';
-  import DropZone from '$lib/components/DropZone.svelte';
+  
+  // Local maps store and refresh function.
   import { localMapsStore, refreshLocalMaps } from '$lib/stores/localMaps';
-
+  
+  // --- Mod.io maps state ---
   const sortOptions = [
     { label: 'Most Recent', value: 'recent' },
     { label: 'Popular', value: 'popular' },
     { label: 'Downloads', value: 'downloads' },
     { label: 'Rating', value: 'rating' }
   ];
-
-  let selectedSort = sortOptions[0].value;
+  let selectedSort = "recent";
   let mods: Mod[] = [];
   let visibleCount = DISPLAY_PAGE_SIZE;
   let loading = false;
   let hasMoreToLoadFromSource = true;
   let isFullyLoaded = false;
-
-  // Instead of a local variable for local maps, we can derive it from our store.
-  // If you need to, you can do either:
-  // Option A: Use the $store auto-subscription.
-  // Option B: Subscribe manually.
-  // Here, we'll use Option A:
-  $: localMaps = $localMapsStore; // $localMapsStore comes from our writable store.
-  let localMapsLoading = false;
-
+  
   async function loadAllMods() {
     loading = true;
     try {
@@ -42,15 +38,11 @@
       mods = [];
     } finally {
       loading = false;
-      applySort();
+      // Apply mod.io sorting as before
+      mods = sortMods(mods, selectedSort);
     }
   }
-
-  function applySort() {
-    if (mods.length === 0) return;
-    mods = sortMods(mods, selectedSort);
-  }
-
+  
   async function loadMore() {
     if (loading) return;
     if (isFullyLoaded) {
@@ -83,7 +75,7 @@
       }
     }
   }
-
+  
   async function handleSelectSort(e: CustomEvent<string>) {
     const sortValue = e.detail;
     if (selectedSort === sortValue || loading) return;
@@ -93,7 +85,7 @@
       mods = await fetchAllMods();
       isFullyLoaded = true;
       hasMoreToLoadFromSource = false;
-      applySort();
+      mods = sortMods(mods, selectedSort);
       visibleCount = DISPLAY_PAGE_SIZE;
       await tick();
       const scrollContainer: HTMLElement | null = document.querySelector('.flex.flex-row.gap-4.overflow-x-auto');
@@ -104,9 +96,13 @@
       loading = false;
     }
   }
-
-  // Instead of calling loadLocalMaps() directly and assigning to a local variable,
-  // we now simply refresh the store.
+  
+  // --- Local maps state ---
+  // Here we subscribe directly to your local maps store (no local sorting).
+  $: localMaps = $localMapsStore;
+  // (Optional loading flag for local maps – if needed, otherwise leave it false)
+  let localMapsLoading = false;
+  
   onMount(() => {
     loadAllMods();
     refreshLocalMaps();
@@ -114,16 +110,16 @@
 </script>
 
 <DropZone />
- 
+
 <main class="mx-auto w-full flex flex-col space-y-6">
-  <!-- Mod.io maps section -->
+  <!-- Mod.io Maps Section -->
   <section>
     <SortBadges {sortOptions} {selectedSort} {loading} on:selectSort={handleSelectSort} />
     <div class="relative flex-grow overflow-hidden">
       {#if mods.length > 0}
         <MapList {mods} {visibleCount} {loading} on:loadMore={loadMore} />
       {:else if loading}
-        <div class="grid place-content-center h-51 bg-base-200">
+        <div class="grid place-content-center h-51">
           <span class="loading loading-spinner loading-lg"></span>
         </div>
       {:else}
@@ -132,15 +128,16 @@
     </div>
   </section>
   
-  <!-- Local maps section -->
+  <!-- Local Maps Section (without extra sorting) -->
   <section>
     <h2 class="text-2xl font-bold mb-4">Local Maps</h2>
     {#if localMapsLoading}
-      <div class="grid place-content-center h-51 bg-base-200">
+      <div class="grid place-content-center h-51">
         <span class="loading loading-spinner loading-lg"></span>
       </div>
     {:else}
-      <LocalMapList {localMaps} loading={localMapsLoading} />
+      <!-- Pass the raw localMaps array to the LocalMapList component -->
+      <LocalMapList localMaps={localMaps} loading={localMapsLoading} />
     {/if}
   </section>
 </main>

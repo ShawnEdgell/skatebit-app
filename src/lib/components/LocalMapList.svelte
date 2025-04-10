@@ -1,4 +1,3 @@
-<!-- src/lib/components/LocalMapList.svelte -->
 <script lang="ts">
   import { onMount, onDestroy, createEventDispatcher } from 'svelte';
   import LocalMapCard from './LocalMapCard.svelte';
@@ -14,7 +13,7 @@
   let isDragging = false;
   let startX = 0;
   let scrollLeft = 0;
-
+  
   function handlePointerDown(e: PointerEvent) {
     if ((e.target as HTMLElement).closest('button')) return;
     e.preventDefault();
@@ -44,7 +43,7 @@
     const name = event.detail.name;
     localMaps = localMaps.filter(map => map.name !== name);
   }
-
+  
   onMount(() => {
     observer = new IntersectionObserver(
       (entries) => {
@@ -57,7 +56,7 @@
     if (sentinel) observer.observe(sentinel);
     scrollContainer.addEventListener('pointercancel', handlePointerUp);
   });
-
+  
   onDestroy(() => {
     observer?.disconnect();
     scrollContainer?.removeEventListener('pointercancel', handlePointerUp);

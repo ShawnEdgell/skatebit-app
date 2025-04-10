@@ -190,7 +190,7 @@
   
   <!-- File list container without the dropzone binding -->
   <div class="relative w-full bg-base-200" role="region" aria-label="File list">
-    <FileList {entries} onOpenDirectory={handleOpenDirectory} onRename={handleRename} onDelete={handleDelete} />
+    <FileList {entries} loading={isLoadingEntries} onOpenDirectory={handleOpenDirectory} onRename={handleRename} onDelete={handleDelete} />
   </div>
 
   <input type="file" multiple bind:this={fileInput} on:change={handleFileChange} class="hidden" />

@@ -9,7 +9,7 @@ export const localMapsStore = writable<LocalMapEntry[]>([]);
 
 export async function refreshLocalMaps() {
   try {
-    // Here, specify the folder for your maps; for example, baseFolder + "/Maps"
+    // Specify the folder for your maps; for example, baseFolder + "/Maps"
     const localMapsPath = normalizePath(`${baseFolder}/Maps`);
     const maps: LocalMapEntry[] = await loadLocalMapsSimple(localMapsPath);
     localMapsStore.set(maps);

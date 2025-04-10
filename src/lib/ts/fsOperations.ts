@@ -59,10 +59,11 @@ export async function loadLocalMapsSimple(
       ".dll",
       ".json",
     ];
-    // Build a case-insensitive map: key is baseName (or folder name) in lower-case.
+
+    // Build a case-insensitive thumbnail map: key is the base name in lower-case.
     const thumbnailMap = new Map<string, { path: string; mimeType: string }>();
 
-    // Pass 1: Populate thumbnailMap for sibling files and for directories
+    // Pass 1: Populate thumbnailMap for sibling image files and for directories
     for (const entry of entries) {
       if (!entry.isDirectory) {
         const lowerName = entry.name.toLowerCase();
@@ -87,10 +88,11 @@ export async function loadLocalMapsSimple(
         // For directories, try to find a thumbnail image inside.
         const folderName = entry.name;
         const key = folderName.toLowerCase();
-        if (thumbnailMap.has(key)) continue; // Already set from a sibling file.
+        if (thumbnailMap.has(key)) continue;
         let thumbnailFound = false;
         const folderPath = normalizePath(await join(mapsFolder, folderName));
-        // Attempt 1: Look for strict match: <FolderName>.<ext>
+
+        // Attempt 1: Look for a strict match: <FolderName>.<ext>
         for (const ext of imageExts) {
           const candidateName = `${folderName}${ext}`; // e.g., MyCoolMap.png
           const candidatePath = normalizePath(
@@ -111,6 +113,7 @@ export async function loadLocalMapsSimple(
             // Candidate not found; try next extension.
           }
         }
+
         // Attempt 2: Scan the subfolder for any image file if strict matching failed.
         if (!thumbnailFound) {
           try {
@@ -155,14 +158,12 @@ export async function loadLocalMapsSimple(
       )
       .map(async (entry) => {
         const enriched: LocalMapEntry = { ...entry };
-        // Declare lookupName upfront.
         let lookupName: string = "";
         const entryPath = await join(mapsFolder, entry.name);
         try {
           const statInfo = (await stat(normalizePath(entryPath), {
             baseDir: BaseDirectory.Document,
           })) as any;
-          // Use modified or fallback to created date if modified isn't available.
           enriched.modified = statInfo.modified
             ? new Date(statInfo.modified).getTime()
             : statInfo.created
@@ -181,7 +182,6 @@ export async function loadLocalMapsSimple(
         } catch (e) {
           console.error(`Error retrieving stat for ${entry.name}:`, e);
           enriched.modified = 0;
-          // Ensure lookupName is set in both branches.
           if (!entry.isDirectory) {
             const lastDot = entry.name.lastIndexOf(".");
             lookupName =
@@ -192,7 +192,7 @@ export async function loadLocalMapsSimple(
             lookupName = entry.name.toLowerCase();
           }
         }
-        // Attach thumbnail if available.
+        // Attach thumbnail data if available.
         if (thumbnailMap.has(lookupName)) {
           const thumbData = thumbnailMap.get(lookupName)!;
           enriched.thumbnailPath = thumbData.path;
@@ -206,10 +206,8 @@ export async function loadLocalMapsSimple(
       `[fsOps] Filtered down to ${finalMapEntries.length} displayable map entries.`
     );
 
-    // Return entries sorted by modification date (most recent first)
-    return finalMapEntries.sort(
-      (a, b) => (b.modified || 0) - (a.modified || 0)
-    );
+    // Return the entries as is (unsorted) since sorting is not required.
+    return finalMapEntries;
   } catch (error) {
     if (
       error instanceof Error &&
@@ -222,6 +220,42 @@ export async function loadLocalMapsSimple(
     }
     console.error("Error loading local maps:", error);
     handleError(error, `loading local maps from ${mapsFolder}`);
+    return [];
+  }
+}
+
+export async function loadEntries(
+  currentPath: string
+): Promise<(TauriDirEntry & { size?: number })[]> {
+  try {
+    const entries = await readDir(currentPath, {
+      baseDir: BaseDirectory.Document,
+    });
+    const enriched = await Promise.all(
+      entries.map(async (entry) => {
+        if (!entry.isDirectory) {
+          try {
+            const filePath = await join(currentPath, entry.name);
+            const statInfo = await stat(filePath, {
+              baseDir: BaseDirectory.Document,
+            });
+            return { ...entry, size: statInfo.size };
+          } catch (e) {
+            console.error("Error retrieving stat for", entry.name, e);
+          }
+        }
+        return entry;
+      })
+    );
+    return enriched.sort((a, b) =>
+      a.isDirectory === b.isDirectory
+        ? a.name.localeCompare(b.name)
+        : a.isDirectory
+        ? -1
+        : 1
+    );
+  } catch (error) {
+    handleError(error, "reading directory");
     return [];
   }
 }
