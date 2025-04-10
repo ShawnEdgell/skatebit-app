@@ -1,17 +1,7 @@
-// src/lib/api/modio.ts
-import { MODIO_DOMAIN, MODIO_API_KEY } from "$env/static/private";
-import { API_PAGE_SIZE } from "./constants";
+// src/lib/api/modioFetch.ts
+import { MODIO_API_KEY, MODIO_DOMAIN } from "./modioConfig";
+import { API_PAGE_SIZE } from "./modioConstants";
 
-/**
- * Fetches mods from mod.io for a given game.
- *
- * @param apiKey API key (defaults to environment key)
- * @param gameId ID of the game
- * @param limit Maximum number of mods to fetch (defaults to API_PAGE_SIZE)
- * @param offset Offset for pagination
- * @param sort Sort order string (defaults to "-date_added")
- * @returns An array of mod objects.
- */
 export async function fetchMapMods(
   apiKey: string = MODIO_API_KEY,
   gameId: string,

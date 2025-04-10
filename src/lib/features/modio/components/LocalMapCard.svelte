@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { LocalMapEntry } from "$lib/ts/fsOperations";
-  import GenericCard from "$lib/components/GenericCard.svelte";
+  import GenericCard from "./GenericCard.svelte";
   import { documentDir, join } from "@tauri-apps/api/path";
   import { readFile, BaseDirectory } from "@tauri-apps/plugin-fs";
   import { revealItemInDir } from "@tauri-apps/plugin-opener";

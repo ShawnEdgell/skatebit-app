@@ -3,7 +3,7 @@
   import { onMount, onDestroy, createEventDispatcher } from 'svelte';
   import MapCard from './MapCard.svelte';
   import type { Mod } from '$lib/types/modio';
-  import { draggable } from '$lib/ts/draggable';
+  import { draggable } from '$lib/actions/draggable';
 
   export let mods: Mod[] = [];
   export let visibleCount: number;

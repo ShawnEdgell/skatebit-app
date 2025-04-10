@@ -5,18 +5,13 @@ export function draggable(node: HTMLElement) {
   let scrollLeft = 0;
 
   function pointerDown(e: PointerEvent) {
-    // Allow buttons OR anchor tags (or interactive elements) to intercept events
-    // Check for both 'button' and 'a' tags
-    if ((e.target as HTMLElement).closest("button, a")) {
-      // <--- MODIFIED HERE
-      return; // Let the button or link handle its own click
-    }
+    // Prevent dragging if the target is a button or link
+    if ((e.target as HTMLElement).closest("button, a")) return;
 
-    // Only prevent default and start dragging if the target wasn't interactive
     e.preventDefault();
     isDragging = true;
     node.style.cursor = "grabbing";
-    node.style.userSelect = "none"; // Good practice to prevent text selection during drag
+    node.style.userSelect = "none";
     node.setPointerCapture(e.pointerId);
     startX = e.clientX - node.offsetLeft;
     scrollLeft = node.scrollLeft;
@@ -24,26 +19,26 @@ export function draggable(node: HTMLElement) {
 
   function pointerMove(e: PointerEvent) {
     if (!isDragging) return;
-    e.preventDefault(); // Prevent default during move to avoid scrolling page etc.
+    e.preventDefault();
     const x = e.clientX - node.offsetLeft;
-    node.scrollLeft = scrollLeft - (x - startX) * 1.5; // Adjust multiplier as needed
+    node.scrollLeft = scrollLeft - (x - startX) * 1.5;
   }
 
   function pointerUp(e: PointerEvent) {
     if (!isDragging) return;
     isDragging = false;
     node.style.cursor = "grab";
-    node.style.userSelect = ""; // Restore user select
+    node.style.userSelect = "";
     node.releasePointerCapture(e.pointerId);
   }
 
-  // Initial cursor style
+  // Set initial cursor style
   node.style.cursor = "grab";
 
   node.addEventListener("pointerdown", pointerDown);
   node.addEventListener("pointermove", pointerMove);
   node.addEventListener("pointerup", pointerUp);
-  node.addEventListener("pointercancel", pointerUp); // Handle cancellation (e.g., focus lost)
+  node.addEventListener("pointercancel", pointerUp); // Handle pointer cancellation
 
   return {
     destroy() {
@@ -51,7 +46,7 @@ export function draggable(node: HTMLElement) {
       node.removeEventListener("pointermove", pointerMove);
       node.removeEventListener("pointerup", pointerUp);
       node.removeEventListener("pointercancel", pointerUp);
-      node.style.cursor = ""; // Clean up style
+      node.style.cursor = "";
       node.style.userSelect = "";
     },
   };

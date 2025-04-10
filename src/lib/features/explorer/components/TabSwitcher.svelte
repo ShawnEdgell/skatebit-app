@@ -1,13 +1,12 @@
-<!-- src/lib/components/TabSwitcher.svelte -->
 <script lang="ts">
-  import { normalizePath } from '../ts/pathUtils';
+  import { normalizePath } from '$lib/ts/pathUtils';
+
   export let tabs: { label: string; subfolder: string }[] = [];
   export let currentPath: string;
   export let onSwitchTab: (subfolder: string) => void;
-  export let baseFolder: string; // e.g., "Documents/SkaterXL"
+  export let baseFolder: string;
 
-  // Always compute normalized version of currentPath for comparisons.
-  $: normalizedCurrentPath = normalizePath(currentPath);
+  $: normalizedCurrentPath = currentPath ? normalizePath(currentPath) : '';
 </script>
 
 <div class="mb-4 flex items-center gap-2 flex-wrap" role="tablist" aria-label="File Manager Tabs">

@@ -313,9 +313,19 @@ export async function renameEntry(
   const newEntryName = prompt("New name:", oldName);
   if (!newEntryName) return;
   try {
-    const oldPath = await join(currentPath, oldName);
-    const newPath = await join(currentPath, newEntryName);
-    await rename(oldPath, newPath);
+    // Get the document directory (allowed base folder)
+    const docDir = await documentDir();
+    if (!docDir) throw new Error("Document directory not found");
+
+    // Build absolute paths using documentDir, currentPath, and filenames.
+    const oldAbsPath = normalizePath(await join(docDir, currentPath, oldName));
+    const newAbsPath = normalizePath(
+      await join(docDir, currentPath, newEntryName)
+    );
+
+    // Perform the rename operation using the absolute paths.
+    await rename(oldAbsPath, newAbsPath);
+
     toastStore.addToast(
       `Entry renamed successfully to "${newEntryName}"`,
       "alert-info",
