@@ -15,7 +15,7 @@
 </script>
 
 <div class="mb-4 flex items-center gap-2 flex-wrap">
-  <h2 class="text-2xl mr-2 font-bold">Mod.io</h2>
+  <h2 class="text-2xl mr-2 font-bold">Mod.io Maps</h2>
   {#each sortOptions as option}
     <button
       type="button"

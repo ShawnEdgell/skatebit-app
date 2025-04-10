@@ -3,7 +3,7 @@
   import { onMount, onDestroy, tick } from 'svelte';
   import { getCurrentWebview } from '@tauri-apps/api/webview';
   import { invoke } from '@tauri-apps/api/core';
-  import { join } from '@tauri-apps/api/path';
+  import { documentDir, join } from '@tauri-apps/api/path';
   import { TabSwitcher, FileList, PathHeader, FileActions } from '$lib';
   import {
     loadEntries,
@@ -56,21 +56,47 @@
   }
 
   async function handleFileChange(event: Event) {
-    const target = event.target as HTMLInputElement;
-    const files = target?.files;
-    if (!files || files.length === 0) return;
-    for (const file of Array.from(files)) {
-      try {
-        const buffer = await file.arrayBuffer();
-        const path = await join(currentPath, file.name);
-        await invoke("save_file", { path, contents: Array.from(new Uint8Array(buffer)) });
-      } catch (err) { 
-        console.error(`Save Error: ${file.name}`, err);
-      }
-    }
-    target.value = "";
-    await refreshEntries();
+  const target = event.target as HTMLInputElement;
+  const files = target?.files;
+  if (!files || files.length === 0) return;
+
+  // Get the absolute document directory once
+  let docDir: string | undefined;
+  try {
+    docDir = await documentDir();
+  } catch (err) {
+    console.error("Failed to get document directory:", err);
+    // Handle error appropriately - maybe show a message to the user
+    return;
   }
+
+  for (const file of Array.from(files)) {
+    try {
+      const buffer = await file.arrayBuffer();
+
+      // *** FIX: Construct the ABSOLUTE path for the save_file command ***
+      // Assumes 'currentPath' is relative to the document directory base
+      // If currentPath IS already absolute, this logic needs adjustment, but
+      // based on the unzip fix, currentPath is likely relative to docDir context.
+      const absoluteSavePath = await join(docDir, currentPath, file.name);
+      console.log("Attempting to save file to absolute path:", absoluteSavePath); // Add logging
+
+      await invoke("save_file", {
+        path: absoluteSavePath, // Send the absolute path
+        contents: Array.from(new Uint8Array(buffer))
+      });
+      console.log(`Successfully invoked save_file for: ${absoluteSavePath}`);
+
+    } catch (err) {
+      // Log the specific path that failed if possible
+      const intendedPath = docDir ? await join(docDir, currentPath, file.name) : `[docDirError]/${currentPath}/${file.name}`;
+      console.error(`Save Error for ${file.name} at intended path ${intendedPath}:`, err);
+       // You might want a user-facing error message here too
+    }
+  }
+  target.value = ""; // Clear the input
+  await refreshEntries(); // Refresh the list
+}
 
   async function handleSwitchTab(subfolder: string) {
     try {

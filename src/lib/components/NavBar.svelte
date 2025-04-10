@@ -25,11 +25,13 @@
   on:dblclick={toggleMaximize}
 >
   <div class="flex justify-between w-full">
-    <ul class="menu menu-horizontal">
+    <ul class="menu menu-horizontal" style="-webkit-app-region: no-drag;">
       <li><a href="/">File Explorer</a></li>
       <li><a href="/modio">Maps</a></li>
+      <li><p class="opacity-30">Mods</p></li>
+      <li><p class="opacity-30">Stats</p></li>
     </ul>
-    <ul class="menu menu-horizontal">
+    <ul class="menu menu-horizontal" style="-webkit-app-region: no-drag;">
       <li>
         <ThemeController />
       </li>

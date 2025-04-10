@@ -4,7 +4,6 @@
     import Toast from "$lib/components/Toast.svelte";
 </script>
 
-
 <Toast />
 <NavBar />
 <div class="p-4">

@@ -1,17 +1,14 @@
-<!-- src/routes/Modio.svelte -->
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import SortBadges from '$lib/components/SortBadges.svelte';
   import MapList from '$lib/components/MapList.svelte';
   import LocalMapList from '$lib/components/LocalMapList.svelte';
   import type { Mod } from '$lib/types/modio';
-  import type { DirEntry } from '@tauri-apps/plugin-fs';
   import { DISPLAY_PAGE_SIZE, FIRESTORE_PAGE_SIZE_ESTIMATE } from '$lib/api/constants';
   import { fetchModsPage, fetchAllMods, sortMods } from '$lib/ts/modApi';
   import { handleError } from '$lib/ts/errorHandler';
-  import { baseFolder, loadLocalMapsSimple } from '$lib/ts/fsOperations';
-  import { normalizePath } from '$lib/ts/pathUtils';
   import DropZone from '$lib/components/DropZone.svelte';
+  import { localMapsStore, refreshLocalMaps } from '$lib/stores/localMaps';
 
   const sortOptions = [
     { label: 'Most Recent', value: 'recent' },
@@ -27,8 +24,12 @@
   let hasMoreToLoadFromSource = true;
   let isFullyLoaded = false;
 
-  // Local maps state
-  let localMaps: DirEntry[] = [];
+  // Instead of a local variable for local maps, we can derive it from our store.
+  // If you need to, you can do either:
+  // Option A: Use the $store auto-subscription.
+  // Option B: Subscribe manually.
+  // Here, we'll use Option A:
+  $: localMaps = $localMapsStore; // $localMapsStore comes from our writable store.
   let localMapsLoading = false;
 
   async function loadAllMods() {
@@ -104,27 +105,16 @@
     }
   }
 
-  // Load local maps from Documents/SkaterXL/Maps (filtering out PNGs and other image extensions)
-  async function loadLocalMaps() {
-    localMapsLoading = true;
-    try {
-      const localMapsPath = normalizePath(`${baseFolder}/Maps`);
-      localMaps = await loadLocalMapsSimple(localMapsPath);
-    } catch (error) {
-      console.error("Error loading local maps:", error);
-      localMaps = [];
-    } finally {
-      localMapsLoading = false;
-    }
-  }
-
-  // Load mod.io maps and local maps concurrently.
+  // Instead of calling loadLocalMaps() directly and assigning to a local variable,
+  // we now simply refresh the store.
   onMount(() => {
     loadAllMods();
-    loadLocalMaps();
+    refreshLocalMaps();
   });
 </script>
- <DropZone />
+
+<DropZone />
+ 
 <main class="mx-auto w-full flex flex-col space-y-6">
   <!-- Mod.io maps section -->
   <section>

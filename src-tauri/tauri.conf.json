@@ -12,12 +12,7 @@
   "app": {
     "security": {
       "capabilities": ["main-capability"],
-      "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' blob:",
-      "assetProtocol": {
-        "enable": true,
-
-        "scope": ["$DOCUMENT/SkaterXL/Maps/*", "$DOCUMENT/SkaterXL/Maps/**"]
-      }
+      "csp": null
     },
     "windows": [
       {
