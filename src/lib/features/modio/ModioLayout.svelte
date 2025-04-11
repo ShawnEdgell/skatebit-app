@@ -3,7 +3,7 @@
   import ModioSection from './ModioSection.svelte';
   import LocalMapsSection from './LocalMapsSection.svelte';
   import { onMount } from 'svelte';
-  import { refreshLocalMaps } from '$lib/stores/localMaps';
+  import { refreshLocalMaps } from '$lib/stores/localMapsStore';
   import { modioStore } from '$lib/stores/modioStore';
 
   onMount(() => {

@@ -1,4 +1,3 @@
-<!-- src/lib/components/GenericCard.svelte -->
 <script lang="ts">
   export let imageUrl: string = '';
   export let fallbackIcon: string = '📄'; // default fallback icon, override for folders if needed

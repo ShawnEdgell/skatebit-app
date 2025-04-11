@@ -1,7 +1,7 @@
 <!-- src/lib/components/LocalMapSection.svelte -->
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { localMapsStore, localMapsInitialized, refreshLocalMaps } from '$lib/stores/localMaps';
+  import { localMapsStore, localMapsInitialized, refreshLocalMaps } from '$lib/stores/localMapsStore';
   import { get } from 'svelte/store';
   import LocalMapList from './components/LocalMapList.svelte';
 

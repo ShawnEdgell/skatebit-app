@@ -6,7 +6,7 @@
   export let mod: ExtendedMod;
   
   import { invoke } from '@tauri-apps/api/core';
-  import { refreshLocalMaps } from '$lib/stores/localMaps';
+  import { refreshLocalMaps } from '$lib/stores/localMapsStore';
   import { handleError, handleSuccess } from '$lib/ts/errorHandler';
   
   // Helper function to format file sizes.

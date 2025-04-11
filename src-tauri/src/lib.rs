@@ -18,7 +18,7 @@ pub fn run() {
             greet,
             commands::unzip_file,
             commands::save_file,
-            commands::download_and_install  
+            commands::download_and_install
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

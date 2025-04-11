@@ -6,7 +6,7 @@
   import { normalizePath } from '$lib/ts/pathUtils';
   import { toastStore } from '$lib/stores/toastStore';
   // Import the refresh function from your local maps store.
-  import { refreshLocalMaps } from '$lib/stores/localMaps';
+  import { refreshLocalMaps } from '$lib/stores/localMapsStore';
 
   // Set fixed destination for dropped maps.
   const mapsPath = normalizePath(`${baseFolder}/Maps`);

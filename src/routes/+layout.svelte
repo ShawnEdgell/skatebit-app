@@ -4,7 +4,7 @@
   import Toast from "$lib/components/Toast.svelte";
   import ModalManager from "$lib/components/ModalManager.svelte"; 
   import { onMount } from 'svelte';
-  import { initializeLocalMapsWatcher } from "$lib/stores/localMaps";
+  import { initializeLocalMapsWatcher } from "$lib/stores/localMapsStore";
 
   onMount(async () => {
     await initializeLocalMapsWatcher();

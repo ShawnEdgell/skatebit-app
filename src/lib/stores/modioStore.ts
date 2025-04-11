@@ -64,8 +64,7 @@ function createModioStore() {
 
   function sort(sortValue: SortOption): void {
     selectedSort.set(sortValue);
-    const current = get(mods);
-    mods.set(sortMods(current, sortValue));
+    mods.update((current) => sortMods(current, sortValue));
     visibleCount.set(DISPLAY_PAGE_SIZE);
   }
 

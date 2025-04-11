@@ -5,7 +5,6 @@ import { loadLocalMapsSimple } from "$lib/ts/fsOperations";
 import { baseFolder } from "$lib/ts/fsOperations";
 import { normalizePath } from "$lib/ts/pathUtils";
 import { listen } from "@tauri-apps/api/event";
-import { invoke } from "@tauri-apps/api/core";
 
 export const localMapsStore = writable<LocalMapEntry[]>([]);
 export const localMapsInitialized = writable<boolean>(false);
@@ -22,11 +21,14 @@ export async function refreshLocalMaps() {
   }
 }
 
-// Initialize the file watcher and set up event listener once.
+let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
+
 export async function initializeLocalMapsWatcher() {
-  await invoke("start_maps_watcher");
   const unlisten = await listen("maps-changed", () => {
-    refreshLocalMaps();
+    if (debounceTimeout) clearTimeout(debounceTimeout);
+    debounceTimeout = setTimeout(() => {
+      refreshLocalMaps();
+    }, 250); // adjust if needed
   });
   return unlisten;
 }

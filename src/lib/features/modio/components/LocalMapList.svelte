@@ -2,8 +2,8 @@
   import { onMount, onDestroy, createEventDispatcher } from 'svelte';
   import LocalMapCard from './LocalMapCard.svelte';
   import type { LocalMapEntry } from '$lib/ts/fsOperations';
-  import { localMapsStore, localMapsInitialized, refreshLocalMaps } from '$lib/stores/localMaps';
-  import { localMapsSearchQuery, localMapsSearchResults } from '$lib/stores/localSearchStore';
+  import { localMapsStore, localMapsInitialized, refreshLocalMaps } from '$lib/stores/localMapsStore';
+  import { localMapsSearchQuery, localMapsSearchResults } from '$lib/stores/localMapsSearchStore';
   import { get } from 'svelte/store';
   import { modalStore } from "$lib/stores/modalStore";
   import { normalizePath } from '$lib/ts/pathUtils';

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { MapList, SortBadges } from './components';
   import { modioStore, type SortOption } from '$lib/stores/modioStore';
-  import { modSearchQuery, modSearchResults } from '$lib/stores/modSearchStore';
+  import { modSearchQuery, modSearchResults } from '$lib/stores/modioSearchStore';
   import { tick } from 'svelte';
 
   const {

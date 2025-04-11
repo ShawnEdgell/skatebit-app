@@ -7,7 +7,7 @@
   import { toastStore } from "$lib/stores/toastStore";
   import { explorerStore } from "$lib/stores/explorerStore";
   // Import the local maps refresh function
-  import { refreshLocalMaps } from "$lib/stores/localMaps";
+  import { refreshLocalMaps } from "$lib/stores/localMapsStore";
 
   export let open: boolean = false;
   export let action: "rename" | "newFolder" | "newFile" | "delete" = "rename";
