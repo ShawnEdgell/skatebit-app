@@ -12,6 +12,7 @@
         "@tauri-apps/plugin-shell": "~2",
         "daisyui": "^5.0.12",
         "firebase": "^11.6.0",
+        "flexsearch": "^0.8.151",
         "tailwindcss": "^4.1.3",
         "theme-change": "^2.5.0",
       },
@@ -376,6 +377,8 @@
     "fdir": ["fdir@6.4.3", "", { "peerDependencies": { "picomatch": "^3 || ^4" }, "optionalPeers": ["picomatch"] }, "sha512-PMXmW2y1hDDfTSRc9gaXIuCCRpuoz3Kaz8cUelp3smouvfT632ozg2vrT6lJsHKKOF59YLbOGfAWGUcKEfRMQw=="],
 
     "firebase": ["firebase@11.6.0", "", { "dependencies": { "@firebase/analytics": "0.10.12", "@firebase/analytics-compat": "0.2.18", "@firebase/app": "0.11.4", "@firebase/app-check": "0.8.13", "@firebase/app-check-compat": "0.3.20", "@firebase/app-compat": "0.2.53", "@firebase/app-types": "0.9.3", "@firebase/auth": "1.10.0", "@firebase/auth-compat": "0.5.20", "@firebase/data-connect": "0.3.3", "@firebase/database": "1.0.14", "@firebase/database-compat": "2.0.5", "@firebase/firestore": "4.7.10", "@firebase/firestore-compat": "0.3.45", "@firebase/functions": "0.12.3", "@firebase/functions-compat": "0.3.20", "@firebase/installations": "0.6.13", "@firebase/installations-compat": "0.2.13", "@firebase/messaging": "0.12.17", "@firebase/messaging-compat": "0.2.17", "@firebase/performance": "0.7.2", "@firebase/performance-compat": "0.2.15", "@firebase/remote-config": "0.6.0", "@firebase/remote-config-compat": "0.2.13", "@firebase/storage": "0.13.7", "@firebase/storage-compat": "0.3.17", "@firebase/util": "1.11.0", "@firebase/vertexai": "1.2.1" } }, "sha512-Xqm6j6zszIEmI5nW1MPR8yTafoRTSrW3mWG9Lk9elCJtQDQSiTEkKZiNtUm9y6XfOPl8xoF1TNpxZe8HjgA0Og=="],
+
+    "flexsearch": ["flexsearch@0.8.151", "", {}, "sha512-bMI/vDndsaldfmOLKGk5HMYSiXhX1sBiD/ENZKAnsQJaqC/yk51aTy0+Ny2hYcu+Utazy3s8NZA/zbh2o88ctQ=="],
 
     "fsevents": ["fsevents@2.3.3", "", { "os": "darwin" }, "sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw=="],
 

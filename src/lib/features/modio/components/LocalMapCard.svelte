@@ -1,27 +1,28 @@
+<!-- src/lib/components/LocalMapCard.svelte -->
 <script lang="ts">
   import type { LocalMapEntry } from "$lib/ts/fsOperations";
   import GenericCard from "./GenericCard.svelte";
   import { documentDir, join } from "@tauri-apps/api/path";
   import { readFile, BaseDirectory } from "@tauri-apps/plugin-fs";
   import { revealItemInDir } from "@tauri-apps/plugin-opener";
-  import { deleteEntry, baseFolder } from "$lib/ts/fsOperations";
+  import { baseFolder } from "$lib/ts/fsOperations";
   import { normalizePath } from "$lib/ts/pathUtils";
   import { createEventDispatcher, onDestroy, onMount } from "svelte";
 
   export let localMap: LocalMapEntry;
   const dispatch = createEventDispatcher();
 
+  // Build the relative maps folder (this should match your folder structure)
   const relativeMapsFolder = normalizePath(`${baseFolder}/Maps`);
 
   let blobUrl = "";
   let isLoadingUrl = false;
   let observer: IntersectionObserver;
   let cardElement: HTMLElement;
-
-  // Flag to ensure we load once only
   let hasLoaded = false;
 
   async function loadImageData(relativePath: string | undefined, mimeType: string | undefined) {
+    console.log("Attempting to load image from path:", relativePath);
     if (blobUrl && blobUrl.startsWith("blob:")) {
       URL.revokeObjectURL(blobUrl);
       blobUrl = "";
@@ -29,6 +30,7 @@
     if (!relativePath || !mimeType) return;
     isLoadingUrl = true;
     try {
+      // Using readFile with baseDir: Document to read the file from Documents\<relativeMapsFolder>
       const binaryData: Uint8Array = await readFile(relativePath, { baseDir: BaseDirectory.Document });
       const blob = new Blob([binaryData], { type: mimeType });
       blobUrl = URL.createObjectURL(blob);
@@ -40,12 +42,10 @@
     }
   }
 
-  // Use IntersectionObserver to lazy-load the image only when in view.
   onMount(() => {
     observer = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
         if (entry.isIntersecting && !hasLoaded) {
-          // Only load the image once the card is visible.
           loadImageData(localMap.thumbnailPath, localMap.thumbnailMimeType);
           hasLoaded = true;
           observer.unobserve(entry.target);
@@ -74,38 +74,25 @@
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   }
 
-  let deleteInProgress = false;
-
   async function openInExplorer(e: MouseEvent) {
     try {
-      const fullPathToReveal = await join(
-        await documentDir(),
-        relativeMapsFolder,
-        localMap.name
-      );
+      const docDir = await documentDir();
+      // Build full path using Tauri's join
+      const fullPathToReveal = normalizePath(await join(docDir, relativeMapsFolder, localMap.name));
+      console.log("Opening file explorer at:", fullPathToReveal);
       await revealItemInDir(fullPathToReveal);
     } catch (error) {
       console.error("Error using opener plugin:", error);
     }
   }
 
-  async function handleDelete(e: MouseEvent) {
-    if (deleteInProgress) return;
-    deleteInProgress = true;
-    try {
-      const deleted = await deleteEntry(relativeMapsFolder, localMap.name);
-      if (deleted) {
-        dispatch("deleted", { name: localMap.name });
-      }
-    } catch (error) {
-      console.error("Error deleting local map:", error);
-    } finally {
-      deleteInProgress = false;
-    }
+  // Instead of deleting immediately, dispatch a custom "requestDelete" event
+  function triggerDelete(e: MouseEvent) {
+    e.stopPropagation();
+    dispatch("requestDelete", { name: localMap.name });
   }
 </script>
 
-<!-- Bind the outer div element to enable IntersectionObserver -->
 <div bind:this={cardElement} class="relative flex-shrink-0 w-80 aspect-video">
   <GenericCard
     imageUrl={blobUrl}
@@ -119,14 +106,9 @@
         Open
       </button>
       <button class="btn btn-error btn-sm pointer-events-auto"
-        on:click|preventDefault|stopPropagation={handleDelete}
-        title="Delete Local Map"
-        disabled={deleteInProgress}>
-        {#if deleteInProgress}
-          <span class="loading loading-spinner loading-xs"></span>
-        {:else}
-          Delete
-        {/if}
+        on:click|preventDefault|stopPropagation={triggerDelete}
+        title="Delete Local Map">
+        Delete
       </button>
     </span>
   </GenericCard>

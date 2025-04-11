@@ -1,3 +1,4 @@
+// src/lib/ts/fsOperations.ts
 import { join, documentDir } from "@tauri-apps/api/path";
 import {
   readDir,
@@ -10,8 +11,12 @@ import {
   type DirEntry as TauriDirEntry,
 } from "@tauri-apps/plugin-fs";
 import { handleError } from "./errorHandler";
-import { normalizePath } from "./pathUtils";
 import { toastStore } from "$lib/stores/toastStore";
+
+// A simple normalizePath function that converts backslashes to forward slashes.
+export function normalizePath(path: string): string {
+  return path.replace(/\\/g, "/");
+}
 
 export interface LocalMapEntry extends TauriDirEntry {
   size?: number;
@@ -22,6 +27,7 @@ export interface LocalMapEntry extends TauriDirEntry {
 
 export const baseFolder = "SkaterXL";
 
+// Given a filename, return its MIME type and extension info.
 const getMimeTypeFromExtension = (
   filePath: string
 ): { mime: string; ext: string } | undefined => {
@@ -39,12 +45,21 @@ const getMimeTypeFromExtension = (
 };
 
 export async function loadLocalMapsSimple(
-  mapsFolder: string
+  mapsFolder: string // e.g., call with `${baseFolder}/Maps`
 ): Promise<LocalMapEntry[]> {
   try {
-    const entries = await readDir(mapsFolder, {
+    // Normalize the mapsFolder string.
+    const folderPath = normalizePath(mapsFolder);
+    console.log(
+      "[fsOps] Loading local maps from folder (relative to Documents):",
+      folderPath
+    );
+
+    // Read the directory relative to the Documents directory.
+    const entries = await readDir(folderPath, {
       baseDir: BaseDirectory.Document,
     });
+    console.log(`[fsOps] Found ${entries.length} entries in ${folderPath}`);
 
     const imageExts: string[] = [
       ".png",
@@ -58,12 +73,17 @@ export async function loadLocalMapsSimple(
     ];
     const thumbnailMap = new Map<string, { path: string; mimeType: string }>();
 
+    // Loop through each directory entry to build a thumbnail map.
     for (const entry of entries) {
       if (!entry.isDirectory) {
         const lowerName = entry.name.toLowerCase();
         if (imageExts.some((ext) => lowerName.endsWith(ext))) {
+          // Build the relative path using Tauri's join.
           const entryRelativePath = normalizePath(
-            await join(mapsFolder, entry.name)
+            await join(folderPath, entry.name)
+          );
+          console.log(
+            `[fsOps] Processing file entry: ${entry.name} -> ${entryRelativePath}`
           );
           const mimeInfo = getMimeTypeFromExtension(entry.name);
           if (mimeInfo) {
@@ -79,16 +99,25 @@ export async function loadLocalMapsSimple(
           }
         }
       } else {
+        // If the entry is a directory, attempt to find a thumbnail image inside it.
         const folderName = entry.name;
         const key = folderName.toLowerCase();
         if (thumbnailMap.has(key)) continue;
         let thumbnailFound = false;
-        const folderPath = normalizePath(await join(mapsFolder, folderName));
+        const folderEntryPath = normalizePath(
+          await join(folderPath, folderName)
+        );
+        console.log(
+          `[fsOps] Processing directory entry: ${folderName} at ${folderEntryPath}`
+        );
+
+        // Try candidate file names in the folder.
         for (const ext of imageExts) {
           const candidateName = `${folderName}${ext}`;
           const candidatePath = normalizePath(
-            await join(mapsFolder, folderName, candidateName)
+            await join(folderPath, folderName, candidateName)
           );
+          console.log(`[fsOps] Trying candidate: ${candidatePath}`);
           try {
             await stat(candidatePath, { baseDir: BaseDirectory.Document });
             const mimeInfo = getMimeTypeFromExtension(candidateName);
@@ -98,13 +127,19 @@ export async function loadLocalMapsSimple(
                 mimeType: mimeInfo.mime,
               });
               thumbnailFound = true;
+              console.log(
+                `[fsOps] Thumbnail found for ${folderName}: ${candidatePath}`
+              );
               break;
             }
-          } catch {}
+          } catch {
+            // Candidate file does not exist; continue trying.
+          }
         }
+        // If still not found, try looking in subdirectories.
         if (!thumbnailFound) {
           try {
-            const subEntries = await readDir(folderPath, {
+            const subEntries = await readDir(folderEntryPath, {
               baseDir: BaseDirectory.Document,
             });
             for (const subEntry of subEntries) {
@@ -112,7 +147,7 @@ export async function loadLocalMapsSimple(
                 const lowerSubName = subEntry.name.toLowerCase();
                 if (imageExts.some((ext) => lowerSubName.endsWith(ext))) {
                   const candidatePath = normalizePath(
-                    await join(mapsFolder, folderName, subEntry.name)
+                    await join(folderPath, folderName, subEntry.name)
                   );
                   const mimeInfo = getMimeTypeFromExtension(subEntry.name);
                   if (mimeInfo) {
@@ -121,16 +156,22 @@ export async function loadLocalMapsSimple(
                       mimeType: mimeInfo.mime,
                     });
                     thumbnailFound = true;
+                    console.log(
+                      `[fsOps] Thumbnail found in subdirectory for ${folderName}: ${candidatePath}`
+                    );
                     break;
                   }
                 }
               }
             }
-          } catch {}
+          } catch {
+            // Ignore errors while reading subdirectories.
+          }
         }
       }
     }
 
+    // Map each directory entry to a LocalMapEntry with possible thumbnail data.
     const mapEntriesPromises = entries
       .filter(
         (entry) =>
@@ -140,7 +181,7 @@ export async function loadLocalMapsSimple(
       .map(async (entry): Promise<LocalMapEntry> => {
         const enriched: LocalMapEntry = { ...entry };
         let lookupName = "";
-        const entryFullPath = normalizePath(await join(mapsFolder, entry.name));
+        const entryFullPath = normalizePath(await join(folderPath, entry.name));
         try {
           const inferredStatInfo = await stat(entryFullPath, {
             baseDir: BaseDirectory.Document,
@@ -151,7 +192,6 @@ export async function loadLocalMapsSimple(
               ? time.getTime()
               : new Date(time).getTime();
           };
-          // Instead of using modTime or atime, use birthtime exclusively
           const birthTime = getMs(inferredStatInfo.birthtime);
           enriched.modified = birthTime;
           enriched.size = inferredStatInfo.size;
@@ -166,21 +206,14 @@ export async function loadLocalMapsSimple(
             lookupName = entry.name.toLowerCase();
           }
         } catch (e) {
-          console.error(
-            `[fsOps Pass 2] Error getting stat for ${entryFullPath}:`,
-            e
-          );
+          console.error(`[fsOps] Error getting stat for ${entryFullPath}:`, e);
           enriched.modified = 0;
           enriched.isDirectory = entry.isDirectory;
-          if (!entry.isDirectory) {
-            const lastDot = entry.name.lastIndexOf(".");
-            lookupName =
-              lastDot > 0
-                ? entry.name.substring(0, lastDot).toLowerCase()
-                : entry.name.toLowerCase();
-          } else {
-            lookupName = entry.name.toLowerCase();
-          }
+          const lastDot = entry.name.lastIndexOf(".");
+          lookupName =
+            lastDot > 0
+              ? entry.name.substring(0, lastDot).toLowerCase()
+              : entry.name.toLowerCase();
         }
         if (thumbnailMap.has(lookupName)) {
           const thumbData = thumbnailMap.get(lookupName)!;
@@ -191,6 +224,7 @@ export async function loadLocalMapsSimple(
       });
 
     const finalMapEntries = await Promise.all(mapEntriesPromises);
+    console.log(`[fsOps] Loaded ${finalMapEntries.length} local map entries.`);
     return finalMapEntries;
   } catch (error) {
     if (
@@ -254,67 +288,46 @@ export const goUp = async (currentPath: string): Promise<string> => {
   return norm === baseFolder ? norm : norm.split("/").slice(0, -1).join("/");
 };
 
-export async function promptNewFolder(currentPath: string): Promise<void> {
-  const folderName = prompt("Enter new folder name:");
-  if (folderName) {
-    try {
-      await mkdir(normalizePath(`${currentPath}/${folderName}`), {
-        baseDir: BaseDirectory.Document,
-      });
-      toastStore.addToast(
-        `Folder "${folderName}" created successfully`,
-        "alert-success",
-        3000
-      );
-    } catch (error) {
-      handleError(error, "creating new folder");
-    }
+export async function createFolder(
+  currentPath: string,
+  folderName: string
+): Promise<void> {
+  try {
+    await mkdir(normalizePath(`${currentPath}/${folderName}`), {
+      baseDir: BaseDirectory.Document,
+    });
+  } catch (error) {
+    handleError(error, "creating new folder");
   }
 }
 
-export async function promptNewFile(currentPath: string): Promise<void> {
-  const fileName = prompt("Enter new file name:");
-  if (fileName) {
-    try {
-      await create(normalizePath(`${currentPath}/${fileName}`), {
-        baseDir: BaseDirectory.Document,
-      });
-      toastStore.addToast(
-        `File "${fileName}" created successfully`,
-        "alert-success",
-        3000
-      );
-    } catch (err) {
-      handleError(err, "creating new file");
-    }
+export async function createFile(
+  currentPath: string,
+  fileName: string
+): Promise<void> {
+  try {
+    await create(normalizePath(`${currentPath}/${fileName}`), {
+      baseDir: BaseDirectory.Document,
+    });
+  } catch (err) {
+    handleError(err, "creating new file");
   }
 }
 
 export async function renameEntry(
   currentPath: string,
-  oldName: string
+  oldName: string,
+  newName: string
 ): Promise<void> {
-  const newEntryName = prompt("New name:", oldName);
-  if (!newEntryName) return;
+  if (!newName) return;
   try {
-    // Get the document directory (allowed base folder)
     const docDir = await documentDir();
     if (!docDir) throw new Error("Document directory not found");
 
-    // Build absolute paths using documentDir, currentPath, and filenames.
     const oldAbsPath = normalizePath(await join(docDir, currentPath, oldName));
-    const newAbsPath = normalizePath(
-      await join(docDir, currentPath, newEntryName)
-    );
+    const newAbsPath = normalizePath(await join(docDir, currentPath, newName));
 
-    // Perform the rename operation using the absolute paths.
     await rename(oldAbsPath, newAbsPath);
-
-    toastStore.addToast(
-      `Entry renamed successfully to "${newEntryName}"`,
-      "alert-info",
-      3000
-    );
   } catch (error) {
     handleError(error, "renaming entry");
   }
@@ -324,18 +337,12 @@ export async function deleteEntry(
   currentPath: string,
   name: string
 ): Promise<boolean> {
-  if (!confirm(`Delete "${name}"? This action cannot be undone.`)) return false;
   try {
     const pathToDelete = await join(currentPath, name);
     await remove(pathToDelete, {
       baseDir: BaseDirectory.Document,
       recursive: true,
     });
-    toastStore.addToast(
-      `Entry "${name}" deleted successfully`,
-      "alert-warning",
-      3000
-    );
     return true;
   } catch (error) {
     handleError(error, "deleting entry");

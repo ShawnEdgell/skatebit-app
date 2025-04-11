@@ -1,16 +1,16 @@
-// src/lib/stores/explorerStore.ts
 import { writable, get } from "svelte/store";
 import type { DirEntry } from "@tauri-apps/plugin-fs";
+// Updated imports—note that we now import createFolder, createFile, renameEntry, and deleteEntry.
 import {
   loadEntries,
   baseFolder,
   openDirectory,
   goUp,
-  promptNewFolder,
-  promptNewFile,
+  createFolder, // was promptNewFolder
+  createFile, // was promptNewFile
   renameEntry,
   deleteEntry,
-} from "$lib";
+} from "$lib/ts/fsOperations";
 
 function createExplorerStore() {
   const entries = writable<DirEntry[]>([]);
@@ -47,16 +47,19 @@ function createExplorerStore() {
       currentPath.set(newPath);
       await refresh();
     },
-    newFolder: async () => {
-      await promptNewFolder(get(currentPath));
+    // Now use createFolder instead of promptNewFolder.
+    newFolder: async (folderName: string) => {
+      await createFolder(get(currentPath), folderName);
       await refresh();
     },
-    newFile: async () => {
-      await promptNewFile(get(currentPath));
+    // Now use createFile instead of promptNewFile.
+    newFile: async (fileName: string) => {
+      await createFile(get(currentPath), fileName);
       await refresh();
     },
-    rename: async (name: string) => {
-      await renameEntry(get(currentPath), name);
+    // Rename now accepts newName as a parameter.
+    rename: async (oldName: string, newName: string) => {
+      await renameEntry(get(currentPath), oldName, newName);
       await refresh();
     },
     delete: async (name: string) => {

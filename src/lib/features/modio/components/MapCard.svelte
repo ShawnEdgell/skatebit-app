@@ -1,12 +1,15 @@
 <script lang="ts">
   import type { Mod } from '$lib/types/modio';
+  // Create a local type extension so that we can use the extra property.
+  type ExtendedMod = Mod & { imageUrl?: string };
+
+  export let mod: ExtendedMod;
+  
   import { invoke } from '@tauri-apps/api/core';
   import { refreshLocalMaps } from '$lib/stores/localMaps';
   import { handleError, handleSuccess } from '$lib/ts/errorHandler';
   
-  export let mod: Mod;
-  
-  // Helper to format file sizes.
+  // Helper function to format file sizes.
   function formatFileSize(bytes: number): string {
     if (bytes === 0) return '0 B';
     const k = 1024;
@@ -15,7 +18,7 @@
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   }
   
-  // Local state to track whether installation is in progress.
+  // Local state to track if installation is in progress.
   let isInstalling = false;
   
   async function handleDownload() {
@@ -24,15 +27,13 @@
     try {
       await invoke("download_and_install", {
         url: mod.modfile.download.binary_url,
-        destination: "SkaterXL/Maps"  // You can optionally append a unique folder like `SkaterXL/Maps/${mod.id}`
+        destination: "SkaterXL/Maps"  // Optionally append a folder like `SkaterXL/Maps/${mod.id}`
       });
       console.log("Download and install completed successfully.");
       // Refresh the local maps list.
       await refreshLocalMaps();
-      // Show a success toast.
       handleSuccess("Map installed successfully", "Installation");
     } catch (error) {
-      // Show an error toast.
       handleError(error, "Installation");
     } finally {
       isInstalling = false;
@@ -40,8 +41,10 @@
   }
 </script>
 
-<div role="listitem" class="relative rounded-lg card shadow-md overflow-hidden flex-shrink-0 group aspect-video bg-base-200 w-80">
-  {#if mod.logo?.thumb_320x180}
+<div role="listitem" class="relative rounded-lg card shadow-md overflow-hidden flex-shrink-0 group aspect-video bg-base-200 h-45">
+  {#if mod.imageUrl}
+    <img src={mod.imageUrl} alt="{mod.name} thumbnail" class="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-110" loading="lazy" draggable="false" />
+  {:else if mod.logo?.thumb_320x180}
     <img src={mod.logo.thumb_320x180} alt="{mod.name} thumbnail" class="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-110" loading="lazy" draggable="false" />
   {:else}
     <div class="absolute inset-0 grid place-content-center bg-base-300 text-base-content/50 text-sm">

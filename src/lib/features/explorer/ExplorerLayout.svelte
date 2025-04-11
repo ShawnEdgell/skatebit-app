@@ -4,12 +4,14 @@
   import { getCurrentWebview } from '@tauri-apps/api/webview';
   import { uploadFilesToCurrentPath } from '$lib/utils/useFileUpload';
   import { baseFolder, handleDroppedPaths } from '$lib';
-
   import { explorerStore } from '$lib/stores/explorerStore';
   import { TabSwitcher, FileList, PathHeader, FileActions } from './components';
   import DropOverlay from '$lib/components/DropOverlay.svelte';
   import { explorerTabs as tabs } from './tabs';
   import { normalizePath } from '$lib/ts/pathUtils';
+  
+  // Use the global modal store (ModalManager will be rendered in the main layout)
+  import { modalStore } from "$lib/stores/modalStore";
 
   const {
     currentPath,
@@ -18,11 +20,7 @@
     refresh,
     setPath,
     openDirectory,
-    goUp,
-    newFolder,
-    newFile,
-    rename,
-    delete: deleteEntry
+    goUp
   } = explorerStore;
 
   let fileInput: HTMLInputElement;
@@ -36,13 +34,13 @@
   }
 
   async function handleFileChange(event: Event) {
-  const target = event.target as HTMLInputElement;
-  const files = target?.files;
-  await uploadFilesToCurrentPath(files, get(currentPath), async () => {
-    await refresh();
-    if (target) target.value = '';
-  });
-}
+    const target = event.target as HTMLInputElement;
+    const files = target?.files;
+    await uploadFilesToCurrentPath(files, get(currentPath), async () => {
+      await refresh();
+      if (target) target.value = '';
+    });
+  }
 
   async function handleUpload() {
     fileInput?.click();
@@ -51,11 +49,8 @@
   onMount(async () => {
     await tick();
     await refresh();
-
     unlisten = await getCurrentWebview().onDragDropEvent(async (event) => {
       const payload = event.payload;
-      const isInside = true;
-
       switch (payload.type) {
         case 'over':
           isDraggingOverZone = true;
@@ -81,32 +76,66 @@
   onDestroy(() => {
     unlisten?.();
   });
+
+  // --- Global CRUD Trigger Functions ---
+  function onRename(name: string) {
+    modalStore.set({
+      open: true,
+      type: "crud",
+      props: {
+        action: "rename",
+        currentPath: get(currentPath),
+        currentName: name
+      }
+    });
+  }
+  function onDelete(name: string) {
+    modalStore.set({
+      open: true,
+      type: "crud",
+      props: {
+        action: "delete",
+        currentPath: get(currentPath),
+        currentName: name
+      }
+    });
+  }
+  function onNewFolder() {
+    modalStore.set({
+      open: true,
+      type: "crud",
+      props: {
+        action: "newFolder",
+        currentPath: get(currentPath),
+        currentName: ""
+      }
+    });
+  }
+  function onNewFile() {
+    modalStore.set({
+      open: true,
+      type: "crud",
+      props: {
+        action: "newFile",
+        currentPath: get(currentPath),
+        currentName: ""
+      }
+    });
+  }
 </script>
 
 <div class="space-y-4 w-full">
-  <TabSwitcher
-    {tabs}
-    currentPath={$currentPath}
-    baseFolder={baseFolder}
-    onSwitchTab={handleSwitchTab}
-  />
-
-  <PathHeader
-    currentPath={$currentPath}
-    baseFolder={baseFolder}
-    onGoBack={goUp}
-  />
-
+  <TabSwitcher {tabs} currentPath={$currentPath} baseFolder={baseFolder} onSwitchTab={handleSwitchTab} />
+  <PathHeader currentPath={$currentPath} baseFolder={baseFolder} onGoBack={goUp} />
   <FileList
     entries={$entries}
     loading={$isLoading}
     onOpenDirectory={openDirectory}
-    onRename={rename}
-    onDelete={deleteEntry}
+    onRename={(e) => onRename(e)}    
+    onDelete={(e) => onDelete(e)}
   />
-
   <input type="file" multiple bind:this={fileInput} on:change={handleFileChange} class="hidden" />
-  <FileActions onNewFolder={newFolder} onNewFile={newFile} onUpload={handleUpload} />
+  <FileActions onNewFolder={onNewFolder} onNewFile={onNewFile} onUpload={handleUpload} />
 </div>
 
 <DropOverlay show={isDraggingOverZone} />

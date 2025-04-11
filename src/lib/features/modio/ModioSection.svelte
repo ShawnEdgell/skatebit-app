@@ -1,10 +1,10 @@
 <script lang="ts">
   import { MapList, SortBadges } from './components';
   import { modioStore, type SortOption } from '$lib/stores/modioStore';
+  import { modSearchQuery, modSearchResults } from '$lib/stores/modSearchStore';
   import { tick } from 'svelte';
 
   const {
-    mods,
     visibleCount,
     selectedSort,
     isLoading,
@@ -28,20 +28,34 @@
 </script>
 
 <section>
-  <SortBadges
-    {sortOptions}
-    selectedSort={$selectedSort}
-    loading={$isLoading}
-    on:selectSort={handleSelectSort}
-  />
-    {#if $mods.length > 0}
-      <MapList mods={$mods} visibleCount={$visibleCount} loading={$isLoading} on:loadMore={loadMore} />
+  <div class="flex flex-col md:flex-row items-center justify-between gap-4 mb-4">
+    <SortBadges
+      {sortOptions}
+      selectedSort={$selectedSort}
+      loading={$isLoading}
+      on:selectSort={handleSelectSort}
+    />
+    <!-- Search input bound to the search query store -->
+    <input
+      type="text"
+      placeholder="Search mods by name, summary, or tags..."
+      bind:value={$modSearchQuery}
+      class="input input-sm "
+    />
+  </div>
+  
+  <div class="h-51">
+    <!-- Use the derived search results for the mod list -->
+    {#if $modSearchResults.length > 0}
+      <MapList mods={$modSearchResults} visibleCount={$visibleCount} loading={$isLoading} on:loadMore={loadMore} />
     {:else if $isLoading}
-      <div class="flex items-center justify-center min-h-[203px]">
-        <span class="loading loading-spinner loading-lg"></span>
+      <div class="flex items-center justify-center h-full">
+        <span class="loading loading-spinner loading-lg mb-4"></span>
       </div>
     {:else}
-      <p class="text-center py-10 text-base-content/80">No mod.io maps found.</p>
+    <div class="flex-shrink-0 grid place-content-center p-4 h-full">
+      <p class="text-xs text-base-content/50 whitespace-nowrap">No mod.io maps found.</p>
+    </div>
     {/if}
-
+  </div>
 </section>

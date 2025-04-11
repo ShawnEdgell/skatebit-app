@@ -35,7 +35,7 @@
 <div
   bind:this={scrollContainer}
   use:draggable
-  class="flex flex-row gap-4 overflow-x-auto pb-2 select-none touch-none scrollbar-thin h-full"
+  class="flex flex-row gap-4 pb-2 overflow-x-auto select-none touch-none scrollbar-thin h-full"
   role="list"
 >
   {#each mods.slice(0, visibleCount) as mod (mod.id)}
