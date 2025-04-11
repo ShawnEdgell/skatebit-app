@@ -47,9 +47,3 @@
     {/if}
   </div>
 </div>
-
-{#if loading}
-  <div class="absolute inset-0 flex items-center justify-center bg-base-100/80 bg-opacity-50 z-50">
-    <span class="loading loading-spinner loading-lg"></span>
-  </div>
-{/if}

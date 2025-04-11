@@ -22,7 +22,7 @@
 
   {#if loading}
     <!-- Loading Indicator -->
-    <div class="absolute inset-0 flex items-center justify-center text-center p-4 bg-base-200/80 z-10">
+    <div class="absolute inset-0 flex items-center justify-center text-center p-4 z-10">
       <span class="loading loading-spinner loading-lg"></span>
       <!-- Optional: <p class="ml-2">Loading...</p> -->
     </div>
@@ -31,11 +31,11 @@
     <ul class=" w-full p-0">
       {#each entries as entry (entry.name)}
         <li>
-          <div class="flex justify-between items-center w-full hover:bg-base-300 rounded-lg px-2 py-1 gap-2">
+          <div class="flex justify-between items-center w-full hover:bg-base-300 rounded-lg gap-2">
             <!-- Left Side: Icon, Name, (Size for files) -->
             {#if entry.isDirectory}
               <button
-                class="flex items-center flex-1 min-w-0 gap-3 text-left"
+                class="flex items-center flex-1 min-w-0 gap-3 text-left px-2 py-1 cursor-pointer"
                 on:click={() => onOpenDirectory(entry.name)}
                 title={entry.name}
               >
@@ -43,7 +43,7 @@
                 <span class="truncate flex-1">{entry.name}</span>
               </button>
             {:else}
-              <div class="flex items-center flex-1 min-w-0 gap-3" title={entry.name}>
+              <div class="flex items-center flex-1 min-w-0 gap-3 cursor-pointer" title={entry.name}>
                  <span class="text-xl text-base-content text-opacity-80">📄</span>
                  <span class="truncate flex-1">{entry.name}</span>
                  {#if entry.size != null}

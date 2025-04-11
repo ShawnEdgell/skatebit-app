@@ -15,14 +15,13 @@ import { toastStore } from "$lib/stores/toastStore";
 
 export interface LocalMapEntry extends TauriDirEntry {
   size?: number;
-  thumbnailPath?: string; // Relative path
-  thumbnailMimeType?: string; // Standard MIME type
-  modified?: number; // Modification timestamp (in ms)
+  thumbnailPath?: string;
+  thumbnailMimeType?: string;
+  modified?: number;
 }
 
 export const baseFolder = "SkaterXL";
 
-// Returns MIME info for known image extensions
 const getMimeTypeFromExtension = (
   filePath: string
 ): { mime: string; ext: string } | undefined => {
@@ -46,10 +45,8 @@ export async function loadLocalMapsSimple(
     const entries = await readDir(mapsFolder, {
       baseDir: BaseDirectory.Document,
     });
-    console.log(`[fsOps] Read ${entries.length} entries from ${mapsFolder}`);
 
-    // Supported extensions (include others as needed)
-    const imageExts = [
+    const imageExts: string[] = [
       ".png",
       ".jpg",
       ".jpeg",
@@ -59,11 +56,8 @@ export async function loadLocalMapsSimple(
       ".dll",
       ".json",
     ];
-
-    // Build a case-insensitive thumbnail map: key is the base name in lower-case.
     const thumbnailMap = new Map<string, { path: string; mimeType: string }>();
 
-    // Pass 1: Populate thumbnailMap for sibling image files and for directories
     for (const entry of entries) {
       if (!entry.isDirectory) {
         const lowerName = entry.name.toLowerCase();
@@ -85,16 +79,13 @@ export async function loadLocalMapsSimple(
           }
         }
       } else {
-        // For directories, try to find a thumbnail image inside.
         const folderName = entry.name;
         const key = folderName.toLowerCase();
         if (thumbnailMap.has(key)) continue;
         let thumbnailFound = false;
         const folderPath = normalizePath(await join(mapsFolder, folderName));
-
-        // Attempt 1: Look for a strict match: <FolderName>.<ext>
         for (const ext of imageExts) {
-          const candidateName = `${folderName}${ext}`; // e.g., MyCoolMap.png
+          const candidateName = `${folderName}${ext}`;
           const candidatePath = normalizePath(
             await join(mapsFolder, folderName, candidateName)
           );
@@ -109,12 +100,8 @@ export async function loadLocalMapsSimple(
               thumbnailFound = true;
               break;
             }
-          } catch (e) {
-            // Candidate not found; try next extension.
-          }
+          } catch {}
         }
-
-        // Attempt 2: Scan the subfolder for any image file if strict matching failed.
         if (!thumbnailFound) {
           try {
             const subEntries = await readDir(folderPath, {
@@ -139,38 +126,37 @@ export async function loadLocalMapsSimple(
                 }
               }
             }
-          } catch (e) {
-            // Could not read subfolder or no matching image found; continue.
-          }
+          } catch {}
         }
       }
     }
-    console.log(
-      `[fsOps] Populated thumbnail map with ${thumbnailMap.size} potential thumbnails.`
-    );
 
-    // Pass 2: Filter for map entries (directories and non-image files) and enrich them.
     const mapEntriesPromises = entries
       .filter(
         (entry) =>
           entry.isDirectory ||
           !imageExts.some((ext) => entry.name.toLowerCase().endsWith(ext))
       )
-      .map(async (entry) => {
+      .map(async (entry): Promise<LocalMapEntry> => {
         const enriched: LocalMapEntry = { ...entry };
-        let lookupName: string = "";
-        const entryPath = await join(mapsFolder, entry.name);
+        let lookupName = "";
+        const entryFullPath = normalizePath(await join(mapsFolder, entry.name));
         try {
-          const statInfo = (await stat(normalizePath(entryPath), {
+          const inferredStatInfo = await stat(entryFullPath, {
             baseDir: BaseDirectory.Document,
-          })) as any;
-          enriched.modified = statInfo.modified
-            ? new Date(statInfo.modified).getTime()
-            : statInfo.created
-            ? new Date(statInfo.created).getTime()
-            : 0;
+          });
+          const getMs = (time: Date | number | null | undefined): number => {
+            if (!time) return 0;
+            return time instanceof Date
+              ? time.getTime()
+              : new Date(time).getTime();
+          };
+          // Instead of using modTime or atime, use birthtime exclusively
+          const birthTime = getMs(inferredStatInfo.birthtime);
+          enriched.modified = birthTime;
+          enriched.size = inferredStatInfo.size;
+          enriched.isDirectory = entry.isDirectory;
           if (!entry.isDirectory) {
-            enriched.size = statInfo.size;
             const lastDot = entry.name.lastIndexOf(".");
             lookupName =
               lastDot > 0
@@ -180,8 +166,12 @@ export async function loadLocalMapsSimple(
             lookupName = entry.name.toLowerCase();
           }
         } catch (e) {
-          console.error(`Error retrieving stat for ${entry.name}:`, e);
+          console.error(
+            `[fsOps Pass 2] Error getting stat for ${entryFullPath}:`,
+            e
+          );
           enriched.modified = 0;
+          enriched.isDirectory = entry.isDirectory;
           if (!entry.isDirectory) {
             const lastDot = entry.name.lastIndexOf(".");
             lookupName =
@@ -192,7 +182,6 @@ export async function loadLocalMapsSimple(
             lookupName = entry.name.toLowerCase();
           }
         }
-        // Attach thumbnail data if available.
         if (thumbnailMap.has(lookupName)) {
           const thumbData = thumbnailMap.get(lookupName)!;
           enriched.thumbnailPath = thumbData.path;
@@ -202,11 +191,6 @@ export async function loadLocalMapsSimple(
       });
 
     const finalMapEntries = await Promise.all(mapEntriesPromises);
-    console.log(
-      `[fsOps] Filtered down to ${finalMapEntries.length} displayable map entries.`
-    );
-
-    // Return the entries as is (unsorted) since sorting is not required.
     return finalMapEntries;
   } catch (error) {
     if (
@@ -214,11 +198,11 @@ export async function loadLocalMapsSimple(
       error.message.includes("path does not exist")
     ) {
       console.warn(
-        `Maps directory "${mapsFolder}" not found. Returning empty list.`
+        `[fsOps] Maps directory "${mapsFolder}" not found. Returning empty list.`
       );
       return [];
     }
-    console.error("Error loading local maps:", error);
+    console.error("[fsOps] Error in loadLocalMapsSimple:", error);
     handleError(error, `loading local maps from ${mapsFolder}`);
     return [];
   }

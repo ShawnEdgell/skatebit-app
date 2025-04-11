@@ -1,10 +1,28 @@
 <script lang="ts">
-  import { localMapsStore } from '$lib/stores/localMaps';
+  import { onMount } from 'svelte';
+  import { localMapsStore, localMapsInitialized, refreshLocalMaps } from '$lib/stores/localMaps';
+  import { get } from 'svelte/store';
   import { LocalMapList } from './components';
+
   $: localMaps = $localMapsStore;
+  let isLoading = false;
+
+  onMount(async () => {
+    isLoading = true;
+    try {
+      if (!get(localMapsInitialized)) {
+        await refreshLocalMaps();
+      }
+    } finally {
+      isLoading = false;
+    }
+  });
 </script>
 
-<section>
-  <h2 class="text-2xl font-bold mb-4">Local Maps</h2>
-  <LocalMapList localMaps={localMaps} loading={false} />
-</section>
+
+<LocalMapList {localMaps} />
+{#if isLoading}
+  <div class="flex items-center justify-center">
+    <span class="loading loading-spinner loading-lg"></span>
+  </div>
+{/if}

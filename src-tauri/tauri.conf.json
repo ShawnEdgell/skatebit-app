@@ -20,6 +20,7 @@
         "width": 900,
         "height": 640,
         "label": "main",
+        "transparent": false,
         "decorations": false
       }
     ]

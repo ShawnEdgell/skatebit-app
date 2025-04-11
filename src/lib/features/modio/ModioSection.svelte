@@ -34,15 +34,14 @@
     loading={$isLoading}
     on:selectSort={handleSelectSort}
   />
-  <div class="relative flex-grow overflow-hidden">
     {#if $mods.length > 0}
       <MapList mods={$mods} visibleCount={$visibleCount} loading={$isLoading} on:loadMore={loadMore} />
     {:else if $isLoading}
-      <div class="grid place-content-center h-51">
+      <div class="flex items-center justify-center min-h-[203px]">
         <span class="loading loading-spinner loading-lg"></span>
       </div>
     {:else}
       <p class="text-center py-10 text-base-content/80">No mod.io maps found.</p>
     {/if}
-  </div>
+
 </section>
