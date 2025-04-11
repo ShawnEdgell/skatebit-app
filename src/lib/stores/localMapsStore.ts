@@ -21,14 +21,10 @@ export async function refreshLocalMaps() {
   }
 }
 
-let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
-
+// Initialize the file watcher and set up event listener once.
 export async function initializeLocalMapsWatcher() {
   const unlisten = await listen("maps-changed", () => {
-    if (debounceTimeout) clearTimeout(debounceTimeout);
-    debounceTimeout = setTimeout(() => {
-      refreshLocalMaps();
-    }, 250); // adjust if needed
+    refreshLocalMaps();
   });
   return unlisten;
 }

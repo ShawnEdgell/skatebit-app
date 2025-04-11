@@ -11,9 +11,7 @@ import {
   type DirEntry as TauriDirEntry,
 } from "@tauri-apps/plugin-fs";
 import { handleError } from "./errorHandler";
-import { toastStore } from "$lib/stores/toastStore";
 
-// A simple normalizePath function that converts backslashes to forward slashes.
 export function normalizePath(path: string): string {
   return path.replace(/\\/g, "/");
 }
@@ -27,7 +25,9 @@ export interface LocalMapEntry extends TauriDirEntry {
 
 export const baseFolder = "SkaterXL";
 
-// Given a filename, return its MIME type and extension info.
+const thumbnailExts = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"];
+const excludedFileExts = [...thumbnailExts, ".dll", ".json"];
+
 const getMimeTypeFromExtension = (
   filePath: string
 ): { mime: string; ext: string } | undefined => {
@@ -45,79 +45,29 @@ const getMimeTypeFromExtension = (
 };
 
 export async function loadLocalMapsSimple(
-  mapsFolder: string // e.g., call with `${baseFolder}/Maps`
+  mapsFolder: string
 ): Promise<LocalMapEntry[]> {
   try {
-    // Normalize the mapsFolder string.
     const folderPath = normalizePath(mapsFolder);
-    console.log(
-      "[fsOps] Loading local maps from folder (relative to Documents):",
-      folderPath
-    );
-
-    // Read the directory relative to the Documents directory.
     const entries = await readDir(folderPath, {
       baseDir: BaseDirectory.Document,
     });
-    console.log(`[fsOps] Found ${entries.length} entries in ${folderPath}`);
 
-    const imageExts: string[] = [
-      ".png",
-      ".jpg",
-      ".jpeg",
-      ".gif",
-      ".webp",
-      ".bmp",
-      ".dll",
-      ".json",
-    ];
     const thumbnailMap = new Map<string, { path: string; mimeType: string }>();
 
-    // Loop through each directory entry to build a thumbnail map.
     for (const entry of entries) {
-      if (!entry.isDirectory) {
-        const lowerName = entry.name.toLowerCase();
-        if (imageExts.some((ext) => lowerName.endsWith(ext))) {
-          // Build the relative path using Tauri's join.
-          const entryRelativePath = normalizePath(
-            await join(folderPath, entry.name)
-          );
-          console.log(
-            `[fsOps] Processing file entry: ${entry.name} -> ${entryRelativePath}`
-          );
-          const mimeInfo = getMimeTypeFromExtension(entry.name);
-          if (mimeInfo) {
-            const key = entry.name
-              .substring(0, entry.name.length - mimeInfo.ext.length)
-              .toLowerCase();
-            if (!thumbnailMap.has(key)) {
-              thumbnailMap.set(key, {
-                path: entryRelativePath,
-                mimeType: mimeInfo.mime,
-              });
-            }
-          }
-        }
-      } else {
-        // If the entry is a directory, attempt to find a thumbnail image inside it.
+      if (entry.isDirectory) {
         const folderName = entry.name;
         const key = folderName.toLowerCase();
-        if (thumbnailMap.has(key)) continue;
-        let thumbnailFound = false;
         const folderEntryPath = normalizePath(
           await join(folderPath, folderName)
         );
-        console.log(
-          `[fsOps] Processing directory entry: ${folderName} at ${folderEntryPath}`
-        );
 
-        // Try candidate file names in the folder.
-        for (const ext of imageExts) {
+        for (const ext of thumbnailExts) {
           const candidateName = `${folderName}${ext}`;
           const candidatePath = normalizePath(
             await join(folderPath, folderName, candidateName)
           );
-          console.log(`[fsOps] Trying candidate: ${candidatePath}`);
           try {
             await stat(candidatePath, { baseDir: BaseDirectory.Document });
             const mimeInfo = getMimeTypeFromExtension(candidateName);
@@ -126,117 +76,87 @@ export async function loadLocalMapsSimple(
                 path: candidatePath,
                 mimeType: mimeInfo.mime,
               });
-              thumbnailFound = true;
-              console.log(
-                `[fsOps] Thumbnail found for ${folderName}: ${candidatePath}`
-              );
               break;
             }
-          } catch {
-            // Candidate file does not exist; continue trying.
-          }
+          } catch {}
         }
-        // If still not found, try looking in subdirectories.
-        if (!thumbnailFound) {
+
+        if (!thumbnailMap.has(key)) {
           try {
             const subEntries = await readDir(folderEntryPath, {
               baseDir: BaseDirectory.Document,
             });
             for (const subEntry of subEntries) {
               if (!subEntry.isDirectory) {
-                const lowerSubName = subEntry.name.toLowerCase();
-                if (imageExts.some((ext) => lowerSubName.endsWith(ext))) {
-                  const candidatePath = normalizePath(
+                const lowerName = subEntry.name.toLowerCase();
+                if (thumbnailExts.some((ext) => lowerName.endsWith(ext))) {
+                  const path = normalizePath(
                     await join(folderPath, folderName, subEntry.name)
                   );
                   const mimeInfo = getMimeTypeFromExtension(subEntry.name);
                   if (mimeInfo) {
                     thumbnailMap.set(key, {
-                      path: candidatePath,
+                      path,
                       mimeType: mimeInfo.mime,
                     });
-                    thumbnailFound = true;
-                    console.log(
-                      `[fsOps] Thumbnail found in subdirectory for ${folderName}: ${candidatePath}`
-                    );
                     break;
                   }
                 }
               }
             }
-          } catch {
-            // Ignore errors while reading subdirectories.
+          } catch {}
+        }
+      } else {
+        const lowerName = entry.name.toLowerCase();
+        if (thumbnailExts.some((ext) => lowerName.endsWith(ext))) {
+          const mimeInfo = getMimeTypeFromExtension(entry.name);
+          if (mimeInfo) {
+            const key = entry.name.replace(mimeInfo.ext, "").toLowerCase();
+            const path = normalizePath(await join(folderPath, entry.name));
+            thumbnailMap.set(key, {
+              path,
+              mimeType: mimeInfo.mime,
+            });
           }
         }
       }
     }
 
-    // Map each directory entry to a LocalMapEntry with possible thumbnail data.
-    const mapEntriesPromises = entries
-      .filter(
-        (entry) =>
-          entry.isDirectory ||
-          !imageExts.some((ext) => entry.name.toLowerCase().endsWith(ext))
-      )
-      .map(async (entry): Promise<LocalMapEntry> => {
+    const filteredEntries = entries.filter(
+      (entry) =>
+        entry.isDirectory ||
+        !excludedFileExts.some((ext) => entry.name.toLowerCase().endsWith(ext))
+    );
+
+    const mapEntries = await Promise.all(
+      filteredEntries.map(async (entry): Promise<LocalMapEntry> => {
         const enriched: LocalMapEntry = { ...entry };
-        let lookupName = "";
-        const entryFullPath = normalizePath(await join(folderPath, entry.name));
+        const fullPath = normalizePath(await join(folderPath, entry.name));
         try {
-          const inferredStatInfo = await stat(entryFullPath, {
+          const statInfo = await stat(fullPath, {
             baseDir: BaseDirectory.Document,
           });
-          const getMs = (time: Date | number | null | undefined): number => {
-            if (!time) return 0;
-            return time instanceof Date
-              ? time.getTime()
-              : new Date(time).getTime();
-          };
-          const birthTime = getMs(inferredStatInfo.birthtime);
-          enriched.modified = birthTime;
-          enriched.size = inferredStatInfo.size;
-          enriched.isDirectory = entry.isDirectory;
-          if (!entry.isDirectory) {
-            const lastDot = entry.name.lastIndexOf(".");
-            lookupName =
-              lastDot > 0
-                ? entry.name.substring(0, lastDot).toLowerCase()
-                : entry.name.toLowerCase();
-          } else {
-            lookupName = entry.name.toLowerCase();
-          }
-        } catch (e) {
-          console.error(`[fsOps] Error getting stat for ${entryFullPath}:`, e);
-          enriched.modified = 0;
-          enriched.isDirectory = entry.isDirectory;
-          const lastDot = entry.name.lastIndexOf(".");
-          lookupName =
-            lastDot > 0
-              ? entry.name.substring(0, lastDot).toLowerCase()
-              : entry.name.toLowerCase();
-        }
-        if (thumbnailMap.has(lookupName)) {
-          const thumbData = thumbnailMap.get(lookupName)!;
-          enriched.thumbnailPath = thumbData.path;
-          enriched.thumbnailMimeType = thumbData.mimeType;
-        }
-        return enriched;
-      });
+          enriched.size = statInfo.size;
+          enriched.modified = statInfo.birthtime
+            ? new Date(statInfo.birthtime as string | number | Date).getTime()
+            : 0;
+        } catch {}
+        const key = entry.isDirectory
+          ? entry.name.toLowerCase()
+          : entry.name.replace(/\.[^/.]+$/, "").toLowerCase();
 
-    const finalMapEntries = await Promise.all(mapEntriesPromises);
-    console.log(`[fsOps] Loaded ${finalMapEntries.length} local map entries.`);
-    return finalMapEntries;
+        if (thumbnailMap.has(key)) {
+          const { path, mimeType } = thumbnailMap.get(key)!;
+          enriched.thumbnailPath = path;
+          enriched.thumbnailMimeType = mimeType;
+        }
+
+        return enriched;
+      })
+    );
+
+    return mapEntries;
   } catch (error) {
-    if (
-      error instanceof Error &&
-      error.message.includes("path does not exist")
-    ) {
-      console.warn(
-        `[fsOps] Maps directory "${mapsFolder}" not found. Returning empty list.`
-      );
-      return [];
-    }
-    console.error("[fsOps] Error in loadLocalMapsSimple:", error);
     handleError(error, `loading local maps from ${mapsFolder}`);
     return [];
   }
