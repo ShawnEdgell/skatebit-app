@@ -15,11 +15,13 @@
     {@const expectedPath = normalizePath(`${baseFolder}/${tab.subfolder}`)}
     {@const isActive = normalizedCurrentPath === expectedPath}
     <button
-      class={`flex flex-col items-center justify-center cursor-pointer text-xs w-32 h-16 ${isActive ? 'bg-primary/30' : 'hover:bg-base-300'}`}
+      class={`flex flex-col items-center justify-center cursor-pointer text-xs w-32 h-17 ${isActive ? 'bg-primary/30' : 'hover:bg-base-300'}`}
       on:click={() => onSwitchTab(tab.subfolder)}
     >
+    <div class="text-lg">
       {@html tab.icon}
-      <span class="dock-label mt-1">{tab.label}</span>
+    </div>
+    <span class="dock-label mt-1">{tab.label}</span>
     </button>
   {/each}
 </div>

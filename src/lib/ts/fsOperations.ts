@@ -1,271 +1,249 @@
 // src/lib/ts/fsOperations.ts
-import { join, documentDir } from "@tauri-apps/api/path";
-import {
-  readDir,
-  stat,
-  BaseDirectory,
-  create,
-  mkdir,
-  rename,
-  remove,
-  type DirEntry as TauriDirEntry,
-} from "@tauri-apps/plugin-fs";
+import { invoke } from "@tauri-apps/api/core";
+import { documentDir, normalize, join } from "@tauri-apps/api/path";
+import { BaseDirectory } from "@tauri-apps/plugin-fs";
 import { handleError } from "./errorHandler";
 
-export function normalizePath(path: string): string {
+export function normalizePath(path: string | null | undefined): string {
+  if (!path) return "";
   return path.replace(/\\/g, "/");
 }
 
-export interface LocalMapEntry extends TauriDirEntry {
-  size?: number;
-  thumbnailPath?: string;
-  thumbnailMimeType?: string;
-  modified?: number;
+export interface FsEntry {
+  name: string | null;
+  path: string;
+  isDirectory: boolean;
+  size: number | null;
+  modified: number | null;
+  thumbnailPath: string | null;
+  thumbnailMimeType: string | null;
+  relativeThumbnailPath?: string | null;
 }
 
 export const baseFolder = "SkaterXL";
 
-const thumbnailExts = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"];
-const excludedFileExts = [...thumbnailExts, ".dll", ".json"];
-
-const getMimeTypeFromExtension = (
-  filePath: string
-): { mime: string; ext: string } | undefined => {
-  const extension = filePath.split(".").pop()?.toLowerCase();
-  if (!extension) return undefined;
-  const mimeMap: Record<string, { mime: string; ext: string }> = {
-    png: { mime: "image/png", ext: ".png" },
-    jpg: { mime: "image/jpeg", ext: ".jpg" },
-    jpeg: { mime: "image/jpeg", ext: ".jpeg" },
-    gif: { mime: "image/gif", ext: ".gif" },
-    webp: { mime: "image/webp", ext: ".webp" },
-    bmp: { mime: "image/bmp", ext: ".bmp" },
-  };
-  return mimeMap[extension];
-};
+let documentDirPath: string | null = null;
+async function getDocumentDir(): Promise<string> {
+  if (!documentDirPath) {
+    documentDirPath = await normalize(await documentDir());
+    console.log("Document directory initialized:", documentDirPath);
+  }
+  return documentDirPath;
+}
 
 export async function loadLocalMapsSimple(
-  mapsFolder: string
-): Promise<LocalMapEntry[]> {
+  relativeMapsPath: string
+): Promise<FsEntry[]> {
   try {
-    const folderPath = normalizePath(mapsFolder);
-    const entries = await readDir(folderPath, {
-      baseDir: BaseDirectory.Document,
+    const normalizedRelativePath = normalizePath(relativeMapsPath);
+    console.log(
+      `[fsOps|loadLocalMapsSimple] Invoking list_local_maps for relative path: ${normalizedRelativePath}`
+    );
+    const entriesFromRust = await invoke<any[]>("list_local_maps", {
+      relativeMapsPath: normalizedRelativePath,
     });
-
-    const thumbnailMap = new Map<string, { path: string; mimeType: string }>();
-
-    for (const entry of entries) {
-      if (entry.isDirectory) {
-        const folderName = entry.name;
-        const key = folderName.toLowerCase();
-        const folderEntryPath = normalizePath(
-          await join(folderPath, folderName)
-        );
-
-        for (const ext of thumbnailExts) {
-          const candidateName = `${folderName}${ext}`;
-          const candidatePath = normalizePath(
-            await join(folderPath, folderName, candidateName)
-          );
-          try {
-            await stat(candidatePath, { baseDir: BaseDirectory.Document });
-            const mimeInfo = getMimeTypeFromExtension(candidateName);
-            if (mimeInfo) {
-              thumbnailMap.set(key, {
-                path: candidatePath,
-                mimeType: mimeInfo.mime,
-              });
-              break;
-            }
-          } catch {}
-        }
-
-        if (!thumbnailMap.has(key)) {
-          try {
-            const subEntries = await readDir(folderEntryPath, {
-              baseDir: BaseDirectory.Document,
-            });
-            for (const subEntry of subEntries) {
-              if (!subEntry.isDirectory) {
-                const lowerName = subEntry.name.toLowerCase();
-                if (thumbnailExts.some((ext) => lowerName.endsWith(ext))) {
-                  const path = normalizePath(
-                    await join(folderPath, folderName, subEntry.name)
-                  );
-                  const mimeInfo = getMimeTypeFromExtension(subEntry.name);
-                  if (mimeInfo) {
-                    thumbnailMap.set(key, {
-                      path,
-                      mimeType: mimeInfo.mime,
-                    });
-                    break;
-                  }
-                }
-              }
-            }
-          } catch {}
-        }
-      } else {
-        const lowerName = entry.name.toLowerCase();
-        if (thumbnailExts.some((ext) => lowerName.endsWith(ext))) {
-          const mimeInfo = getMimeTypeFromExtension(entry.name);
-          if (mimeInfo) {
-            const key = entry.name.replace(mimeInfo.ext, "").toLowerCase();
-            const path = normalizePath(await join(folderPath, entry.name));
-            thumbnailMap.set(key, {
-              path,
-              mimeType: mimeInfo.mime,
-            });
-          }
-        }
-      }
+    console.log(
+      `[fsOps|loadLocalMapsSimple] Raw entries received from Rust (${entriesFromRust.length}):`,
+      JSON.parse(JSON.stringify(entriesFromRust))
+    );
+    const docDir = await getDocumentDir();
+    if (!docDir) {
+      throw new Error("Failed to get document directory path.");
     }
 
-    const filteredEntries = entries.filter(
-      (entry) =>
-        entry.isDirectory ||
-        !excludedFileExts.some((ext) => entry.name.toLowerCase().endsWith(ext))
-    );
-
-    const mapEntries = await Promise.all(
-      filteredEntries.map(async (entry): Promise<LocalMapEntry> => {
-        const enriched: LocalMapEntry = { ...entry };
-        const fullPath = normalizePath(await join(folderPath, entry.name));
-        try {
-          const statInfo = await stat(fullPath, {
-            baseDir: BaseDirectory.Document,
-          });
-          enriched.size = statInfo.size;
-          enriched.modified = statInfo.birthtime
-            ? new Date(statInfo.birthtime as string | number | Date).getTime()
-            : 0;
-        } catch {}
-        const key = entry.isDirectory
-          ? entry.name.toLowerCase()
-          : entry.name.replace(/\.[^/.]+$/, "").toLowerCase();
-
-        if (thumbnailMap.has(key)) {
-          const { path, mimeType } = thumbnailMap.get(key)!;
-          enriched.thumbnailPath = path;
-          enriched.thumbnailMimeType = mimeType;
+    const processedEntries = entriesFromRust.map((entry, index) => {
+      let relativeThumbnailPath: string | null = null;
+      if (entry?.thumbnail_path) {
+        const normalizedThumbPath = normalizePath(entry.thumbnail_path);
+        if (normalizedThumbPath.startsWith(docDir)) {
+          relativeThumbnailPath = normalizedThumbPath
+            .substring(docDir.length)
+            .replace(/^[\/\\]/, "");
+        } else {
+          console.warn(
+            `[fsOps|loadLocalMapsSimple] Thumbnail path ${normalizedThumbPath} is outside document directory ${docDir}. Using absolute.`
+          );
+          relativeThumbnailPath = normalizedThumbPath;
         }
+      }
+      if (entry == null || entry.path == null || entry.path === "") {
+        console.error(
+          `[fsOps|loadLocalMapsSimple] !!! CRITICAL ERROR !!! Entry [${index}] from Rust missing 'path'!`,
+          JSON.parse(JSON.stringify(entry))
+        );
+      }
+      if (entry == null || entry.name === undefined) {
+        console.warn(
+          `[fsOps|loadLocalMapsSimple] Entry [${index}] missing 'name'.`,
+          JSON.parse(JSON.stringify(entry))
+        );
+      }
 
-        return enriched;
-      })
-    );
-
-    return mapEntries;
-  } catch (error) {
-    handleError(error, `loading local maps from ${mapsFolder}`);
-    return [];
-  }
-}
-
-export async function loadEntries(
-  currentPath: string
-): Promise<(TauriDirEntry & { size?: number })[]> {
-  try {
-    const entries = await readDir(currentPath, {
-      baseDir: BaseDirectory.Document,
+      const processedEntry: FsEntry = {
+        name: entry?.name ?? null,
+        path: normalizePath(entry?.path),
+        isDirectory: entry?.is_directory ?? false,
+        size: entry?.size ?? null,
+        modified: entry?.modified ?? null,
+        thumbnailPath: normalizePath(entry?.thumbnail_path),
+        thumbnailMimeType: entry?.thumbnail_mime_type ?? null,
+        relativeThumbnailPath: normalizePath(relativeThumbnailPath),
+      };
+      return processedEntry;
     });
-    const enriched = await Promise.all(
-      entries.map(async (entry) => {
-        if (!entry.isDirectory) {
-          try {
-            const filePath = await join(currentPath, entry.name);
-            const statInfo = await stat(filePath, {
-              baseDir: BaseDirectory.Document,
-            });
-            return { ...entry, size: statInfo.size };
-          } catch (e) {
-            console.error("Error retrieving stat for", entry.name, e);
-          }
-        }
-        return entry;
-      })
+
+    console.log(
+      `[fsOps|loadLocalMapsSimple] Final processed entries array (${processedEntries.length}):`,
+      JSON.parse(JSON.stringify(processedEntries))
     );
-    return enriched.sort((a, b) =>
-      a.isDirectory === b.isDirectory
-        ? a.name.localeCompare(b.name)
-        : a.isDirectory
-        ? -1
-        : 1
-    );
+    const finalHasMissingPaths = processedEntries.some((e) => !e.path);
+    if (finalHasMissingPaths) {
+      console.error(
+        `[fsOps|loadLocalMapsSimple] !!! FINAL CHECK FAILED !!! Missing 'path'!`,
+        processedEntries.filter((e) => !e.path)
+      );
+    }
+    return processedEntries;
   } catch (error) {
-    handleError(error, "reading directory");
+    handleError(error, `loading local maps via Rust from ${relativeMapsPath}`);
     return [];
   }
 }
 
-export const openDirectory = async (
-  currentPath: string,
-  dirName: string
-): Promise<string> => normalizePath(`${currentPath}/${dirName}`);
+// *** UPDATED loadEntries ***
+export async function loadEntries(
+  absolutePath: string // Expect absolute path from explorerStore
+): Promise<FsEntry[]> {
+  try {
+    // Directly use the absolute path provided
+    const normalizedAbsPath = normalizePath(absolutePath);
+    if (!normalizedAbsPath) {
+      throw new Error("Provided absolute path is empty or invalid.");
+    }
 
-export const goUp = async (currentPath: string): Promise<string> => {
-  const norm = normalizePath(currentPath);
-  return norm === baseFolder ? norm : norm.split("/").slice(0, -1).join("/");
-};
+    console.log(
+      `[fsOps|loadEntries] Invoking list_directory_entries for ABSOLUTE path: ${normalizedAbsPath}`
+    );
 
+    // *** Pass the absolute path directly to the Rust command ***
+    const entriesFromRust = await invoke<any[]>("list_directory_entries", {
+      absolutePath: normalizedAbsPath, // Match the parameter name in Rust command definition
+    });
+
+    console.log(
+      `[fsOps|loadEntries] Raw entries received from Rust (${entriesFromRust.length}):`,
+      JSON.parse(JSON.stringify(entriesFromRust))
+    );
+
+    const processedEntries = entriesFromRust.map((entry, index) => {
+      if (entry == null || entry.path == null || entry.path === "") {
+        console.error(
+          `[fsOps|loadEntries] !!! CRITICAL ERROR !!! Entry [${index}] from Rust missing 'path'!`,
+          JSON.parse(JSON.stringify(entry))
+        );
+      }
+      if (entry == null || entry.name === undefined) {
+        console.warn(
+          `[fsOps|loadEntries] Entry [${index}] missing 'name'.`,
+          JSON.parse(JSON.stringify(entry))
+        );
+      }
+
+      const processedEntry: FsEntry = {
+        name: entry?.name ?? null,
+        path: normalizePath(entry?.path), // Path from Rust is already absolute
+        isDirectory: entry?.is_directory ?? false,
+        size: entry?.size ?? null,
+        modified: entry?.modified ?? null,
+        thumbnailPath: null,
+        thumbnailMimeType: null,
+      };
+      return processedEntry;
+    });
+
+    console.log(
+      `[fsOps|loadEntries] Final processed entries array (${processedEntries.length}):`,
+      JSON.parse(JSON.stringify(processedEntries))
+    );
+    const finalHasMissingPaths = processedEntries.some((e) => !e.path);
+    if (finalHasMissingPaths) {
+      console.error(
+        `[fsOps|loadEntries] !!! FINAL CHECK FAILED !!! Missing 'path'!`,
+        processedEntries.filter((e) => !e.path)
+      );
+    }
+    return processedEntries;
+  } catch (error) {
+    // Make error message clearer
+    handleError(
+      error,
+      `reading directory contents via Rust for ${absolutePath}`
+    );
+    return [];
+  }
+}
+
+// --- CRUD functions still require RELATIVE paths for Rust commands ---
 export async function createFolder(
-  currentPath: string,
+  currentRelativePath: string,
   folderName: string
 ): Promise<void> {
   try {
-    await mkdir(normalizePath(`${currentPath}/${folderName}`), {
-      baseDir: BaseDirectory.Document,
-    });
+    const newFolderPath = normalizePath(
+      await join(currentRelativePath, folderName)
+    );
+    await invoke("create_directory_rust", { relativePath: newFolderPath });
   } catch (error) {
-    handleError(error, "creating new folder");
+    handleError(error, `creating folder "${folderName}" via Rust`);
+    throw error;
   }
 }
 
 export async function createFile(
-  currentPath: string,
+  currentRelativePath: string,
   fileName: string
 ): Promise<void> {
   try {
-    await create(normalizePath(`${currentPath}/${fileName}`), {
-      baseDir: BaseDirectory.Document,
-    });
+    const newFilePath = normalizePath(
+      await join(currentRelativePath, fileName)
+    );
+    await invoke("create_empty_file_rust", { relativePath: newFilePath });
   } catch (err) {
-    handleError(err, "creating new file");
+    handleError(err, `creating file "${fileName}" via Rust`);
+    throw err;
   }
 }
 
 export async function renameEntry(
-  currentPath: string,
+  currentRelativePath: string,
   oldName: string,
   newName: string
 ): Promise<void> {
-  if (!newName) return;
+  if (!newName || oldName === newName) return;
   try {
-    const docDir = await documentDir();
-    if (!docDir) throw new Error("Document directory not found");
-
-    const oldAbsPath = normalizePath(await join(docDir, currentPath, oldName));
-    const newAbsPath = normalizePath(await join(docDir, currentPath, newName));
-
-    await rename(oldAbsPath, newAbsPath);
+    await invoke("rename_fs_entry_rust", {
+      relativeDirPath: normalizePath(currentRelativePath),
+      oldName: oldName,
+      newName: newName,
+    });
   } catch (error) {
-    handleError(error, "renaming entry");
+    handleError(error, `renaming "${oldName}" to "${newName}" via Rust`);
+    throw error;
   }
 }
 
 export async function deleteEntry(
-  currentPath: string,
+  currentRelativePath: string,
   name: string
 ): Promise<boolean> {
   try {
-    const pathToDelete = await join(currentPath, name);
-    await remove(pathToDelete, {
-      baseDir: BaseDirectory.Document,
-      recursive: true,
-    });
+    const itemPathToDelete = normalizePath(
+      await join(currentRelativePath, name)
+    );
+    await invoke("delete_fs_entry_rust", { relativePath: itemPathToDelete });
     return true;
   } catch (error) {
-    handleError(error, "deleting entry");
-    throw error;
+    handleError(error, `deleting "${name}" via Rust`);
+    return false;
   }
 }

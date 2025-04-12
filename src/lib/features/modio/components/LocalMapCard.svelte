@@ -1,67 +1,69 @@
 <!-- src/lib/components/LocalMapCard.svelte -->
 <script lang="ts">
-  import type { LocalMapEntry } from "$lib/ts/fsOperations";
+  import type { FsEntry } from "$lib/ts/fsOperations";
   import GenericCard from "./GenericCard.svelte";
-  import { documentDir, join } from "@tauri-apps/api/path";
   import { readFile, exists, BaseDirectory } from "@tauri-apps/plugin-fs";
   import { revealItemInDir } from "@tauri-apps/plugin-opener";
-  import { baseFolder } from "$lib/ts/fsOperations";
-  import { normalizePath } from "$lib/ts/pathUtils";
-  import { createEventDispatcher, onMount, tick } from "svelte"; // onDestroy removed, tick added
+  import { createEventDispatcher, onMount, tick } from "svelte";
+  import { formatFileSize } from "$lib/utils/formatter"; // Corrected import path
 
-  export let localMap: LocalMapEntry;
+  export let localMap: FsEntry;
   const dispatch = createEventDispatcher();
 
-  const relativeMapsFolder = normalizePath(`${baseFolder}/Maps`);
+  console.log(`[LocalMapCard] Received localMap prop:`, JSON.parse(JSON.stringify(localMap ?? {error: 'localMap prop is null/undefined'})));
 
   let blobUrl = "";
   let isLoadingUrl = false;
   let observer: IntersectionObserver;
   let cardElement: HTMLElement;
   let isVisible = false;
-  // Track the path we last successfully loaded or failed permanently loading
-  let processedPath: string | undefined | null = null;
+  let processedThumbnailPath: string | undefined | null = null;
+  $: canPerformActions = !!localMap?.path;
 
-  // --- Reactive Loading Trigger ---
-  // This runs whenever isVisible or localMap.thumbnailPath changes.
-  $: if (isVisible && localMap.thumbnailPath && localMap.thumbnailPath !== processedPath && !isLoadingUrl) {
-      console.log(`[${localMap.name}] Reactive trigger: Path available (${localMap.thumbnailPath}), component visible.`);
-      // Use tick to ensure Svelte updates are flushed before async load
+  $: if (isVisible && localMap?.relativeThumbnailPath && localMap.relativeThumbnailPath !== processedThumbnailPath && !isLoadingUrl) {
+      console.log(`[${localMap.name}] Reactive trigger: Relative thumbnail path available (${localMap.relativeThumbnailPath}), component visible.`);
       tick().then(() => {
-          // Double-check conditions within the async context in case state changed rapidly
-          if (isVisible && localMap.thumbnailPath && localMap.thumbnailPath !== processedPath && !isLoadingUrl) {
-              loadImageData(localMap.thumbnailPath, localMap.thumbnailMimeType);
+          if (isVisible && localMap?.relativeThumbnailPath && localMap.relativeThumbnailPath !== processedThumbnailPath && !isLoadingUrl) {
+              loadImageData(
+                  localMap.relativeThumbnailPath,
+                  localMap.thumbnailMimeType ?? undefined
+              );
           }
       });
   }
 
-  // --- Reset on Map Change ---
-  // If the component is reused for a different map, reset state.
-  $: if (localMap?.name && blobUrl && localMap.thumbnailPath !== processedPath) {
-      console.log(`[${localMap.name}] Map data changed, resetting blobUrl and processedPath.`);
-      URL.revokeObjectURL(blobUrl);
+  $: if (localMap?.name && blobUrl && localMap?.relativeThumbnailPath !== processedThumbnailPath) {
+      console.log(`[${localMap.name}] Map data changed (or relativeThumbnailPath changed), resetting blobUrl and processedThumbnailPath.`);
+      if (blobUrl && blobUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(blobUrl);
+      }
       blobUrl = "";
-      processedPath = null; // Allow reloading if the new map becomes visible
-      isLoadingUrl = false; // Reset loading state
-      // The reactive block above will trigger loading if needed for the new map
+      processedThumbnailPath = null;
+      isLoadingUrl = false;
   }
 
   async function loadImageData(relativePath: string | undefined, mimeType: string | undefined) {
-    // Guard against invalid inputs or re-entry
+    if (!localMap) {
+        console.warn("loadImageData called but localMap is undefined/null.");
+        return;
+    }
     if (!relativePath || !mimeType) {
-      console.warn(`[${localMap.name}] loadImageData called with invalid path/mime.`);
+      console.warn(`[${localMap.name}] loadImageData called with invalid relative path/mime.`);
       return;
+    }
+    if (localMap.relativeThumbnailPath !== relativePath) {
+        console.warn(`[${localMap.name}] loadImageData called but map's relativeThumbnailPath changed. Aborting load for ${relativePath}`);
+        return;
     }
     if (isLoadingUrl) {
         console.warn(`[${localMap.name}] loadImageData called while already loading.`);
         return;
     }
 
-    console.log(`[${localMap.name}] loadImageData: Attempting load for path: ${relativePath}`);
+    console.log(`[${localMap.name}] loadImageData: Attempting load for relative path: ${relativePath}`);
     isLoadingUrl = true;
-    processedPath = relativePath; // Mark this path as being processed
+    processedThumbnailPath = relativePath;
 
-    // Clear previous blob if any exists (should be handled by reset logic, but safe)
     if (blobUrl && blobUrl.startsWith("blob:")) {
         URL.revokeObjectURL(blobUrl);
         blobUrl = "";
@@ -74,34 +76,40 @@
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
-        await tick(); // Allow UI updates
-        await new Promise(res => setTimeout(res, 50)); // Brief pause for FS
+        await tick();
+        await new Promise(res => setTimeout(res, 50));
 
-        console.log(`[${localMap.name}] Attempt ${attempt + 1}: Checking existence: ${relativePath}`);
+        console.log(`[${localMap.name}] Attempt ${attempt + 1}: Checking existence relative to Documents: ${relativePath}`);
         const fileExists = await exists(relativePath, { baseDir: BaseDirectory.Document });
+        console.log(`[${localMap.name}] Exists check for '${relativePath}' (relative to Docs): ${fileExists}`);
+
 
         if (fileExists) {
           console.log(`[${localMap.name}] Attempt ${attempt + 1}: File exists, reading...`);
           const binaryData = await readFile(relativePath, { baseDir: BaseDirectory.Document });
 
-          // Context check BEFORE creating blob
-          if (cardElement && localMap?.thumbnailPath === relativePath) {
+          if (cardElement && localMap?.relativeThumbnailPath === relativePath) {
               const blob = new Blob([binaryData], { type: mimeType });
               blobUrl = URL.createObjectURL(blob);
               console.log(`[${localMap.name}] Attempt ${attempt + 1}: Success, blob created.`);
               success = true;
               break;
           } else {
-               console.warn(`[${localMap.name}] Attempt ${attempt + 1}: Context changed during read. Aborting.`);
-               success = false; // Ensure failure if context changed
-               processedPath = null; // Allow retry if context becomes valid again later? Maybe not needed.
+               console.warn(`[${localMap.name}] Attempt ${attempt + 1}: Context changed during read (map.relativeThumbnailPath is now ${localMap?.relativeThumbnailPath}). Aborting blob creation.`);
+               success = false;
+               processedThumbnailPath = null;
                break;
           }
         } else {
-          console.warn(`[${localMap.name}] Attempt ${attempt + 1}: File not found.`);
+          console.warn(`[${localMap.name}] File NOT found at relative path: ${relativePath}`);
+          console.warn(`[${localMap.name}] Attempt ${attempt + 1}: File not found at relative path ${relativePath}`);
         }
-      } catch (err) {
-        console.error(`[${localMap.name}] Attempt ${attempt + 1}: Error loading image`, err);
+      } catch (err: any) {
+        console.error(`[${localMap.name}] Attempt ${attempt + 1}: Error loading image for ${relativePath}`, err);
+        if (err?.message?.includes("os error 2") || err?.message?.includes("failed to read file")) {
+            console.warn(`[${localMap.name}] File likely permanently missing. Stopping retries for ${relativePath}.`);
+            break;
+        }
       }
 
       if (!success && attempt < MAX_RETRIES - 1) {
@@ -111,58 +119,48 @@
       }
     }
 
-    isLoadingUrl = false; // Loading finished
-    if (!success && cardElement && localMap?.thumbnailPath === relativePath) {
+    isLoadingUrl = false;
+
+    if (!success && cardElement && localMap?.relativeThumbnailPath === relativePath) {
          console.error(`[${localMap.name}] Failed to load image ${relativePath} after ${MAX_RETRIES} attempts.`);
-         // Keep processedPath set so we don't retry indefinitely via reactivity
     } else if (!success) {
-         // Failed due to context change or other issue
-         processedPath = null; // Reset so it might retry if props align later
+         processedThumbnailPath = null;
     }
   }
 
   onMount(() => {
     observer = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
-          // Simply track visibility state
           const currentlyVisible = entry.isIntersecting;
           if (currentlyVisible !== isVisible) {
                console.log(`[${localMap?.name}] Visibility changed to: ${currentlyVisible}`);
                isVisible = currentlyVisible;
-               // Reactive block $: will handle triggering load if needed
           }
       });
-    }, { threshold: 0.1 }); // Adjust threshold if needed
+    }, { threshold: 0.1 });
 
     if (cardElement) {
       observer.observe(cardElement);
     }
 
-    // Cleanup
     return () => {
       observer?.disconnect();
       if (blobUrl && blobUrl.startsWith("blob:")) {
-        console.log(`[${localMap?.name}] Revoking blob URL on destroy`);
+        console.log(`[${localMap?.name}] Revoking blob URL on component destroy/unmount`);
         URL.revokeObjectURL(blobUrl);
         blobUrl = "";
       }
     };
   });
 
-  // Standard utility functions (no changes needed)
-  function formatFileSize(bytes: number | undefined): string {
-    if (!bytes || bytes === 0) return "0 B";
-    const k = 1024;
-    const sizes = ["B", "KB", "MB", "GB", "TB"];
-    const i = bytes > 0 ? Math.floor(Math.log(bytes) / Math.log(k)) : 0;
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
-  }
-
   async function openInExplorer(e: MouseEvent) {
+    if (!localMap?.path) {
+        console.error("[LocalMapCard Error] Cannot open in explorer, localMap or localMap.path is missing. Prop value:", JSON.parse(JSON.stringify(localMap ?? {})));
+        return;
+    }
     try {
-      const docDir = await documentDir();
-      const fullPath = normalizePath(await join(docDir, relativeMapsFolder, localMap.name));
-      await revealItemInDir(fullPath);
+      console.log(`[LocalMapCard] Revealing item: ${localMap.path}`);
+      await revealItemInDir(localMap.path);
     } catch (error) {
       console.error("Error using opener plugin:", error);
     }
@@ -170,28 +168,36 @@
 
   function triggerDelete(e: MouseEvent) {
     e.stopPropagation();
-    dispatch("requestDelete", { name: localMap.name });
+    if (!localMap?.path) {
+         console.error("[LocalMapCard Error] Cannot trigger delete, localMap or localMap.path is missing. Prop value:", JSON.parse(JSON.stringify(localMap ?? {})));
+         return;
+    }
+    console.log(`[LocalMapCard] Dispatching requestDelete for path: ${localMap.path}`);
+    dispatch("requestDelete", { path: localMap.path, name: localMap.name });
   }
 </script>
 
-<!-- Template -->
 <div bind:this={cardElement} class="relative flex-shrink-0 w-80 aspect-video">
   <GenericCard
     imageUrl={blobUrl}
-    fallbackIcon={localMap.isDirectory ? "📁" : "📄"}
-    badgeText={!localMap.isDirectory ? formatFileSize(localMap.size) : ""}
-    title={localMap.name}>
+    fallbackIcon={localMap?.isDirectory ? "📁" : "📄"}
+    badgeText={localMap?.size != null ? formatFileSize(localMap.size) : ""}
+    title={localMap?.name ?? 'Unnamed'} >
     <span slot="overlay">
       <button
         class="btn btn-secondary btn-sm pointer-events-auto"
         on:click|preventDefault|stopPropagation={openInExplorer}
-        title="Open in File Explorer">
+        title="Open in File Explorer"
+        disabled={!canPerformActions}
+        >
         Open
       </button>
       <button
         class="btn btn-error btn-sm pointer-events-auto"
         on:click|preventDefault|stopPropagation={triggerDelete}
-        title="Delete Local Map">
+        title="Delete Local Map"
+        disabled={!canPerformActions}
+        >
         Delete
       </button>
     </span>

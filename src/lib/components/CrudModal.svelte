@@ -1,69 +1,79 @@
-<!-- src/lib/components/CrudModal.svelte -->
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  import { modalStore, closeModal } from '$lib/stores/modalStore';
+  import type { ModalProps } from '$lib/stores/modalStore';
+  import { onDestroy } from 'svelte';
 
-  // Props for modal configuration.
-  export let open: boolean = false;
-  export let title: string = "";
-  export let message: string = ""; 
-  export let placeholder: string = "";
-  export let initialValue: string = "";
-  export let confirmOnly: boolean = false;
+  let currentProps: ModalProps;
+  const unsubscribe = modalStore.subscribe((value: ModalProps) => {
+    currentProps = value;
+  });
 
-  const dispatch = createEventDispatcher();
+  onDestroy(unsubscribe);
 
-  let inputValue = initialValue;
-
-  // Reset the input when the modal opens.
-  $: if (open) {
-    inputValue = initialValue;
+  function handleSave() {
+    currentProps.onSave?.(currentProps.inputValue ?? "");
+    closeModal();
   }
 
-  function save() {
-    // If confirmOnly, dispatch with an empty value.
-    dispatch("save", { value: confirmOnly ? "" : inputValue });
-    open = false;
-  }
-
-  function cancel() {
-    dispatch("cancel");
-    open = false;
+  function handleCancel() {
+    currentProps.onCancel?.();
+    closeModal();
   }
 
   function handleKeydown(event: KeyboardEvent) {
-    if (!confirmOnly && event.key === "Enter") {
+    if (!currentProps.confirmOnly && event.key === "Enter") {
       event.preventDefault();
-      save();
+      handleSave();
+    } else if (event.key === 'Escape') {
+      handleCancel();
     }
   }
+
+  $: inputValue = currentProps.inputValue;
+  function handleInput(event: Event) {
+    const target = event.target as HTMLInputElement;
+    modalStore.update((state: ModalProps) => ({ ...state, inputValue: target.value }));
+  }
+
 </script>
 
-{#if open}
-  <div class="modal modal-open h-full w-full content-center justify-center">
+{#if currentProps?.open}
+  <!-- svelte-ignore a11y-autofocus -->
+  <dialog class="modal modal-open h-full w-full content-center justify-center" on:close={handleCancel} on:keydown={handleKeydown}>
     <div class="modal-box min-w-md max-w-xl">
-      <button type="button" on:click={cancel} class="btn btn-sm btn-circle absolute right-2 top-2" aria-label="Close modal">
-        ✕
-      </button>
-      <h3 class="text-lg font-bold mb-4">{title}</h3>
+      <button type="button" on:click={handleCancel} class="btn btn-sm btn-circle absolute right-2 top-2" aria-label="Close modal">✕</button>
+      <h3 class="text-lg font-bold mb-4">{currentProps.title}</h3>
 
-      {#if message}
-        <p class="mb-4">{message}</p>
+      {#if currentProps.message}
+        <p class="mb-4 whitespace-pre-wrap">{currentProps.message}</p>
       {/if}
-      
-      {#if !confirmOnly}
+
+      {#if !currentProps.confirmOnly}
         <input
           type="text"
-          placeholder={placeholder}
-          bind:value={inputValue}
-          on:keydown={handleKeydown}
+          placeholder={currentProps.placeholder}
+          value={inputValue ?? ""}
+          on:input={handleInput}
           class="input input-bordered w-full mb-4"
+          autofocus={!currentProps.confirmOnly}
         />
       {/if}
-      
+
       <div class="modal-action">
-        <button type="button" class="btn btn-secondary" on:click={cancel}>Cancel</button>
-        <button type="button" class="btn btn-primary" on:click={save}>OK</button>
+        <button type="button" class="btn btn-ghost" on:click={handleCancel}>
+            {currentProps.cancelText ?? 'Cancel'}
+        </button>
+        <button
+          type="button"
+          class="btn {currentProps.confirmClass ?? (currentProps.confirmOnly ? 'btn-primary' : 'btn-primary')}"
+          on:click={handleSave}
+        >
+            {currentProps.confirmText ?? (currentProps.confirmOnly ? 'Confirm' : 'OK')}
+        </button>
       </div>
     </div>
-  </div>
+     <form method="dialog" class="modal-backdrop">
+       <button type="button" on:click={handleCancel}>close</button>
+     </form>
+  </dialog>
 {/if}

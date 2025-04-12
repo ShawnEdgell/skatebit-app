@@ -1,15 +1,24 @@
+<!-- src/lib/features/modio/components/LocalMapList.svelte -->
 <script lang="ts">
-  import { onMount, onDestroy, createEventDispatcher } from 'svelte';
+  import { onMount, createEventDispatcher } from 'svelte';
   import LocalMapCard from './LocalMapCard.svelte';
-  import type { LocalMapEntry } from '$lib/ts/fsOperations';
-  import { localMapsStore, localMapsInitialized, refreshLocalMaps } from '$lib/stores/localMapsStore';
+  import type { FsEntry } from '$lib/ts/fsOperations';
+  import {
+      localMapsStore,
+      localMapsInitialized,
+      refreshLocalMaps,
+      isLoadingLocalMaps
+  } from '$lib/stores/localMapsStore';
   import { localMapsSearchQuery, localMapsSearchResults } from '$lib/stores/localMapsSearchStore';
-  import { get } from 'svelte/store';
-  import { modalStore } from "$lib/stores/modalStore";
+  import { get, writable } from 'svelte/store';
+  import { modalStore, openModal } from "$lib/stores/modalStore"; // Import openModal
   import { normalizePath } from '$lib/ts/pathUtils';
-  import { baseFolder } from "$lib/ts/fsOperations";
+  import { mapsFolder as mapsFolderStore } from "$lib/stores/mapsFolderStore";
+  import { deleteEntry } from '$lib/ts/fsOperations';
+  import { handleError, handleSuccess } from '$lib/ts/errorHandler';
+  import { documentDir } from '@tauri-apps/api/path';
 
-  export let localMaps: LocalMapEntry[] = [];
+  export let localMaps: FsEntry[] = [];
 
   const dispatch = createEventDispatcher();
   let scrollContainer: HTMLElement;
@@ -18,34 +27,36 @@
   let isDragging = false;
   let startX = 0;
   let scrollLeft = 0;
-  let loading: boolean = true; // Initially set loading to true
 
-  // --- Sorting State ---
   type SortCriteria = 'recent' | 'alphabetical' | 'size';
   let currentSort: SortCriteria = 'recent';
 
-  // --- Reactive Sorted List ---
   $: sortedMaps = [...localMaps].sort((a, b) => {
     if (currentSort === 'alphabetical') {
-      return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+      return (a.name ?? '').localeCompare(b.name ?? '', undefined, { sensitivity: 'base' });
     } else if (currentSort === 'recent') {
       return (b.modified ?? 0) - (a.modified ?? 0);
     } else if (currentSort === 'size') {
-      const sizeA = a.isDirectory ? -1 : (a.size ?? 0);
-      const sizeB = b.isDirectory ? -1 : (b.size ?? 0);
+      const sizeA = a.size ?? 0;
+      const sizeB = b.size ?? 0;
       return sizeB - sizeA;
     }
     return 0;
   });
 
-  // --- Determine Displayed Maps ---
-  // Use search results if a query exists; otherwise, use the sorted maps.
   $: displayMaps = $localMapsSearchQuery.trim() ? $localMapsSearchResults : sortedMaps;
+$: if (displayMaps) {
+    console.log("[Component] Current displayMaps for rendering:", JSON.parse(JSON.stringify(displayMaps)));
+    const hasMissingPaths = displayMaps.some(map => !map?.path);
+    if (hasMissingPaths) {
+        console.error("[Component] !!! ERROR !!! displayMaps contains items with missing paths!");
+        console.warn("[Component] Items with missing paths:", displayMaps.filter(map => !map?.path));
+    }
+}
 
-  // --- Pointer Event Handlers for Drag Scrolling ---
+
   function handlePointerDown(e: PointerEvent) {
-    if ((e.target as HTMLElement).closest('button')) return;
-    e.preventDefault();
+    if ((e.target as HTMLElement).closest('button, a')) return;
     isDragging = true;
     const target = e.currentTarget as HTMLElement;
     target.style.cursor = 'grabbing';
@@ -68,68 +79,100 @@
     target.releasePointerCapture(e.pointerId);
   }
 
-  // Instead of directly deleting the local map, this handler triggers the modal.
-  function handleRequestDelete(event: CustomEvent<{ name: string }>) {
-  const nameToDelete = event.detail.name;
-  modalStore.set({
-    open: true,
-    type: "crud",
-    props: {
-      action: "delete",
-      currentPath: normalizePath(`${baseFolder}/Maps`),
-      currentName: nameToDelete,
-      onConfirm: async () => {
-        // Perform deletion logic here, for example by updating the store.
-        localMapsStore.update((maps) => maps.filter((map) => map.name !== nameToDelete));
-      }
+  const documentDirPathStore = writable<string | null>(null);
+
+  async function handleRequestDelete(event: CustomEvent<{ path: string; name: string | null }>) {
+    const pathToDelete = event.detail.path;
+    const nameToDelete = event.detail.name ?? 'this item';
+
+    if (!pathToDelete) {
+        handleError("Cannot delete item: Path is missing.", "Delete Operation");
+        return;
     }
-  });
-  } 
+
+    const docDir = get(documentDirPathStore);
+    if (!docDir) {
+        handleError("Cannot determine document directory.", "Delete Operation");
+        return;
+    }
+
+    const normalizedDocDir = normalizePath(docDir);
+    const normalizedPathToDelete = normalizePath(pathToDelete);
+
+    if (!normalizedPathToDelete.startsWith(normalizedDocDir)) {
+        handleError(`Path is outside the document directory: ${pathToDelete}`, "Delete Operation");
+        return;
+    }
+
+    const relativePathToDelete = normalizedPathToDelete.substring(normalizedDocDir.length).replace(/^\//, '');
+    const pathParts = relativePathToDelete.split('/');
+    const itemName = pathParts.pop();
+    const parentRelativePath = pathParts.join('/');
+
+
+    if (itemName === undefined) {
+         handleError(`Could not derive item name for deletion: ${pathToDelete}`, "Delete Operation");
+         return;
+    }
+
+    openModal({
+        title: "Confirm Deletion",
+        message: `Are you sure you want to permanently delete "${nameToDelete}"?`,
+        confirmOnly: true,
+        onSave: async () => {
+            try {
+                await deleteEntry(parentRelativePath, itemName);
+                handleSuccess(`"${nameToDelete}" deleted successfully.`, "Deletion");
+                await refreshLocalMaps();
+            } catch (error) {
+                console.error("Deletion failed.");
+            }
+        },
+    });
+  }
+
+
+  let storeSubscription: (() => void) | null = null;
 
   onMount(() => {
-    let unsubscribeMaps: () => void;
-
     async function initializeComponent() {
-      if (!get(localMapsInitialized)) {
-        loading = true;
-        await refreshLocalMaps();
-        loading = false;
-      } else {
-        loading = false;
-      }
-      unsubscribeMaps = localMapsStore.subscribe((value) => {
+      documentDirPathStore.set(normalizePath(await documentDir()));
+
+      storeSubscription = localMapsStore.subscribe(value => {
         localMaps = value;
       });
 
+      if (!get(localMapsInitialized) && !get(isLoadingLocalMaps)) {
+        await refreshLocalMaps();
+      } else {
+          localMaps = get(localMapsStore);
+      }
+
       observer = new IntersectionObserver(
         (entries) => {
-          if (entries[0]?.isIntersecting && !loading) {
+          if (entries[0]?.isIntersecting && !get(isLoadingLocalMaps)) {
             dispatch('loadMore');
           }
         },
         { root: scrollContainer, threshold: 0.1, rootMargin: '0px 0px 200px 0px' }
       );
-      if (sentinel) observer.observe(sentinel);
-      scrollContainer.addEventListener('pointercancel', handlePointerUp);
+      if (sentinel && scrollContainer) observer.observe(sentinel);
+      scrollContainer?.addEventListener('pointercancel', handlePointerUp);
     }
 
     initializeComponent();
 
     return () => {
-      if (unsubscribeMaps) {
-        unsubscribeMaps();
+      if (storeSubscription) {
+        storeSubscription();
+        storeSubscription = null;
       }
       observer?.disconnect();
       scrollContainer?.removeEventListener('pointercancel', handlePointerUp);
     };
   });
-
-  onDestroy(() => {
-    // Additional cleanup if necessary.
-  });
 </script>
 
-<!-- Local Maps Header: Sorting Controls & Search Bar -->
 <div class="mb-4 flex flex-col md:flex-row items-center justify-between gap-4">
   <div class="flex items-center gap-2 flex-wrap">
     <h2 class="text-2xl mr-2 font-bold">Local Maps</h2>
@@ -137,56 +180,62 @@
       type="button"
       class="badge cursor-pointer transition-colors {currentSort === 'recent' ? 'badge-primary' : 'badge-outline hover:bg-base-content hover:text-base-100 hover:border-base-content'}"
       on:click={() => currentSort = 'recent'}
-      disabled={loading}>
+      disabled={$isLoadingLocalMaps}>
       Most Recent
     </button>
     <button
       type="button"
       class="badge cursor-pointer transition-colors {currentSort === 'alphabetical' ? 'badge-primary' : 'badge-outline hover:bg-base-content hover:text-base-100 hover:border-base-content'}"
       on:click={() => currentSort = 'alphabetical'}
-      disabled={loading}>
+      disabled={$isLoadingLocalMaps}>
       Alphabetical
     </button>
-    <!-- <button
+    <button
       type="button"
       class="badge cursor-pointer transition-colors {currentSort === 'size' ? 'badge-primary' : 'badge-outline hover:bg-base-content hover:text-base-100 hover:border-base-content'}"
       on:click={() => currentSort = 'size'}
-      disabled={loading}>
+      disabled={$isLoadingLocalMaps}>
       Size
-    </button> -->
+    </button>
   </div>
-  <!-- Search Input for Local Maps -->
   <input
     type="text"
-    placeholder="Search local maps by name..."
+    placeholder="Search local maps..."
     bind:value={$localMapsSearchQuery}
-    class="input input-sm w-full max-w-xs"
+    class="input input-sm input-bordered w-full max-w-xs"
+    disabled={$isLoadingLocalMaps}
   />
 </div>
 
-<!-- Local Maps Display -->
-<div class="relative">
-  {#if !loading && displayMaps.length === 0}
-    <!-- Render a full area container instead of inside the scroll container -->
+<div class="relative min-h-[10rem]">
+  {#if $isLoadingLocalMaps && displayMaps.length === 0}
+    <div class="absolute inset-0 flex items-center justify-center p-4 z-10">
+       <span class="loading loading-spinner loading-lg"></span>
+    </div>
+  {:else if !$isLoadingLocalMaps && displayMaps.length === 0}
     <div class="h-51 flex items-center justify-center p-4">
-      <p class="text-xs text-base-content/50 whitespace-nowrap">No local maps found.</p>
+      <p class="text-center text-base-content/60">
+          {#if $localMapsSearchQuery.trim()}
+              No maps found matching '{$localMapsSearchQuery}'.
+          {:else}
+              No local maps found.<br/> Try downloading some!
+          {/if}
+      </p>
     </div>
   {:else}
     <div
       bind:this={scrollContainer}
-      class="flex flex-row gap-4 overflow-x-auto pb-2 select-none touch-none scrollbar-thin h-full"
-      class:cursor-grabbing={isDragging}
-      class:cursor-grab={!isDragging}
+      class="flex flex-row gap-4 overflow-x-auto pb-2 select-none touch-pan-x scrollbar-thin h-full {isDragging ? 'cursor-grabbing' : 'cursor-grab'}"
       role="list"
       on:pointerdown={handlePointerDown}
       on:pointermove={handlePointerMove}
       on:pointerup={handlePointerUp}
-      style="cursor: grab;">
-      {#each displayMaps as map, i (map.name + '-' + i)}
-        <!-- Note: Listen for our custom event "requestDelete" -->
+      on:pointerleave={handlePointerUp}
+      >
+      {#each displayMaps as map, i (map.path ?? map.name ?? i)}
         <LocalMapCard localMap={map} on:requestDelete={handleRequestDelete} />
       {/each}
-      <div bind:this={sentinel} class="flex-shrink-0 grid place-content-center p-4 min-w-[50px] h-full"></div>
+      <div bind:this={sentinel} class="flex-shrink-0 w-[1px] h-full"></div>
     </div>
   {/if}
 </div>
