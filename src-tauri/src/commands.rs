@@ -1,25 +1,25 @@
 use std::{
     collections::HashSet,
     ffi::OsStr,
-    fs::{self, File, remove_file},
+    fs::{self, remove_file, File},
     io::copy,
     path::Path,
 };
 
 use directories::UserDirs;
+use tauri::Emitter;
 use tauri::{command, AppHandle};
-use tauri::Emitter; 
+use tokio::task;
 use uuid::Uuid;
 use zip::ZipArchive;
-use tokio::task;
 
 /// Extracts a ZIP file into a clean subfolder inside the maps folder
 #[command]
 pub fn unzip_file(zip_path: String, maps_folder: String) -> Result<(), String> {
     let zip_file = File::open(&zip_path)
         .map_err(|e| format!("Failed to open zip file {}: {}", zip_path, e))?;
-    let mut archive = ZipArchive::new(zip_file)
-        .map_err(|e| format!("Failed to read zip archive: {}", e))?;
+    let mut archive =
+        ZipArchive::new(zip_file).map_err(|e| format!("Failed to read zip archive: {}", e))?;
 
     let mut top_levels = HashSet::new();
     let mut fallback_name: Option<String> = None;
@@ -54,8 +54,13 @@ pub fn unzip_file(zip_path: String, maps_folder: String) -> Result<(), String> {
     };
 
     let target_dir = Path::new(&maps_folder).join(&folder_name);
-    fs::create_dir_all(&target_dir)
-        .map_err(|e| format!("Failed to create map folder {}: {}", target_dir.display(), e))?;
+    fs::create_dir_all(&target_dir).map_err(|e| {
+        format!(
+            "Failed to create map folder {}: {}",
+            target_dir.display(),
+            e
+        )
+    })?;
 
     for i in 0..archive.len() {
         let mut file = archive.by_index(i).map_err(|e| e.to_string())?;
@@ -83,13 +88,13 @@ pub fn unzip_file(zip_path: String, maps_folder: String) -> Result<(), String> {
                 .map_err(|e| format!("Failed to create file {:?}: {}", outpath, e))?;
             copy(&mut file, &mut outfile)
                 .map_err(|e| format!("Failed to copy file to {:?}: {}", outpath, e))?;
-            outfile.sync_all()
+            outfile
+                .sync_all()
                 .map_err(|e| format!("Failed to sync file {:?}: {}", outpath, e))?;
         }
     }
 
-    remove_file(&zip_path)
-        .map_err(|e| format!("Failed to remove zip file: {}", e))?;
+    remove_file(&zip_path).map_err(|e| format!("Failed to remove zip file: {}", e))?;
 
     Ok(())
 }
@@ -113,20 +118,30 @@ pub async fn download_and_install(
     app_handle: AppHandle,
 ) -> Result<(), String> {
     let user_dirs = UserDirs::new().ok_or("Could not determine user directories".to_string())?;
-    let documents = user_dirs.document_dir().ok_or("Could not determine the documents directory".to_string())?;
+    let documents = user_dirs
+        .document_dir()
+        .ok_or("Could not determine the documents directory".to_string())?;
     let maps_folder = documents.join(&destination);
-    fs::create_dir_all(&maps_folder)
-        .map_err(|e| format!("Failed to create destination directory {:?}: {}", maps_folder, e))?;
+    fs::create_dir_all(&maps_folder).map_err(|e| {
+        format!(
+            "Failed to create destination directory {:?}: {}",
+            maps_folder, e
+        )
+    })?;
 
     let response = reqwest::get(&url)
         .await
         .map_err(|e| format!("Failed to download from {}: {}", url, e))?;
     if !response.status().is_success() {
-        return Err(format!("Download failed with HTTP status {}", response.status()));
+        return Err(format!(
+            "Download failed with HTTP status {}",
+            response.status()
+        ));
     }
 
     let headers = response.headers().clone();
-    let bytes = response.bytes()
+    let bytes = response
+        .bytes()
         .await
         .map_err(|e| format!("Failed to read bytes: {}", e))?;
 
@@ -151,11 +166,17 @@ pub async fn download_and_install(
         .await
         .unwrap_or_else(|e| Err(format!("Unzip task panicked: {}", e)))
     } else {
-        let filename = headers.get("content-disposition")
+        let filename = headers
+            .get("content-disposition")
             .and_then(|v| v.to_str().ok())
             .and_then(|content| content.split("filename=").nth(1))
             .map(|s| s.trim_matches('"').to_string())
-            .unwrap_or_else(|| url.split('/').last().unwrap_or("downloaded_file").to_string());
+            .unwrap_or_else(|| {
+                url.split('/')
+                    .last()
+                    .unwrap_or("downloaded_file")
+                    .to_string()
+            });
 
         let file_path = maps_folder.join(filename);
         let result = save_file(file_path.to_string_lossy().to_string(), bytes.to_vec());

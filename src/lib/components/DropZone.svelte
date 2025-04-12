@@ -4,7 +4,6 @@
   import { handleDroppedPaths } from '$lib/ts/dragDrop';
   import { baseFolder } from '$lib/ts/fsOperations';
   import { normalizePath } from '$lib/ts/pathUtils';
-  import { toastStore } from '$lib/stores/toastStore';
   // Import the refresh function from your local maps store.
   import { refreshLocalMaps } from '$lib/stores/localMapsStore';
 

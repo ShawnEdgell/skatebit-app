@@ -18,7 +18,7 @@
   }
 </script>
 
-<div class="overflow-y-auto h-96 bg-base-200 w-full p-2 rounded-box relative">
+<div class="overflow-y-auto h-114 bg-base-200 w-full p-2 rounded-box relative">
 
   {#if loading}
     <!-- Loading Indicator -->
@@ -43,7 +43,7 @@
                 <span class="truncate flex-1">{entry.name}</span>
               </button>
             {:else}
-              <div class="flex items-center flex-1 min-w-0 gap-3 cursor-pointer" title={entry.name}>
+              <div class="flex items-center flex-1 min-w-0 gap-3 text-left px-2 py-1 cursor-pointer" title={entry.name}>
                  <span class="text-xl text-base-content text-opacity-80">📄</span>
                  <span class="truncate flex-1">{entry.name}</span>
                  {#if entry.size != null}

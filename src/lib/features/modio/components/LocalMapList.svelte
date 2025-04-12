@@ -138,7 +138,7 @@
       class="badge cursor-pointer transition-colors {currentSort === 'recent' ? 'badge-primary' : 'badge-outline hover:bg-base-content hover:text-base-100 hover:border-base-content'}"
       on:click={() => currentSort = 'recent'}
       disabled={loading}>
-      Recent
+      Most Recent
     </button>
     <button
       type="button"
@@ -147,13 +147,13 @@
       disabled={loading}>
       Alphabetical
     </button>
-    <button
+    <!-- <button
       type="button"
       class="badge cursor-pointer transition-colors {currentSort === 'size' ? 'badge-primary' : 'badge-outline hover:bg-base-content hover:text-base-100 hover:border-base-content'}"
       on:click={() => currentSort = 'size'}
       disabled={loading}>
       Size
-    </button>
+    </button> -->
   </div>
   <!-- Search Input for Local Maps -->
   <input

@@ -124,8 +124,12 @@
   }
 </script>
 
-<div class="space-y-4 w-full">
-  <TabSwitcher {tabs} currentPath={$currentPath} baseFolder={baseFolder} onSwitchTab={handleSwitchTab} />
+<DropOverlay show={isDraggingOverZone} />
+
+<div class="flex h-full">
+<TabSwitcher {tabs} currentPath={$currentPath} baseFolder={baseFolder} onSwitchTab={handleSwitchTab} />
+<div class="space-y-4 w-full mt-4 px-4">
+
   <PathHeader currentPath={$currentPath} baseFolder={baseFolder} onGoBack={goUp} />
   <FileList
     entries={$entries}
@@ -137,5 +141,4 @@
   <input type="file" multiple bind:this={fileInput} on:change={handleFileChange} class="hidden" />
   <FileActions onNewFolder={onNewFolder} onNewFile={onNewFile} onUpload={handleUpload} />
 </div>
-
-<DropOverlay show={isDraggingOverZone} />
+</div>

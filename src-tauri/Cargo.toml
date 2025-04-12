@@ -1,8 +1,8 @@
 [package]
-name = "tauri-app"
-version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
+name = "XLFM"
+version = "1.0.0"
+description = "Skater XL File Manager"
+authors = ["Milky"]
 edition = "2021"
 
 [lib]

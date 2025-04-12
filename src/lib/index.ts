@@ -6,7 +6,6 @@ export * from "./ts/errorHandler";
 export * from "./ts/fsOperations";
 export * from "./ts/modApi";
 export * from "./ts/modUtils";
-export * from "./ts/pathUtils";
 
 export { default as DropZone } from "./components/DropZone.svelte";
 export { default as NavBar } from "./components/NavBar.svelte";

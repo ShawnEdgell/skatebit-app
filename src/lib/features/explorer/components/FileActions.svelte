@@ -5,8 +5,8 @@
   export let onUpload: () => void;
 </script>
 
-<div class="flex flex-wrap gap-2">
+<div class="flex flex-wrap gap-2 w-full items-center">
   <button class="btn btn-success btn-xs" on:click={onNewFolder}>📁 New Folder</button>
   <button class="btn btn-info btn-xs" on:click={onNewFile}>📄 New File</button>
-  <button class="btn btn-soft btn-xs" on:click={onUpload}>📤 Upload File</button>
+  <button class="btn btn-base btn-xs" on:click={onUpload}>📤 Upload File</button>
 </div>

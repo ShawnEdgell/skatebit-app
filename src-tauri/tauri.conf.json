@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "XL File Manager",
-  "version": "0.1.0",
+  "productName": "XLFM",
+  "version": "1.0.0",
   "identifier": "com.tauri-app.app",
   "build": {
     "beforeDevCommand": "bun run dev",
@@ -21,11 +21,12 @@
         "height": 640,
         "label": "main",
         "transparent": false,
-        "decorations": false
+        "decorations": false,
+        "resizable": false,
+        "maximizable": false
       }
     ]
   },
-
   "plugins": {
     "os": {},
     "shell": {},

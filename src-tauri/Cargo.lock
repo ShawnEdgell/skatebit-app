@@ -3,6 +3,27 @@
 version = 4
 
 [[package]]
+name = "XLFM"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "directories",
+ "notify",
+ "reqwest 0.11.27",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-fs",
+ "tauri-plugin-opener",
+ "tauri-plugin-os",
+ "tauri-plugin-shell",
+ "tokio",
+ "uuid",
+ "zip",
+]
+
+[[package]]
 name = "addr2line"
 version = "0.24.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4134,27 +4155,6 @@ dependencies = [
  "webview2-com",
  "window-vibrancy",
  "windows",
-]
-
-[[package]]
-name = "tauri-app"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "directories",
- "notify",
- "reqwest 0.11.27",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-fs",
- "tauri-plugin-opener",
- "tauri-plugin-os",
- "tauri-plugin-shell",
- "tokio",
- "uuid",
- "zip",
 ]
 
 [[package]]

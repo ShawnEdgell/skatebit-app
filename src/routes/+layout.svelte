@@ -14,6 +14,5 @@
 <Toast />
 <NavBar />
 <ModalManager />
-<div class="p-4">
-  <slot />
-</div>
+<slot />
+
