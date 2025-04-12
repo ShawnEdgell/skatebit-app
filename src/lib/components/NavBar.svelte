@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Window } from '@tauri-apps/api/window';
   import ThemeController from './ThemeController.svelte';
+  import FolderSelector from './FolderSelector.svelte';
   import { page } from '$app/stores';
 
   const appWindow = Window.getCurrent();
@@ -45,6 +46,9 @@
     </ul>
 
     <ul class="menu menu-horizontal mr-2" style="-webkit-app-region: no-drag;">
+      <li>
+        <FolderSelector />
+      </li>
       <li>
         <ThemeController />
       </li>

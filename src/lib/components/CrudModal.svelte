@@ -1,10 +1,11 @@
 <!-- src/lib/components/CrudModal.svelte -->
 <script lang="ts">
-  import { createEventDispatcher } from "svelte";
+  import { createEventDispatcher } from 'svelte';
 
   // Props for modal configuration.
   export let open: boolean = false;
   export let title: string = "";
+  export let message: string = ""; 
   export let placeholder: string = "";
   export let initialValue: string = "";
   export let confirmOnly: boolean = false;
@@ -13,13 +14,13 @@
 
   let inputValue = initialValue;
 
-  // When the modal becomes open, reset the input.
+  // Reset the input when the modal opens.
   $: if (open) {
     inputValue = initialValue;
   }
 
   function save() {
-    // If confirmOnly, dispatch empty string or a fixed value.
+    // If confirmOnly, dispatch with an empty value.
     dispatch("save", { value: confirmOnly ? "" : inputValue });
     open = false;
   }
@@ -38,12 +39,16 @@
 </script>
 
 {#if open}
-  <div class="modal modal-open">
-    <div class="modal-box relative">
+  <div class="modal modal-open h-full w-full content-center justify-center">
+    <div class="modal-box min-w-md max-w-xl">
       <button type="button" on:click={cancel} class="btn btn-sm btn-circle absolute right-2 top-2" aria-label="Close modal">
         ✕
       </button>
       <h3 class="text-lg font-bold mb-4">{title}</h3>
+
+      {#if message}
+        <p class="mb-4">{message}</p>
+      {/if}
       
       {#if !confirmOnly}
         <input

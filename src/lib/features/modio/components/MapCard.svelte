@@ -1,14 +1,16 @@
+<!-- src/lib/features/modio/components/MapCard.svelte -->
 <script lang="ts">
   import type { Mod } from '$lib/types/modio';
   // Create a local type extension so that we can use the extra property.
   type ExtendedMod = Mod & { imageUrl?: string };
-
   export let mod: ExtendedMod;
   
   import { invoke } from '@tauri-apps/api/core';
   import { refreshLocalMaps } from '$lib/stores/localMapsStore';
   import { handleError, handleSuccess } from '$lib/ts/errorHandler';
-  
+  import { get } from "svelte/store";
+  import { mapsFolder } from "$lib/stores/mapsFolderStore";
+
   // Helper function to format file sizes.
   function formatFileSize(bytes: number): string {
     if (bytes === 0) return '0 B';
@@ -18,19 +20,20 @@
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   }
   
-  // Local state to track if installation is in progress.
   let isInstalling = false;
   
   async function handleDownload() {
     console.log("Install button clicked");
     isInstalling = true;
     try {
+      // Read the current maps folder from the store.
+      const destination = get(mapsFolder);
       await invoke("download_and_install", {
         url: mod.modfile.download.binary_url,
-        destination: "SkaterXL/Maps"  // Optionally append a folder like `SkaterXL/Maps/${mod.id}`
+        // Pass the user-selected (or default) maps folder as the destination.
+        destination: destination  
       });
       console.log("Download and install completed successfully.");
-      // Refresh the local maps list.
       await refreshLocalMaps();
       handleSuccess("Map installed successfully", "Installation");
     } catch (error) {
