@@ -13,13 +13,12 @@
 
   const updateAvailable = writable(false);
   const updateInfo = writable<UpdaterInfo>({ version: '', body: '' });
-  const updateLog = writable<string>(''); // For displaying messages to the user
+  const updateLog = writable<string>(''); 
 
   onMount(async () => {
     try {
       const update = await check();
       updateLog.set("Update check completed.");
-      console.log("Update check result:", update);
       if (update?.available) {
         updateInfo.set(update as UpdaterInfo);
         updateAvailable.set(true);
@@ -28,7 +27,6 @@
         updateLog.set("No update available.");
       }
     } catch (error) {
-      console.error("Error during update check:", error);
       updateLog.set(`Error during update check: ${error}`);
     }
   });
@@ -46,22 +44,7 @@
       updateLog.set(`Error updating: ${error}`);
     }
   }
-
-  // Manual trigger button to test update checking
-  async function testUpdateCheck() {
-    try {
-      const update = await check();
-      updateLog.set("Manual check: " + JSON.stringify(update));
-    } catch (error) {
-      updateLog.set("Manual check error: " + error);
-    }
-  }
 </script>
-
-<div class="p-4">
-  <h2 class="text-xl font-bold">Updater Debug Information</h2>
-  <p>{ $updateLog }</p>
-</div>
 
 {#if $updateAvailable}
   <div class="modal modal-open">
@@ -78,11 +61,4 @@
       </div>
     </div>
   </div>
-{:else}
-  <p class="text-base">Your app is up to date.</p>
 {/if}
-
-<!-- Optional manual trigger button for testing -->
-<button class="btn btn-outline mt-4" on:click={testUpdateCheck}>
-  Test Update Check
-</button>
