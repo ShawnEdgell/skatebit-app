@@ -5,6 +5,7 @@
   import Toast from "$lib/components/Toast.svelte"; // Or ToastContainer
   import { onMount } from 'svelte';
   import { initializeLocalMapsWatcher } from "$lib/stores/localMapsStore";
+  import Updater from "$lib/components/Updater.svelte";
 
   let watcherUnlisten: (() => void) | null = null;
 
@@ -35,6 +36,7 @@
   });
 </script>
 
+<Updater />
 <Toast /> 
 <NavBar />
 <CrudModal />

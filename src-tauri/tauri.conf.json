@@ -11,11 +11,24 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "icon": ["icons/icon.icns", "icons/icon.ico"],
     "targets": ["nsis"],
     "windows": {
       "certificateThumbprint": null
     }
+  },
+  "plugins": {
+    "updater": {
+      "installMode": "passive",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDJBMjRCQTZGODU2NTE5REEKUldUYUdXV0ZiN29rS29xaDc1R2lxT3AyNXZGdkZFakJjMHFzSE1Pd0MzZDl2T25KeWMranJBSjYK",
+      "endpoints": [
+        "https://github.com/ShawnEdgell/skatebit-app/releases/latest/download/latest.json"
+      ]
+    },
+    "os": {},
+    "shell": {},
+    "fs": {}
   },
   "app": {
     "security": {
@@ -34,10 +47,5 @@
         "decorations": false
       }
     ]
-  },
-  "plugins": {
-    "os": {},
-    "shell": {},
-    "fs": {}
   }
 }
