@@ -20,8 +20,9 @@
   },
   "plugins": {
     "updater": {
-      "installMode": "passive",
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDJBMjRCQTZGODU2NTE5REEKUldUYUdXV0ZiN29rS29xaDc1R2lxT3AyNXZGdkZFakJjMHFzSE1Pd0MzZDl2T25KeWMranJBSjYK",
+      "active": true,
+      "dialog": true,
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDUyRkM4RUU2QzkwNjk5QQpSV1NhYVpCczdzZ3ZCZDRsSXVvSmFidnlWSWkzTytUYUlRR1BkRTJsQmZTMGpGbElWa01VbmtuLwo=",
       "endpoints": [
         "https://github.com/ShawnEdgell/skatebit-app/releases/latest/download/latest.json"
       ]

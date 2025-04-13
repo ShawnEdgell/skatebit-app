@@ -12,3 +12,4 @@ vite.config.ts.timestamp-*
 .tauri/
 !tauri.conf.json
 cache
+latest.json
