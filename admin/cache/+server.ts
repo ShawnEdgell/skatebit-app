@@ -3,7 +3,7 @@ import type { RequestHandler } from "@sveltejs/kit";
 // Tell SvelteKit not to prerender this endpoint
 export const prerender = false;
 
-import { cacheAllMapModsToFirestore } from "$lib/api/cache";
+import { cacheAllMapModsToFirestore } from "$lib/api/modioCache";
 
 export const GET: RequestHandler = async () => {
   try {

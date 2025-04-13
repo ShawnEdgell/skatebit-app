@@ -1,3 +1,3 @@
-// src/lib/api/modioConfig.ts
-export const MODIO_API_KEY = import.meta.env.MODIO_API_KEY;
-export const MODIO_DOMAIN = import.meta.env.MODIO_DOMAIN;
+import { MODIO_API_KEY, MODIO_DOMAIN } from "$env/static/private";
+
+export { MODIO_API_KEY, MODIO_DOMAIN };
