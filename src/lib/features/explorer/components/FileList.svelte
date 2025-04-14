@@ -18,7 +18,7 @@
   }
 </script>
 
-<div class="relative h-full">
+<div class=" h-full">
   {#if loading}
     <div class="absolute inset-0 flex items-center justify-center z-10 bg-base-200/50">
       <span class="loading loading-spinner loading-lg"></span>

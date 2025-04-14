@@ -117,6 +117,173 @@ fn get_mime_type_from_extension(extension: &str) -> Option<String> {
     }
 }
 
+fn platform_remove_symlink(link_path_str: &str) -> Result<bool, String> {
+    let link_path = Path::new(link_path_str);
+    println!("[platform_remove_symlink] Checking path: {}", link_path_str);
+
+    match fs::symlink_metadata(link_path) {
+        Ok(metadata) => {
+            if metadata.file_type().is_symlink() {
+                println!("[platform_remove_symlink] Path is a symlink. Attempting removal...");
+                #[cfg(windows)]
+                {
+                    // For directory symlinks (common case), remove_dir is often needed. Try it first.
+                    match fs::remove_dir(link_path) {
+                         Ok(_) => {
+                             println!("[platform_remove_symlink] Removed symlink using remove_dir: {}", link_path_str);
+                             Ok(true)
+                         }
+                         Err(e_dir) => {
+                             println!("[platform_remove_symlink] remove_dir failed ({}). Trying remove_file...", e_dir);
+                             // Fallback to remove_file for file symlinks or other cases
+                             match fs::remove_file(link_path) {
+                                 Ok(_) => {
+                                     println!("[platform_remove_symlink] Removed symlink using remove_file: {}", link_path_str);
+                                     Ok(true)
+                                 }
+                                 Err(e_file) => Err(format!("Failed to remove symlink '{}' with remove_dir ({}) and remove_file ({}). Check permissions.", link_path_str, e_dir, e_file)),
+                             }
+                         }
+                     }
+                }
+                #[cfg(unix)]
+                {
+                    // On Unix, remove_file usually works for all symlinks.
+                    fs::remove_file(link_path)
+                        .map(|_| {
+                            println!("[platform_remove_symlink] Removed symlink using remove_file: {}", link_path_str);
+                            true // Indicate removal happened
+                        })
+                        .map_err(|e| format!("Failed to remove unix symlink '{}': {}", link_path_str, e))
+                }
+                #[cfg(not(any(unix, windows)))]
+                {
+                     // Basic fallback
+                     println!("Symlink removal may not be fully supported on this platform. Attempting remove_file.");
+                     fs::remove_file(link_path)
+                         .map(|_| true)
+                         .map_err(|e| format!("Failed to remove symlink '{}': {}", link_path_str, e))
+
+                }
+            } else {
+                println!("[platform_remove_symlink] Path exists but is not a symlink. No removal needed: {}", link_path_str);
+                Ok(false) // Not a symlink, nothing removed
+            }
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            println!("[platform_remove_symlink] Path does not exist. No removal needed: {}", link_path_str);
+            Ok(false) // Not found, nothing removed
+        }
+        Err(e) => Err(format!("[platform_remove_symlink] Error checking metadata for '{}': {}", link_path_str, e)),
+    }
+}
+
+
+#[command]
+pub async fn create_maps_symlink(new_folder: String, target_link: String) -> Result<(), String> {
+    let target_path = Path::new(&target_link);
+    let source_path = Path::new(&new_folder); // The user-selected folder where maps actually are
+
+    println!("[create_maps_symlink] Attempting. Source: '{}', Target: '{}'", new_folder, target_link);
+
+    // --- Validate Source Path ---
+    if !source_path.exists() {
+         return Err(format!("Source folder '{}' does not exist. Cannot create symlink.", new_folder));
+    }
+    if !source_path.is_dir() { // We expect to link TO a directory
+         return Err(format!("Source path '{}' is not a directory.", new_folder));
+    }
+
+    // --- Handle Existing Target Path ---
+    // *** CRITICAL: Use symlink_metadata to check the target itself ***
+    match fs::symlink_metadata(target_path) {
+        Ok(metadata) => {
+            // Target Path Exists - Determine what it is
+            if metadata.file_type().is_symlink() {
+                println!("[create_maps_symlink] Target path '{}' exists and is a symlink. Removing old link.", target_link);
+                // Use the helper function to remove the existing symlink
+                platform_remove_symlink(&target_link).map_err(|e| format!("Failed to remove existing symlink at target: {}", e))?;
+                // Proceed to create the new link below...
+            } else if metadata.is_dir() {
+                // Target Path is a Directory (e.g., the original 'Maps' folder) - Backup needed
+                println!("[create_maps_symlink] Target path '{}' exists and is a directory. Backing it up.", target_link);
+                let mut backup_target_str = format!("{}_backup", &target_link);
+                let mut counter = 1; // Start with _backup, then _backup_2 etc.
+                // Loop to find an available backup name
+                while Path::new(&backup_target_str).exists() {
+                    counter += 1;
+                    backup_target_str = format!("{}_backup_{}", &target_link, counter);
+                }
+                println!("[create_maps_symlink] Attempting to rename existing directory '{}' to '{}'", target_link, backup_target_str);
+                fs::rename(target_path, &backup_target_str) // Rename the original directory
+                    .map_err(|e| format!("Failed to backup directory '{}' to '{}': {}", target_link, backup_target_str, e))?;
+                println!("[create_maps_symlink] Successfully backed up existing directory to '{}'", backup_target_str);
+                // Proceed to create the new link below...
+            } else {
+                // Target Path Exists but is some other file type
+                return Err(format!(
+                    "Target path '{}' exists but is not a symlink or directory. Please check/remove it manually.",
+                    target_link
+                ));
+            }
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            // Target Path Does Not Exist - This is good, we can create the link directly
+            println!("[create_maps_symlink] Target path '{}' does not exist. Proceeding to create link.", target_link);
+            // Proceed to create the new link below...
+        }
+        Err(e) => {
+            // Some other OS error checking the path
+            return Err(format!("[create_maps_symlink] Error checking metadata for target path '{}': {}", target_link, e));
+        }
+    }
+
+    // --- Create the New Symlink ---
+    // By this point, the target path should be clear or non-existent
+    println!("[create_maps_symlink] Creating link from '{}' pointing TO '{}'", target_link, new_folder);
+    #[cfg(unix)]
+    {
+        // Order: source (actual maps folder), target (link name to create)
+        std::os::unix::fs::symlink(source_path, target_path)
+            .map_err(|e| format!("Failed to create unix symlink '{}' -> '{}': {}", target_link, new_folder, e))?;
+    }
+    #[cfg(windows)]
+    {
+         // Order: source (actual maps folder), target (link name to create)
+         // Use symlink_dir because we expect 'source_path' to be a directory
+         std::os::windows::fs::symlink_dir(source_path, target_path)
+             .map_err(|e| format!("Failed to create windows directory symlink '{}' -> '{}': {}. Ensure app runs with privileges if needed.", target_link, new_folder, e))?;
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+         return Err("Symlink creation not supported on this platform.".to_string());
+    }
+
+    println!("[create_maps_symlink] Successfully created symlink '{}' -> '{}'", target_link, new_folder);
+    Ok(())
+}
+
+
+// This function remains largely the same, just uses the helper now
+#[command]
+pub async fn remove_maps_symlink(link_path_str: String) -> Result<(), String> {
+    println!("[remove_maps_symlink] Request received for path: {}", link_path_str);
+    // Call the helper function. The helper handles logging and logic.
+    // We return Ok(()) if the helper returns Ok(true) or Ok(false),
+    // and return Err only if the helper encountered an OS error.
+    match platform_remove_symlink(&link_path_str) {
+        Ok(removed) => {
+            println!("[remove_maps_symlink] Helper result: symlink_removed={}", removed);
+            Ok(()) // Success whether removed or not needed
+        }
+        Err(e) => {
+            eprintln!("[remove_maps_symlink] Helper returned error: {}", e);
+            Err(e) // Propagate the error
+        }
+    }
+}
+
+
 #[command]
 pub fn unzip_file(zip_path: String, maps_folder: String) -> Result<(), String> {
     let maps_folder_path = PathBuf::from(&maps_folder);

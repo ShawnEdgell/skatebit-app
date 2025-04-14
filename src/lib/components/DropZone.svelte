@@ -53,7 +53,7 @@
 </script>
 
 {#if isDraggingOver}
-  <div class="fixed inset-0 top-16 z-50 flex items-center justify-center pointer-events-none bg-neutral/60 bg-opacity-75 backdrop-blur-sm">
+  <div class="fixed inset-0 z-50 flex items-center justify-center pointer-events-none bg-neutral/60 bg-opacity-75 backdrop-blur-sm">
     <div class="rounded-box p-8 bg-base-100 shadow-xl">
       <p class="text-xl font-bold text-base-content">Drop files or folders here</p>
       <p class="text-sm text-base-content/70">Target: {mapsPath ?? '...'}</p> <!-- Show target path -->

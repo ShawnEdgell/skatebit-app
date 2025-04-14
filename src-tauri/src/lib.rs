@@ -29,7 +29,9 @@ pub fn run() {
             commands::create_directory_rust,
             commands::create_empty_file_rust,
             commands::rename_fs_entry_rust,
-            commands::delete_fs_entry_rust
+            commands::delete_fs_entry_rust,
+            commands::create_maps_symlink,
+            commands::remove_maps_symlink,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
