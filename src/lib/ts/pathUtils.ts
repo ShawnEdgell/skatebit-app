@@ -1,9 +1,11 @@
-// src/lib/ts/pathUtils.ts
+import { join, documentDir } from "@tauri-apps/api/path";
 
 /**
  * Normalizes a file path to consistently use forward slashes.
+ * Handles null/undefined inputs gracefully.
  */
-export function normalizePath(path: string): string {
+export function normalizePath(path: string | null | undefined): string {
+  if (!path) return "";
   return path.replace(/\\/g, "/");
 }
 
@@ -11,14 +13,15 @@ export function normalizePath(path: string): string {
  * Extracts the file or folder name from a path.
  */
 export function getFileName(path: string): string {
-  return path.split(/[\\/]/).pop() ?? "";
+  return normalizePath(path).split("/").pop() ?? "";
 }
 
 /**
  * Resolves a document-relative absolute path from segments.
+ * Deprecated if most operations use absolute paths. Keep if needed.
  */
-import { join, documentDir } from "@tauri-apps/api/path";
 export async function resolveDocPath(...segments: string[]): Promise<string> {
   const docDir = await documentDir();
-  return await join(docDir, ...segments);
+  // Use normalizePath here for consistency if desired
+  return normalizePath(await join(docDir, ...segments));
 }

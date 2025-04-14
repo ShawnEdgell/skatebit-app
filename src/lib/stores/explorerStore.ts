@@ -1,210 +1,182 @@
 // src/lib/stores/explorerStore.ts
-import { writable, get } from "svelte/store";
-import type { FsEntry } from "$lib/ts/fsOperations";
+import { writable, get, type Writable } from "svelte/store";
+import { documentDir, normalize, join } from "@tauri-apps/api/path";
+import { normalizePath } from "$lib/ts/pathUtils";
+import { handleError } from "$lib/ts/errorHandler";
 import {
-  loadEntries,
-  baseFolder, // Initial relative base folder
-  // openDirectory, // Not used directly anymore
-  // goUp, // Not used directly anymore
-  createFolder,
-  createFile,
-  renameEntry,
-  deleteEntry,
+  type FsEntry,
+  type DirectoryListingResult,
+  ListingStatus,
+  loadDirectoryEntries,
+  createDirectoryFs,
+  createFileFs,
+  renameEntryFs,
+  deleteEntryFs,
+  baseFolder,
 } from "$lib/ts/fsOperations";
-import { documentDir, normalize, join } from "@tauri-apps/api/path"; // Import path utils
-import { normalizePath } from "$lib/ts/pathUtils"; // Your helper
-import { handleError } from "$lib/ts/errorHandler"; // Import error handler
 
-// Helper to get Document Dir (cached)
-let documentDirPath: string | null = null;
-async function getDocumentDir(): Promise<string> {
-  if (!documentDirPath) {
-    documentDirPath = normalizePath(await documentDir());
+export const entries = writable<FsEntry[]>([]);
+export const currentPath = writable<string>("");
+export const isLoading = writable<boolean>(true);
+export const directoryStatus = writable<ListingStatus | null>(null);
+
+let absoluteBaseFolderPath: string = "";
+
+export async function refresh(pathOverride?: string): Promise<void> {
+  const path = normalizePath(pathOverride ?? get(currentPath)); // Normalize path before using
+  if (!path) {
+    isLoading.set(false);
+    return;
   }
-  return documentDirPath;
-}
-
-// Helper to calculate relative path safely
-async function getRelativePathForCommand(
-  absolutePath: string
-): Promise<string | null> {
+  isLoading.set(true);
+  directoryStatus.set(null);
+  entries.set([]);
   try {
-    const docDir = await getDocumentDir();
-    const normalizedAbsPath = normalizePath(absolutePath);
-    const normalizedDocDir = normalizePath(docDir); // Normalize once
+    const result = await loadDirectoryEntries(path); // path is now guaranteed string
+    entries.set(result.entries);
+    directoryStatus.set(result.status);
+    currentPath.set(result.path); // Set normalized path from result
+  } catch (err) {
+    handleError(err, `Store refreshing path ${path}`); // path is string here
+    directoryStatus.set(null);
+  } finally {
+    isLoading.set(false);
+  }
+}
 
-    // Ensure it's inside the document directory and get the part after it
-    if (normalizedAbsPath.startsWith(normalizedDocDir)) {
-      let relPath = normalizedAbsPath.substring(normalizedDocDir.length);
+export async function setPath(newAbsolutePath: string | null): Promise<void> {
+  // Allow null input
+  await refresh(newAbsolutePath ?? undefined); // Pass undefined if null
+}
 
-      // Remove leading slash if present
-      relPath = relPath.replace(/^[\/\\]/, ""); // Handles both / and \
+export async function openDirectory(name: string): Promise<void> {
+  const dirEntry = get(entries).find((e) => e.name === name && e.isDirectory);
+  if (dirEntry?.path) await refresh(dirEntry.path);
+}
 
-      // Use '.' for the document directory itself
-      relPath = relPath === "" ? "." : relPath;
+export async function goUp(): Promise<void> {
+  const currentAbsPath = get(currentPath);
+  if (!absoluteBaseFolderPath || currentAbsPath === absoluteBaseFolderPath)
+    return;
+  const parentAbsPath = normalizePath(await join(currentAbsPath, "..")); // path is guaranteed string | null
+  // Check parentAbsPath is not null before proceeding
+  if (
+    absoluteBaseFolderPath &&
+    parentAbsPath &&
+    parentAbsPath.startsWith(absoluteBaseFolderPath)
+  ) {
+    await refresh(parentAbsPath); // pass string | null
+  } else {
+    await refresh(absoluteBaseFolderPath); // pass string
+  }
+}
 
-      // We don't need to check for '..' because startsWith already confirmed it's inside
-      return normalizePath(relPath); // Return normalized relative path
-    } else {
-      throw new Error(
-        `Path "${absolutePath}" is not inside document directory "${docDir}".`
-      );
-    }
+export async function createDirectory(
+  absolutePathToCreate: string
+): Promise<void> {
+  try {
+    const normalizedCreatePath = normalizePath(absolutePathToCreate);
+    if (!normalizedCreatePath)
+      throw new Error("Invalid path provided for directory creation.");
+    await createDirectoryFs(normalizedCreatePath);
+    const parentPath = normalizePath(await join(normalizedCreatePath, ".."));
+    if (normalizePath(get(currentPath)) === parentPath) await refresh();
   } catch (error) {
-    handleError(error, `Calculating relative path for ${absolutePath}`);
-    return null;
+    handleError(error, `Store creating directory ${absolutePathToCreate}`);
+    throw error;
   }
 }
 
-function createExplorerStore() {
-  const entries = writable<FsEntry[]>([]);
-  // Store absolute path internally, initialize asynchronously
-  const currentPath = writable<string>(""); // Start empty, init in onMount effectively
-  const isLoading = writable<boolean>(true); // Start loading true until initialized
-  let absoluteBaseFolderPath: string = ""; // Store absolute base path
-
-  async function refresh() {
-    const path = get(currentPath);
-    if (!path) {
-      console.warn("ExplorerStore: Skipping refresh, currentPath is not set.");
-      entries.set([]);
-      isLoading.set(false);
-      return;
-    } // Don't refresh if path isn't initialized
-
-    isLoading.set(true);
-    try {
-      // loadEntries now expects absolute path
-      const data: FsEntry[] = await loadEntries(path);
-      entries.set(data);
-    } catch (err) {
-      console.error("Error loading entries:", err);
-      entries.set([]);
-    } finally {
-      isLoading.set(false);
-    }
+export async function newFolder(folderName: string): Promise<void> {
+  const parentAbsPath = get(currentPath);
+  if (!parentAbsPath) {
+    handleError("Cannot create folder: current path is invalid.", "New Folder");
+    return;
   }
-
-  async function initialize() {
-    try {
-      const docDir = await getDocumentDir();
-      absoluteBaseFolderPath = normalizePath(await join(docDir, baseFolder));
-      console.log(
-        "ExplorerStore Initializing: Base Folder Path =",
-        absoluteBaseFolderPath
-      );
-      currentPath.set(absoluteBaseFolderPath); // Set initial path
-      await refresh(); // Perform initial load
-    } catch (e) {
-      console.error("Failed to initialize explorer path:", e);
-      handleError(e, "Explorer Initialization");
-      currentPath.set("/error/failed/to/init"); // Indicate error path
-      entries.set([]);
-      isLoading.set(false);
-    }
+  const newDirPath = await join(parentAbsPath, folderName);
+  try {
+    await createDirectoryFs(newDirPath);
+    await refresh();
+  } catch (error) {
+    handleError(error, `Store creating folder ${folderName}`);
+    throw error;
   }
-
-  // Call initialize when store is created
-  initialize();
-
-  return {
-    subscribe: entries.subscribe,
-    entries,
-    currentPath, // Exposes the store with the ABSOLUTE path
-    isLoading,
-    absoluteBaseFolderPath: () => absoluteBaseFolderPath, // Function to get base path if needed
-    refresh,
-    setPath: async (newAbsolutePath: string) => {
-      // Basic validation might be good here
-      currentPath.set(normalizePath(newAbsolutePath));
-      await refresh();
-    },
-    openDirectory: async (name: string) => {
-      const currentEntries = get(entries);
-      const dirEntry = currentEntries.find(
-        (e) => e.name === name && e.isDirectory
-      );
-      if (!dirEntry) {
-        console.error(`Directory ${name} not found in current entries.`);
-        return;
-      }
-      // path from FsEntry is already absolute
-      currentPath.set(dirEntry.path);
-      await refresh();
-    },
-    goUp: async () => {
-      const currentAbsPath = get(currentPath);
-      // Prevent going above the absolute base folder path
-      if (
-        currentAbsPath === absoluteBaseFolderPath ||
-        !absoluteBaseFolderPath
-      ) {
-        console.log("Cannot go up further.");
-        return;
-      }
-
-      const parts = currentAbsPath.split("/");
-      if (parts.length <= 1) return; // Should not happen if check above works
-      const parentAbsPath = parts.slice(0, -1).join("/") || "/";
-
-      // Extra check to ensure we don't accidentally go above base
-      if (
-        absoluteBaseFolderPath &&
-        !parentAbsPath.startsWith(absoluteBaseFolderPath) &&
-        parentAbsPath !==
-          absoluteBaseFolderPath.substring(
-            0,
-            absoluteBaseFolderPath.lastIndexOf("/")
-          )
-      ) {
-        console.warn(
-          "Attempted to navigate above base folder. Staying at:",
-          absoluteBaseFolderPath
-        );
-        currentPath.set(absoluteBaseFolderPath); // Reset to base if navigation goes wrong
-      } else {
-        currentPath.set(parentAbsPath);
-      }
-      await refresh();
-    },
-    // CRUD operations calculate relative path needed for fsOperations/Rust commands
-    newFolder: async (folderName: string) => {
-      const parentAbsPath = get(currentPath);
-      const relativePathForCommand = await getRelativePathForCommand(
-        parentAbsPath
-      );
-      if (relativePathForCommand === null) return; // Error handled in helper
-      await createFolder(relativePathForCommand, folderName); // createFolder expects parent relative path
-      await refresh();
-    },
-    newFile: async (fileName: string) => {
-      const parentAbsPath = get(currentPath);
-      const relativePathForCommand = await getRelativePathForCommand(
-        parentAbsPath
-      );
-      if (relativePathForCommand === null) return;
-      await createFile(relativePathForCommand, fileName); // createFile expects parent relative path
-      await refresh();
-    },
-    rename: async (oldName: string, newName: string) => {
-      const parentAbsPath = get(currentPath);
-      const relativePathForCommand = await getRelativePathForCommand(
-        parentAbsPath
-      );
-      if (relativePathForCommand === null) return;
-      await renameEntry(relativePathForCommand, oldName, newName); // renameEntry expects parent relative path
-      await refresh();
-    },
-    delete: async (name: string) => {
-      const parentAbsPath = get(currentPath);
-      const relativePathForCommand = await getRelativePathForCommand(
-        parentAbsPath
-      );
-      if (relativePathForCommand === null) return;
-      await deleteEntry(relativePathForCommand, name); // deleteEntry expects parent relative path
-      await refresh();
-    },
-  };
 }
 
-export const explorerStore = createExplorerStore();
+export async function newFile(fileName: string): Promise<void> {
+  const parentAbsPath = get(currentPath);
+  if (!parentAbsPath) {
+    handleError("Cannot create file: current path is invalid.", "New File");
+    return;
+  }
+  const newFilePath = await join(parentAbsPath, fileName);
+  try {
+    await createFileFs(newFilePath);
+    await refresh();
+  } catch (error) {
+    handleError(error, `Store creating file ${fileName}`);
+    throw error;
+  }
+}
+
+export async function rename(oldName: string, newName: string): Promise<void> {
+  if (!newName || oldName === newName) return;
+  const parentAbsPath = get(currentPath);
+  if (!parentAbsPath) {
+    handleError("Cannot rename: current path is invalid.", "Rename");
+    return;
+  }
+  const oldAbsPath = await join(parentAbsPath, oldName);
+  const newAbsPath = await join(parentAbsPath, newName);
+  try {
+    await renameEntryFs(oldAbsPath, newAbsPath);
+    await refresh();
+  } catch (error) {
+    handleError(error, `Store renaming ${oldName} to ${newName}`);
+    throw error;
+  }
+}
+
+export async function deleteEntry(name: string): Promise<void> {
+  const parentAbsPath = get(currentPath);
+  if (!parentAbsPath) {
+    handleError("Cannot delete: current path is invalid.", "Delete");
+    return;
+  }
+  const absPathToDelete = await join(parentAbsPath, name);
+  try {
+    await deleteEntryFs(absPathToDelete);
+    await refresh();
+  } catch (error) {
+    handleError(error, `Store deleting ${name}`);
+    throw error;
+  }
+}
+
+export function getAbsoluteBaseFolderPath(): string {
+  return absoluteBaseFolderPath;
+}
+
+async function initialize() {
+  try {
+    const docDir = await documentDir();
+    const calculatedBasePath = normalizePath(
+      await normalize(await join(docDir, baseFolder))
+    );
+    if (!calculatedBasePath) {
+      throw new Error("Default base path resolved to null");
+    }
+    absoluteBaseFolderPath = calculatedBasePath; // Assign the guaranteed string
+    console.log(
+      `[Store Initialize] absoluteBaseFolderPath set to: ${absoluteBaseFolderPath}`
+    );
+    await refresh(absoluteBaseFolderPath);
+  } catch (e) {
+    handleError(e, "Explorer Initialization");
+    currentPath.set("/error/init");
+    absoluteBaseFolderPath = "";
+    isLoading.set(false);
+  }
+}
+
+initialize();

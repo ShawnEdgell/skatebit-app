@@ -1,43 +1,48 @@
 <script lang="ts">
-  import "../app.css"; // Or app.pcss
-  import NavBar from "$lib/components/NavBar.svelte";
-  import CrudModal from "$lib/components/CrudModal.svelte";
-  import Toast from "$lib/components/Toast.svelte"; // Or ToastContainer
-  import { onMount } from 'svelte';
-  import { initializeLocalMapsWatcher } from "$lib/stores/localMapsStore";
-  import Updater from "$lib/components/Updater.svelte";
+	import '../app.css';
+	import NavBar from '$lib/components/NavBar.svelte';
+	import CrudModal from '$lib/components/CrudModal.svelte';
+	import Toast from '$lib/components/Toast.svelte';
+	import { onMount } from 'svelte';
+	import { initializeLocalMapsWatcher } from '$lib/stores/localMapsStore';
+	import Updater from '$lib/components/Updater.svelte';
+	// Maps folder store is imported but initialize is NOT called here anymore
+	import { mapsFolder } from '$lib/stores/mapsFolderStore';
 
-  let watcherUnlisten: (() => void) | null = null;
+	let watcherUnlisten: (() => void) | null = null;
 
-  onMount(() => {
-    // Define an async function to do the initialization
-    const startWatcher = async () => {
-      try {
-        // Await inside this separate async function
-        watcherUnlisten = await initializeLocalMapsWatcher();
-      } catch (error) {
-          console.error("Error initializing local maps watcher:", error);
-          // Handle error appropriately, maybe show a toast
-      }
-    };
+	onMount(() => {
+		const initializeApp = async () => {
+			try {
+				// --- REMOVED mapsFolder.initialize() ---
+				// console.log("Layout onMount: Initializing maps folder store...");
+				// await mapsFolder.initialize(); // REMOVE THIS LINE
+                // console.log("Layout onMount: Maps folder store initialized.");
+                // --- END REMOVAL ---
 
-    // Call the async function but don't await it here
-    startWatcher();
+				console.log("Layout onMount: Initializing local maps watcher...");
+				watcherUnlisten = await initializeLocalMapsWatcher();
+				console.log("Layout onMount: Local maps watcher initialized.");
 
-    // Return the synchronous cleanup function
-    // This function will be called when the component unmounts
-    return () => {
-      if (watcherUnlisten) {
-        console.log("Layout unmounting: Cleaning up local maps watcher...");
-        watcherUnlisten(); // Call the cleanup function returned by initializeLocalMapsWatcher
-        watcherUnlisten = null; // Clear the reference
-      }
-    };
-  });
+			} catch (error) {
+				console.error('Error during app initialization:', error);
+			}
+		};
+
+		initializeApp();
+
+		return () => {
+			if (watcherUnlisten) {
+				console.log('Layout unmounting: Cleaning up local maps watcher...');
+				watcherUnlisten();
+				watcherUnlisten = null;
+			}
+		};
+	});
 </script>
 
 <Updater />
-<Toast /> 
+<Toast />
 <NavBar />
 <CrudModal />
 <slot />

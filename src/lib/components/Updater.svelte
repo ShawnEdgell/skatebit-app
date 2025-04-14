@@ -22,12 +22,12 @@
       if (update?.available) {
         updateInfo.set(update as UpdaterInfo);
         updateAvailable.set(true);
-        updateLog.set(`Update available: version ${(update as UpdaterInfo).version}`);
+        updateLog.set(`Update available: v${(update as UpdaterInfo).version}`);
       } else {
-        updateLog.set("No update available.");
+        updateLog.set("Your app is up to date.");
       }
     } catch (error) {
-      updateLog.set(`Error during update check: ${error}`);
+      updateLog.set(`Error checking updates: ${error}`);
     }
   });
 
@@ -35,9 +35,9 @@
     try {
       const update = await check();
       if (update?.available) {
-        updateLog.set(`Downloading update version ${(update as UpdaterInfo).version}...`);
+        updateLog.set(`Downloading update v${(update as UpdaterInfo).version}...`);
         await update.downloadAndInstall();
-        updateLog.set("Update installed. Restarting...");
+        updateLog.set("Update installed. Restarting app...");
         await relaunch();
       }
     } catch (error) {
@@ -52,9 +52,11 @@
       <h3 class="font-bold text-lg">Update Available!</h3>
       <p>
         A new update (v{$updateInfo.version}) is available!
-        {#if $updateInfo.date}Released on: {$updateInfo.date}{/if}.
+        {#if $updateInfo.date}
+          <br/>Released on: {$updateInfo.date.substring(0, 10)}
+        {/if}
       </p>
-      <p>Release notes: {$updateInfo.body}</p>
+      <p class="mt-2">Release notes: {$updateInfo.body}</p>
       <div class="modal-action">
         <button class="btn btn-primary" on:click={updateNow}>Update Now</button>
         <button class="btn btn-secondary" on:click={() => updateAvailable.set(false)}>Cancel</button>
