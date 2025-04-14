@@ -133,7 +133,7 @@
 <div class="mb-4 flex flex-col md:flex-row items-center justify-between gap-4">
   <div class="flex items-center gap-2 flex-wrap">
     <h2 class="text-2xl mr-2 font-bold">Local Maps</h2>
-    <button type="button" class="badge cursor-pointer transition-colors {currentSort === 'recent' ? 'badge-primary' : 'badge-outline hover:bg-base-content hover:text-base-100 hover:border-base-content'}" on:click={() => currentSort = 'recent'} disabled={$isLoadingLocalMaps}>Recent</button>
+    <button type="button" class="badge cursor-pointer transition-colors {currentSort === 'recent' ? 'badge-primary' : 'badge-outline hover:bg-base-content hover:text-base-100 hover:border-base-content'}" on:click={() => currentSort = 'recent'} disabled={$isLoadingLocalMaps}>Most Recent</button>
     <button type="button" class="badge cursor-pointer transition-colors {currentSort === 'alphabetical' ? 'badge-primary' : 'badge-outline hover:bg-base-content hover:text-base-100 hover:border-base-content'}" on:click={() => currentSort = 'alphabetical'} disabled={$isLoadingLocalMaps}>A-Z</button>
     <button type="button" class="badge cursor-pointer transition-colors {currentSort === 'size' ? 'badge-primary' : 'badge-outline hover:bg-base-content hover:text-base-100 hover:border-base-content'}" on:click={() => currentSort = 'size'} disabled={$isLoadingLocalMaps}>Size</button>
   </div>
@@ -147,7 +147,7 @@
     </div>
   {:else if !$isLoadingLocalMaps && displayMaps.length === 0}
     <div class="h-full flex items-center justify-center p-4 min-h-[10rem]">
-      <p class="text-center text-base-content/60">
+      <p class="text-center text-base-content/60 text-sm">
           {#if $localMapsSearchQuery.trim()}
               No maps found matching '{$localMapsSearchQuery}'.
           {:else}

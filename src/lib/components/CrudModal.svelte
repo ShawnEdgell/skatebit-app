@@ -3,16 +3,27 @@
 	import type { ModalProps } from '$lib/stores/modalStore';
 	import { onDestroy } from 'svelte';
 
-	// Use $: syntax for reactive subscription to the store
+	// Reactive subscription to modalStore
 	$: currentProps = $modalStore;
 
-	// No need for manual subscribe/unsubscribe with $:
-	// onDestroy(unsubscribe);
+	// Determine if we're in "confirmation mode" by checking whether the placeholder equals the required phrase.
+	$: isConfirmationMode = $modalStore.placeholder === "I understand";
+
+	// Disable confirm if in confirmation mode and the typed input does not match.
+	$: isConfirmDisabled = isConfirmationMode 
+		? ($modalStore.inputValue !== "I understand")
+		: false;
 
 	function handleSave() {
-        // Check if input was intended before passing value
-        const shouldHaveInput = currentProps.placeholder || currentProps.initialValue;
-		currentProps.onSave?.(shouldHaveInput ? (currentProps.inputValue ?? "") : ""); // Pass empty string if no input expected
+		// If in confirmation mode, ensure the user typed exactly the confirmation phrase.
+		if (isConfirmationMode && $modalStore.inputValue !== "I understand") {
+			// Optionally, add an error message here before returning.
+			return;
+		}
+
+		// Otherwise, if an input is expected, pass it along.
+		const shouldHaveInput = $modalStore.placeholder || $modalStore.initialValue;
+		currentProps.onSave?.(shouldHaveInput ? ($modalStore.inputValue ?? "") : "");
 		closeModal();
 	}
 
@@ -22,8 +33,8 @@
 	}
 
 	function handleKeydown(event: KeyboardEvent) {
-        // Check if input is shown before allowing Enter key
-        const shouldHaveInput = currentProps.placeholder || currentProps.initialValue;
+		// Check if an input is expected (whether for confirmation or generic input).
+		const shouldHaveInput = $modalStore.placeholder || $modalStore.initialValue;
 		if (shouldHaveInput && event.key === 'Enter') {
 			event.preventDefault();
 			handleSave();
@@ -31,18 +42,12 @@
 			handleCancel();
 		}
 	}
-
-    // Remove local inputValue, bind directly to store value
-	// $: inputValue = currentProps.inputValue;
-	// function handleInput(event: Event) { ... } // Use bind:value instead
-
 </script>
 
-<!-- Use $modalStore directly -->
 {#if $modalStore.open}
 	<!-- svelte-ignore a11y-autofocus -->
 	<dialog
-		class="modal modal-open h-full w-full content-center justify-center"
+		class="modal modal-open h-full w-screen content-center justify-center p-0 z-100 fixed inset-0"
 		on:close={handleCancel}
 		on:keydown={handleKeydown}
 	>
@@ -58,20 +63,19 @@
 				<p class="mb-4 whitespace-pre-wrap">{$modalStore.message}</p>
 			{/if}
 
-			<!-- *** UPDATED CONDITION FOR INPUT *** -->
+			<!-- Render an input if either placeholder or initialValue is provided -->
 			{#if $modalStore.placeholder || $modalStore.initialValue}
 				<input
 					type="text"
 					placeholder={$modalStore.placeholder ?? ''}
-                    bind:value={$modalStore.inputValue}  
+					bind:value={$modalStore.inputValue}
 					class="input input-bordered w-full mb-4"
-                    autofocus 
+					autofocus
 				/>
 			{/if}
-            <!-- *** END UPDATE *** -->
 
 			<div class="modal-action">
-                <!-- Show cancel unless confirmOnly is explicitly true -->
+				<!-- Show cancel unless confirmOnly is explicitly true -->
 				{#if !$modalStore.confirmOnly}
 					<button type="button" class="btn btn-ghost" on:click={handleCancel}>
 						{$modalStore.cancelText ?? 'Cancel'}
@@ -81,13 +85,13 @@
 					type="button"
 					class="btn {$modalStore.confirmClass ?? 'btn-primary'}"
 					on:click={handleSave}
+					disabled={isConfirmDisabled}
 				>
-                    <!-- Simplified button text logic -->
 					{$modalStore.confirmText ?? ($modalStore.confirmOnly ? 'OK' : 'Save')}
 				</button>
 			</div>
 		</div>
-		<form method="dialog" class="modal-backdrop">
+		<form method="dialog" class="modal-backdrop w-screen fixed inset-0">
 			<button type="button" on:click={handleCancel}>close</button>
 		</form>
 	</dialog>

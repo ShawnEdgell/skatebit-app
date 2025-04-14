@@ -26,10 +26,10 @@
 </script>
 
 <!-- Template remains the same -->
-<div class="h-full flex flex-col items-center justify-center text-center p-6 bg-base-200 rounded-box gap-4">
+<div class="flex flex-col h-full items-center justify-center text-center gap-4">
     <!-- ... SVG Icon ... -->
-	<h3 class="text-xl font-semibold text-warning-content">{message}</h3>
-	<p class="text-base-content text-opacity-80 max-w-md">{details}</p>
+	<h3 class="text-xl font-semibold text-warning">{message}</h3>
+	<p class="text-base-content/60 max-w-md">{details}</p>
 	{#if showCreateButton}
 		<button class="btn btn-primary btn-sm mt-2" on:click={onCreate}> Create Folder Now </button>
 	{/if}

@@ -14,7 +14,7 @@
 
 <DropZone />
 
-<main class="mx-auto w-full flex flex-col space-y-6 p-4">
+<main class="mx-auto w-full flex flex-col space-y-6 p-4 bg-base-100 h-full">
   <ModioSection />
   <LocalMapsSection />
 </main>

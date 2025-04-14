@@ -53,10 +53,29 @@ static THUMBNAIL_EXTS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
 });
 
 static EXCLUDED_FILE_EXTS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
-    ["png", "jpg", "jpeg", "gif", "webp", "bmp", "dll", "json"]
-        .iter()
-        .cloned()
-        .collect()
+    [
+        // Image formats
+        "png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "ico",
+        // Executables and system files
+        "dll", "exe", "bat", "msi",
+        // Configuration and metadata files
+        "json", "ini", "bak", "cfg", "tmp", "log", "txt", "rtf", "xml",
+        // Archives and compressed files
+        "zip", "rar", "7z", "tar", "gz",
+        // Database and lock files
+        "db", "sqlite", "lock",
+        // Document files (if not relevant)
+        "md", "doc", "docx",
+        // Media files (if not meant to be maps)
+        "mp3", "mp4", "avi", "mov", "mkv", "flv",
+        // Shortcut files
+        "lnk",
+        // Debug or symbol files
+        "pdb",
+    ]
+    .iter()
+    .cloned()
+    .collect()
 });
 
 fn calculate_directory_size(path: &Path) -> u64 {

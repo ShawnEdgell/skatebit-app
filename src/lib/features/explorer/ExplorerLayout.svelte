@@ -20,7 +20,7 @@
 		newFolder,
 		newFile,
 		openDirectory,
-		getAbsoluteBaseFolderPath,
+		absoluteBaseFolderPath,
 	} from '$lib/stores/explorerStore';
 	import CreateFolderPrompt from '$lib/components/CreateFolderPrompt.svelte';
 	import TabSwitcher from '$lib/features/explorer/components/TabSwitcher.svelte';
@@ -31,7 +31,7 @@
 	import { explorerTabs as tabs } from './tabs';
 	import { normalizePath } from '$lib/ts/pathUtils';
 	import { openModal } from '$lib/stores/modalStore';
-	import { ListingStatus, baseFolder } from '$lib/ts/fsOperations';
+	import { ListingStatus, baseFolder, type FsEntry } from '$lib/ts/fsOperations';
 	import { toastStore } from '$lib/stores/toastStore';
 	import { refreshLocalMaps } from '$lib/stores/localMapsStore';
 	import { handleError } from '$lib/ts/errorHandler';
@@ -41,10 +41,10 @@
 	let unlisten: (() => void) | null = null;
 	let isBaseSkaterXlFolderMissing = false;
 	let isGenericModFolderMissing = false;
-	let currentAbsoluteBaseFolderPath = '';
+	// Removed local variable, use $absoluteBaseFolderPath where needed reactively
 
 	onMount(async () => {
-		currentAbsoluteBaseFolderPath = getAbsoluteBaseFolderPath();
+		// Base path is handled reactively by the store now
 		unlisten = await getCurrentWebview().onDragDropEvent(async (event) => {
 			const payload = event.payload;
 			switch (payload.type) {
@@ -52,11 +52,9 @@
 				case 'drop':
 					if ('paths' in payload && payload.paths?.length > 0) {
 						try {
-                            const currentAbsPath = get(currentPath);
-                            if(!currentAbsPath) { // Check if path is valid
-                                throw new Error("Current path is invalid for drop operation.");
-                            }
-							await handleDroppedPaths(payload.paths, currentAbsPath); // Pass guaranteed string
+							const currentAbsPath = get(currentPath);
+							if(!currentAbsPath) { throw new Error("Current path is invalid for drop operation."); }
+							await handleDroppedPaths(payload.paths, currentAbsPath);
 							await refresh();
 						} catch (error) { handleError(error, 'Handling dropped files'); }
 					}
@@ -69,9 +67,10 @@
 	onDestroy(() => { unlisten?.(); });
 
 	async function handleSwitchTab(subfolder: string) {
-		if (!currentAbsoluteBaseFolderPath) { handleError('Base path not initialized', 'Switch Tab'); return; }
+		const currentBase = get(absoluteBaseFolderPath); // Use get() for script logic
+		if (!currentBase || currentBase.startsWith('/error')) { handleError('Base path not initialized', 'Switch Tab'); return; }
 		try {
-			const newAbsolutePath = await normalize(await join(currentAbsoluteBaseFolderPath, subfolder));
+			const newAbsolutePath = await normalize(await join(currentBase, subfolder));
 			await setPath(newAbsolutePath);
 		} catch (error) { handleError(error, 'Switching tab'); }
 	}
@@ -81,7 +80,7 @@
 		const files = target?.files;
         const currentAbsPath = get(currentPath);
         if (!currentAbsPath) { handleError("Cannot upload: Current path is invalid.", "Upload"); return; }
-		await uploadFilesToCurrentPath(files, currentAbsPath, async () => { // Pass guaranteed string
+		await uploadFilesToCurrentPath(files, currentAbsPath, async () => {
 			await refresh();
 			if (target) target.value = '';
 		});
@@ -90,47 +89,65 @@
 	async function onUpload() { fileInput?.click(); }
 
 	async function onRename(name: string) {
+		const currentEntries = get(entries);
 		openModal({
-			title: `Rename "${name}"`, placeholder: 'Enter new name', initialValue: name, confirmOnly: false,
+			title: `Rename "${name}"`, placeholder: "Enter new name", initialValue: name, confirmOnly: false,
 			onSave: async (newName) => {
 				if (!newName || newName === name) return;
-				try { await rename(name, newName); toastStore.addToast(`Renamed "${name}" to "${newName}"`, 'alert-info'); }
-				catch (error) { /* Handled */ }
+                const originalEntry = currentEntries.find(entry => entry.name === name);
+                const existingEntryWithNewName = currentEntries.find(entry => entry.name === newName);
+                if (existingEntryWithNewName) {
+                    if (originalEntry && existingEntryWithNewName.isDirectory === originalEntry.isDirectory) {
+                        openModal({
+                            title: "Confirm Replace",
+                            message: `An item named "${newName}" already exists. Replace it?`,
+                            confirmText: "Replace", cancelText: "Cancel", confirmClass: "btn-warning", confirmOnly: false,
+                            onSave: async () => {
+                                try { await rename(name, newName); toastStore.addToast(`Renamed "${name}" to "${newName}"`, 'alert-info'); }
+                                catch (error) { /* Handled */ }
+                            }
+                        });
+                    } else {
+                        const existingType = existingEntryWithNewName.isDirectory ? 'folder' : 'file';
+                        toastStore.addToast(`Cannot rename: A ${existingType} named "${newName}" already exists.`, 'alert-error');
+                    }
+                } else {
+                    try { await rename(name, newName); toastStore.addToast(`Renamed "${name}" to "${newName}"`, 'alert-info'); }
+                    catch (error) { /* Handled */ }
+                }
 			}
 		});
 	}
 
 	async function onDelete(name: string) {
 		openModal({
-			title: "Confirm Deletion",
-			message: `Are you sure you want to permanently delete "${name}"? This cannot be undone.`,
+			title: "Confirm Deletion", message: `Are you sure you want to permanently delete "${name}"? This cannot be undone.`,
 			confirmText: 'Delete', cancelText: 'Cancel', confirmClass: 'btn-error', confirmOnly: false,
 			onSave: async () => {
 				try {
 					const currentAbsPath = get(currentPath);
-                    if (!currentAbsPath) { throw new Error("Current path is invalid for delete."); } // Check path
+                    if (!currentAbsPath) { throw new Error("Current path is invalid for delete."); }
 					await deleteEntry(name);
 					toastStore.addToast(`Deleted "${name}"`, 'alert-warning');
 					const mapsRootAbsPath = await join(await documentDir(), baseFolder, 'Maps');
-					const absPathToDelete = await join(currentAbsPath, name); // currentAbsPath is now string
+					const absPathToDelete = await join(currentAbsPath, name);
                     const normToDelete = normalizePath(absPathToDelete);
                     const normMapsRoot = normalizePath(mapsRootAbsPath);
-					if (normToDelete && normMapsRoot && normToDelete.startsWith(normMapsRoot)) {
-						await refreshLocalMaps();
-					}
-				} catch (error) {
-                    console.error(`Deletion failed for ${name} in component handler:`, error);
-                    handleError(error, `Deleting ${name}`);
-                 }
+					if (normToDelete && normMapsRoot && normToDelete.startsWith(normMapsRoot)) { await refreshLocalMaps(); }
+				} catch (error) { handleError(error, `Deleting ${name}`); }
 			}
 		});
 	}
 
 	async function onNewFolder() {
+        const currentEntries = get(entries);
 		openModal({
 			title: 'Create New Folder', placeholder: 'Enter folder name', initialValue: '', confirmOnly: false,
 			onSave: async (folderName) => {
 				if (!folderName) return;
+                const existingEntry = currentEntries.find(entry => entry.name === folderName);
+                if (existingEntry && existingEntry.isDirectory) { toastStore.addToast(`Folder "${folderName}" already exists.`, 'alert-error'); return; }
+                else if (existingEntry && !existingEntry.isDirectory) { toastStore.addToast(`A file named "${folderName}" already exists. Cannot create folder with the same name.`, 'alert-error'); return; }
 				try { await newFolder(folderName); toastStore.addToast(`Folder "${folderName}" created`, 'alert-success'); }
 				catch (error) { /* Handled */ }
 			}
@@ -138,10 +155,14 @@
 	}
 
 	async function onNewFile() {
+        const currentEntries = get(entries);
 		openModal({
 			title: 'Create New File', placeholder: 'Enter file name', initialValue: '', confirmOnly: false,
 			onSave: async (fileName) => {
 				if (!fileName) return;
+                const existingEntry = currentEntries.find(entry => entry.name === fileName);
+                if (existingEntry && !existingEntry.isDirectory) { toastStore.addToast(`File "${fileName}" already exists.`, 'alert-error'); return; }
+                else if (existingEntry && existingEntry.isDirectory) { toastStore.addToast(`A folder named "${fileName}" already exists. Cannot create file with the same name.`, 'alert-error'); return; }
 				try { await newFile(fileName); toastStore.addToast(`File "${fileName}" created`, 'alert-success'); }
 				catch (error) { /* Handled */ }
 			}
@@ -157,13 +178,18 @@
 
 	async function handleCreateDirectory() {
 		const path = get(currentPath);
-		if (!path || path.startsWith('/error')) return;
-		await createDirectory(path);
+		if (!path || path.startsWith('/error')) { handleError("Cannot create directory: Path is invalid.", "Create Directory"); return; }
+		try {
+			await createDirectory(path);
+            const folderName = path.split('/').pop() || 'New Folder';
+			toastStore.addToast(`Folder "${folderName}" created successfully.`, 'alert-success');
+			await refresh();
+		} catch (error) { console.error(`Error creating directory ${path} from layout handler:`, error); }
 	}
 
 	$: {
 		const normCurrent = normalizePath(get(currentPath));
-		const normBase = normalizePath(currentAbsoluteBaseFolderPath);
+		const normBase = normalizePath($absoluteBaseFolderPath); // Use $ for reactive value
 		isBaseSkaterXlFolderMissing = ($directoryStatus === ListingStatus.DoesNotExist && !!normBase && normCurrent === normBase);
 		isGenericModFolderMissing = ($directoryStatus === ListingStatus.DoesNotExist && !isBaseSkaterXlFolderMissing);
 	}
@@ -171,47 +197,63 @@
 
 <DropOverlay show={isDraggingOverZone} />
 
-<div class="flex h-full">
-	<TabSwitcher
-		{tabs}
-		currentPath={$currentPath}
-		baseFolder={currentAbsoluteBaseFolderPath}
-		onSwitchTab={handleSwitchTab}
-	/>
-	<div class="flex flex-col flex-1 w-full overflow-hidden p-4 space-y-4">
-		<div class="flex justify-between items-center w-full flex-shrink-0">
+<!-- Main flex container for the whole page -->
+<div class="flex h-full w-full bg-base-300">
+
+	<!-- Main Content Area (Takes Remaining Space) -->
+	<div class="flex flex-col flex-1 w-full overflow-hidden px-4 pb-4 gap-4">
+
+		<!-- Header Row -->
+		<div class="flex justify-between items-center w-full flex-shrink-0 bg-base-100 p-2 rounded-box shadow-md">
 			<div class="flex-grow overflow-hidden min-w-0 mr-4">
 				<PathHeader
 					currentPath={$currentPath}
 					onGoBack={goUp}
-					absoluteBasePath={currentAbsoluteBaseFolderPath}
+					absoluteBasePath={$absoluteBaseFolderPath}
 				/>
 			</div>
 			<div class="flex-shrink-0">
 				<FileActions {onNewFolder} {onNewFile} {onUpload} onOpenExplorer={openCurrentPathInExplorer} />
 			</div>
 		</div>
-		<div class="flex-1 overflow-y-auto rounded-box">
-			{#if $directoryStatus === ListingStatus.DoesNotExist}
-				<CreateFolderPrompt
-					missingPath={$currentPath}
-					promptType={isBaseSkaterXlFolderMissing ? 'skaterXlBase' : 'genericMod'}
-					onCreate={handleCreateDirectory}
-				/>
-			{:else if $directoryStatus === ListingStatus.ExistsAndEmpty}
-				<div class="h-full flex items-center justify-center text-center p-4">
-					<p class="text-base-content text-opacity-60">This folder is empty.</p>
-				</div>
-			{:else}
-				<FileList
-					entries={$entries}
-					loading={$isLoading}
-					onOpenDirectory={openDirectory}
-					{onRename}
-					{onDelete}
-				/>
-			{/if}
+		<div class="flex h-full mb-16 w-full overflow-hidden gap-4">
+			<TabSwitcher
+				{tabs}
+				currentPath={$currentPath}
+				baseFolder={$absoluteBaseFolderPath}
+				onSwitchTab={handleSwitchTab}
+			/>
+
+			<!-- File List Area (Takes Remaining Vertical Space, Scrolls Internally) -->
+			<div class="h-full w-full overflow-y-auto rounded-box bg-base-100 p-2 shadow relative min-h-0">
+				{#if $directoryStatus === ListingStatus.DoesNotExist}
+					<CreateFolderPrompt
+						missingPath={$currentPath}
+						promptType={isBaseSkaterXlFolderMissing ? 'skaterXlBase' : 'genericMod'}
+						onCreate={handleCreateDirectory}
+					/>
+				{:else if $directoryStatus === ListingStatus.ExistsAndEmpty}
+                	<div class="flex h-full items-center justify-center text-center p-4">
+						<p class="text-base-content/60">This folder is empty.</p>
+                	</div>
+				{:else}
+					{#if $isLoading && !$entries.length}
+						<div class="absolute inset-0 flex items-center justify-center text-center p-4 z-10 bg-base-100/50 rounded-box">
+							<span class="loading loading-spinner loading-lg"></span> 
+						</div>
+					{/if}
+                	{#key $currentPath}
+				    	<FileList
+                        	entries={$entries}
+                        	loading={$isLoading && $entries.length > 0} 
+                        	onOpenDirectory={openDirectory}
+                        	{onRename}
+                        	{onDelete}
+                    	/>
+                	{/key}
+				{/if}
+			</div>
 		</div>
-		<input type="file" multiple bind:this={fileInput} on:change={handleFileChange} class="hidden" />
 	</div>
+	<input type="file" multiple bind:this={fileInput} on:change={handleFileChange} class="hidden" />
 </div>

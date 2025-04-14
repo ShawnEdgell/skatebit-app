@@ -146,19 +146,17 @@
 		imageUrl={blobUrl}
 		fallbackIcon={localMap?.isDirectory ? '📁' : '📄'}
 		badgeText={localMap?.size != null ? formatFileSize(localMap.size) : ''}
-		title={localMap?.name ?? 'Unnamed'}
+        title={localMap?.name ?? 'Unnamed Map'} 
 	>
 		<span slot="overlay">
 			<button
 				class="btn btn-secondary btn-sm pointer-events-auto"
 				on:click|preventDefault|stopPropagation={openInExplorer}
-				title="Open in File Explorer"
 				disabled={!canPerformActions}>Open</button
 			>
 			<button
 				class="btn btn-error btn-sm pointer-events-auto"
 				on:click|preventDefault|stopPropagation={triggerDelete}
-				title="Delete Local Map"
 				disabled={!canPerformActions}>Delete</button
 			>
 		</span>

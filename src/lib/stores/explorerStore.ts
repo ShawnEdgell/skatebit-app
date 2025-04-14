@@ -1,5 +1,11 @@
 // src/lib/stores/explorerStore.ts
-import { writable, get, type Writable } from "svelte/store";
+import {
+  writable,
+  get,
+  readable,
+  type Writable,
+  type Readable,
+} from "svelte/store";
 import { documentDir, normalize, join } from "@tauri-apps/api/path";
 import { normalizePath } from "$lib/ts/pathUtils";
 import { handleError } from "$lib/ts/errorHandler";
@@ -20,10 +26,18 @@ export const currentPath = writable<string>("");
 export const isLoading = writable<boolean>(true);
 export const directoryStatus = writable<ListingStatus | null>(null);
 
-let absoluteBaseFolderPath: string = "";
+let internalSetBasePath: (value: string) => void = () => {};
+export const absoluteBaseFolderPath: Readable<string> = readable("", (set) => {
+  internalSetBasePath = set;
+  return () => {
+    internalSetBasePath = () => {};
+  };
+});
+
+let storeInitializationStarted = false;
 
 export async function refresh(pathOverride?: string): Promise<void> {
-  const path = normalizePath(pathOverride ?? get(currentPath)); // Normalize path before using
+  const path = normalizePath(pathOverride ?? get(currentPath));
   if (!path) {
     isLoading.set(false);
     return;
@@ -32,12 +46,12 @@ export async function refresh(pathOverride?: string): Promise<void> {
   directoryStatus.set(null);
   entries.set([]);
   try {
-    const result = await loadDirectoryEntries(path); // path is now guaranteed string
+    const result = await loadDirectoryEntries(path);
     entries.set(result.entries);
     directoryStatus.set(result.status);
-    currentPath.set(result.path); // Set normalized path from result
+    currentPath.set(result.path);
   } catch (err) {
-    handleError(err, `Store refreshing path ${path}`); // path is string here
+    handleError(err, `Store refreshing path ${path}`);
     directoryStatus.set(null);
   } finally {
     isLoading.set(false);
@@ -45,8 +59,7 @@ export async function refresh(pathOverride?: string): Promise<void> {
 }
 
 export async function setPath(newAbsolutePath: string | null): Promise<void> {
-  // Allow null input
-  await refresh(newAbsolutePath ?? undefined); // Pass undefined if null
+  await refresh(newAbsolutePath ?? undefined);
 }
 
 export async function openDirectory(name: string): Promise<void> {
@@ -56,18 +69,13 @@ export async function openDirectory(name: string): Promise<void> {
 
 export async function goUp(): Promise<void> {
   const currentAbsPath = get(currentPath);
-  if (!absoluteBaseFolderPath || currentAbsPath === absoluteBaseFolderPath)
-    return;
-  const parentAbsPath = normalizePath(await join(currentAbsPath, "..")); // path is guaranteed string | null
-  // Check parentAbsPath is not null before proceeding
-  if (
-    absoluteBaseFolderPath &&
-    parentAbsPath &&
-    parentAbsPath.startsWith(absoluteBaseFolderPath)
-  ) {
-    await refresh(parentAbsPath); // pass string | null
+  const baseAbsPath = get(absoluteBaseFolderPath);
+  if (!baseAbsPath || currentAbsPath === baseAbsPath) return;
+  const parentAbsPath = normalizePath(await join(currentAbsPath, ".."));
+  if (baseAbsPath && parentAbsPath && parentAbsPath.startsWith(baseAbsPath)) {
+    await refresh(parentAbsPath);
   } else {
-    await refresh(absoluteBaseFolderPath); // pass string
+    await refresh(baseAbsPath);
   }
 }
 
@@ -153,30 +161,32 @@ export async function deleteEntry(name: string): Promise<void> {
   }
 }
 
-export function getAbsoluteBaseFolderPath(): string {
-  return absoluteBaseFolderPath;
-}
-
-async function initialize() {
+async function initializeStore() {
+  if (storeInitializationStarted) return;
+  storeInitializationStarted = true;
+  isLoading.set(true);
   try {
     const docDir = await documentDir();
     const calculatedBasePath = normalizePath(
       await normalize(await join(docDir, baseFolder))
     );
     if (!calculatedBasePath) {
-      throw new Error("Default base path resolved to null");
+      throw new Error("Default base path resolved to null/empty");
     }
-    absoluteBaseFolderPath = calculatedBasePath; // Assign the guaranteed string
+    internalSetBasePath(calculatedBasePath);
     console.log(
-      `[Store Initialize] absoluteBaseFolderPath set to: ${absoluteBaseFolderPath}`
+      `[Store Initialize] absoluteBaseFolderPath store set to: ${calculatedBasePath}`
     );
-    await refresh(absoluteBaseFolderPath);
+    await refresh(calculatedBasePath);
   } catch (e) {
-    handleError(e, "Explorer Initialization");
+    handleError(e, "Explorer Store Initialization");
+    internalSetBasePath("/error/basepath");
     currentPath.set("/error/init");
-    absoluteBaseFolderPath = "";
     isLoading.set(false);
   }
 }
 
-initialize();
+export { initializeStore as initializeExplorerStore };
+
+// Removed getAbsoluteBaseFolderPath export
+// Removed automatic initialize() call

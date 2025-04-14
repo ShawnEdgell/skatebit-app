@@ -4,7 +4,11 @@
 }
 @plugin "@tailwindcss/typography";
 
+html {
+  scrollbar-gutter: auto !important;
+}
+
 html,
 body {
-  @apply m-0 p-0 h-screen w-screen overflow-hidden;
+  @apply m-0 p-0 h-screen w-screen overflow-hidden z-0;
 }

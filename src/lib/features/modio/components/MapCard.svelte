@@ -16,49 +16,48 @@
 	let isInstalling = false;
 
 	async function handleDownload() {
-		console.log('Install button clicked');
-		isInstalling = true;
-		try {
-			const mapsRootAbsolutePath = get(mapsFolder);
-			if (!mapsRootAbsolutePath || mapsRootAbsolutePath.startsWith('/error')) {
-				throw new Error('Maps folder path is not set or invalid.');
-			}
-
-			const docDir = normalizePath(await documentDir()); // Returns string | null
-			const normMapsRoot = normalizePath(mapsRootAbsolutePath); // Returns string | null
-
-			let relativeDestinationSubfolder: string | null = null;
-
-			// --- ADD NULL CHECKS before using startsWith/substring ---
-			if (normMapsRoot && docDir && normMapsRoot.startsWith(docDir)) {
-				relativeDestinationSubfolder = normMapsRoot.substring(docDir.length).replace(/^[\/\\]/, '');
-				if (relativeDestinationSubfolder === '') relativeDestinationSubfolder = '.';
-			}
-			// --- END NULL CHECKS ---
-
-			if (relativeDestinationSubfolder === null) {
-				// Provide better context in error message
-				throw new Error(`Selected maps folder (${mapsRootAbsolutePath}) is not relative to Documents (${docDir ?? 'unavailable'}). Cannot determine subfolder.`);
-			}
-
-			if (!mod.modfile?.download?.binary_url) {
-                throw new Error("Mod file download URL is missing.");
-            }
-
-			await invoke('download_and_install', {
-				url: mod.modfile.download.binary_url,
-				destinationSubfolder: relativeDestinationSubfolder, // Guaranteed string if check passed
-			});
-
-			console.log('Download and install completed successfully.');
-			await refreshLocalMaps();
-			handleSuccess('Map installed successfully', 'Installation');
-		} catch (error) {
-			handleError(error, 'Installation');
-		} finally {
-			isInstalling = false;
+	console.log('Install button clicked');
+	isInstalling = true;
+	try {
+		const mapsRootAbsolutePath = get(mapsFolder);
+		if (!mapsRootAbsolutePath || mapsRootAbsolutePath.startsWith('/error')) {
+			throw new Error('Maps folder path is not set or invalid.');
 		}
+
+		const docDir = normalizePath(await documentDir()); // Returns string | null
+		const normMapsRoot = normalizePath(mapsRootAbsolutePath); // Returns string | null
+
+		let destination: string;
+		// If folder is inside Documents, calculate a relative subfolder.
+		if (normMapsRoot && docDir && normMapsRoot.startsWith(docDir)) {
+			let relativeSubfolder = normMapsRoot.substring(docDir.length).replace(/^[\/\\]/, '');
+			if (relativeSubfolder === '') relativeSubfolder = '.';
+			destination = relativeSubfolder;
+		} else if (normMapsRoot) {
+			destination = normMapsRoot;
+		} else {
+			throw new Error(`Could not determine a valid destination folder.`);
+		}
+
+		if (!mod.modfile?.download?.binary_url) {
+			throw new Error("Mod file download URL is missing.");
+		}
+
+		await invoke('download_and_install', {
+			url: mod.modfile.download.binary_url,
+			destinationSubfolder: destination, // Using the computed destination folder
+		});
+
+		console.log('Download and install completed successfully.');
+		await refreshLocalMaps();
+		handleSuccess('Map installed successfully', 'Installation');
+	} catch (error) {
+		handleError(error, 'Installation');
+	} finally {
+		isInstalling = false;
 	}
+}
+
 </script>
 
 <div
@@ -126,7 +125,6 @@
 			target="_blank"
 			rel="noopener noreferrer"
 			class="btn btn-secondary btn-sm pointer-events-auto"
-			title="View on Mod.io"
 			on:click|stopPropagation>View Details</a
 		>
 		{#if mod.modfile?.download?.binary_url}
@@ -134,7 +132,6 @@
 				on:click|stopPropagation={handleDownload}
 				disabled={isInstalling}
 				class="btn btn-primary btn-sm pointer-events-auto"
-				title="Install Mod"
 			>
 				{#if isInstalling}
 					<span class="loading loading-spinner loading-sm"></span> Installing...

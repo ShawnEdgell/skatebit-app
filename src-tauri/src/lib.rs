@@ -24,7 +24,6 @@ pub fn run() {
             commands::unzip_file,
             commands::save_file,
             commands::download_and_install,
-            // --- Add NEW commands ---
             commands::list_local_maps,
             commands::list_directory_entries,
             commands::create_directory_rust,

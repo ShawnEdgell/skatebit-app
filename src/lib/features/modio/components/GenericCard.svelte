@@ -1,6 +1,6 @@
 <script lang="ts">
   export let imageUrl: string = '';
-  export let fallbackIcon: string = '📄'; // default fallback icon, override for folders if needed
+  export let fallbackIcon: string = '📄';
   export let badgeText: string = '';
   export let title: string = '';
 </script>

@@ -5,20 +5,22 @@
 	import Toast from '$lib/components/Toast.svelte';
 	import { onMount } from 'svelte';
 	import { initializeLocalMapsWatcher } from '$lib/stores/localMapsStore';
+	import { mapsFolder } from '$lib/stores/mapsFolderStore'; 
+	import { initializeExplorerStore } from '$lib/stores/explorerStore';
 	import Updater from '$lib/components/Updater.svelte';
-	// Maps folder store is imported but initialize is NOT called here anymore
-	import { mapsFolder } from '$lib/stores/mapsFolderStore';
 
 	let watcherUnlisten: (() => void) | null = null;
 
 	onMount(() => {
 		const initializeApp = async () => {
 			try {
-				// --- REMOVED mapsFolder.initialize() ---
-				// console.log("Layout onMount: Initializing maps folder store...");
-				// await mapsFolder.initialize(); // REMOVE THIS LINE
-                // console.log("Layout onMount: Maps folder store initialized.");
-                // --- END REMOVAL ---
+				console.log("Layout onMount: Initializing maps folder store...");
+				await mapsFolder.initialize(); 
+				console.log("Layout onMount: Maps folder store initialized.");
+
+                console.log("Layout onMount: Initializing explorer store...");
+				await initializeExplorerStore();
+                console.log("Layout onMount: Explorer store initialized.");
 
 				console.log("Layout onMount: Initializing local maps watcher...");
 				watcherUnlisten = await initializeLocalMapsWatcher();
@@ -41,8 +43,9 @@
 	});
 </script>
 
+<CrudModal />
 <Updater />
 <Toast />
+
 <NavBar />
-<CrudModal />
 <slot />

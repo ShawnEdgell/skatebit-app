@@ -10,9 +10,13 @@
     await appWindow.close();
   }
 
-  async function toggleMaximize() {
-    await appWindow.toggleMaximize();
-  }
+  async function minimizeWindow() {
+		await appWindow.minimize();
+	}
+
+	async function toggleMaximize() {
+		await appWindow.toggleMaximize();
+	}
 </script>
 
 <div
@@ -55,25 +59,28 @@
     </ul>
   </div>
 
-  <div class="flex-none" style="-webkit-app-region: no-drag;">
-    <button
-      class="btn btn-sm btn-circle btn-soft mr-2"
-      on:click={closeWindow}
-      aria-label="Close Window"
+  <div class="flex-none " style="-webkit-app-region: no-drag;">
+
+  <button
+    data-tip="Minimize"
+    class="tooltip tooltip-bottom btn btn-xs h-6 w-6 btn-circle btn-soft mr-2"
+    on:click={minimizeWindow}
+    aria-label="Minimize Window"
+  >
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="h-4 w-4">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 12H4" />
+    </svg>
+  </button>
+
+  <button
+    data-tip="Close"
+    class="tooltip tooltip-bottom btn btn-xs h-6 w-6 btn-circle btn-soft mr-2"
+    on:click={closeWindow}
+    aria-label="Close Window"
     >
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        fill="none"
-        viewBox="0 0 24 24"
-        class="inline-block w-6 h-6 stroke-current"
-      >
-        <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="2"
-          d="M6 18L18 6M6 6l12 12"
-        />
-      </svg>
-    </button>
-  </div>
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="h-4 w-4">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12" />
+  </svg>
+  </button>
+    </div>
 </div>

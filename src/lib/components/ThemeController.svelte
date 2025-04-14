@@ -14,12 +14,13 @@
 		{ label: 'Retro', value: 'retro' },
 		{ label: 'Valentine', value: 'valentine' },
 		{ label: 'Aqua', value: 'aqua' },
-		{ label: 'Black', value: 'black' },
-		{ label: 'Luxury', value: 'luxury' },
 		{ label: 'Dracula', value: 'dracula' },
 		{ label: 'Business', value: 'business' },
 		{ label: 'Acid', value: 'acid' },
 		{ label: 'Night', value: 'night' },
+		{ label: 'Sunset', value: 'sunset' },
+		{ label: 'Dim', value: 'dim' },
+		{ label: 'Cyberpunk', value: 'cyberpunk' },
 	];
 
 	// Default to the first theme
@@ -57,7 +58,7 @@
 		</svg>
 	</div>
 	<!-- Dropdown content with a radio list -->
-	<ul tabindex="0" class="dropdown-content bg-base-200 rounded-box top-12 mt-6 w-52 p-2 shadow-2xl">
+	<ul tabindex="0" class="dropdown-content bg-base-200 rounded-box top-12 mt-6 w-52 p-2 shadow-md">
 		{#each themes as { label, value }}
 			<li>
 				<input

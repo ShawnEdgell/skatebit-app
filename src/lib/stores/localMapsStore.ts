@@ -1,9 +1,10 @@
 import { writable, get } from "svelte/store";
 import type { FsEntry, DirectoryListingResult } from "$lib/ts/fsOperations";
-import { loadLocalMaps, baseFolder } from "$lib/ts/fsOperations";
+import { loadLocalMaps } from "$lib/ts/fsOperations";
 import { normalizePath } from "$lib/ts/pathUtils";
 import { listen } from "@tauri-apps/api/event";
 import { handleError } from "$lib/ts/errorHandler";
+import { mapsFolder } from "$lib/stores/mapsFolderStore";
 
 export const localMapsStore = writable<FsEntry[]>([]);
 export const localMapsInitialized = writable<boolean>(false);
@@ -14,32 +15,31 @@ export async function refreshLocalMaps() {
   isLoadingLocalMaps.set(true);
 
   try {
-    // Calculate relative path
-    const mapsRootRelativePath = normalizePath(`${baseFolder}/Maps`);
-
-    // --- ADD CHECK FOR NULL PATH ---
-    if (!mapsRootRelativePath) {
-      throw new Error("Could not determine relative path for local maps.");
+    // Use the current maps folder from configuration (absolute path)
+    const currentMapsFolder = mapsFolder.get();
+    if (!currentMapsFolder || currentMapsFolder.startsWith("/error")) {
+      throw new Error("Maps folder path is not set or invalid.");
     }
-    // --- END CHECK ---
+    const normalizedMapsFolder = normalizePath(currentMapsFolder);
+    if (!normalizedMapsFolder) {
+      throw new Error("Could not determine normalized maps folder path.");
+    }
 
-    console.log(
-      `Refreshing local maps using RELATIVE path: ${mapsRootRelativePath}`
-    );
+    console.log(`Refreshing local maps using folder: ${normalizedMapsFolder}`);
 
-    // Call with the guaranteed non-null string
+    // Load local maps from the configured folder.
     const result: DirectoryListingResult = await loadLocalMaps(
-      mapsRootRelativePath
+      normalizedMapsFolder
     );
 
     localMapsStore.set(result.entries);
     localMapsInitialized.set(true);
     console.log(
-      `[Store] Local maps store refreshed. Status: ${result.status}, Count: ${result.entries.length}`
+      `[Store] Local maps refreshed. Status: ${result.status}, Count: ${result.entries.length}`
     );
   } catch (err) {
     console.error("Error refreshing local maps store:", err);
-    handleError(err, "Refreshing local maps"); // Pass error to handler
+    handleError(err, "Refreshing local maps");
     localMapsStore.set([]);
     localMapsInitialized.set(true);
   } finally {
@@ -52,17 +52,17 @@ export async function initializeLocalMapsWatcher() {
   try {
     const unlistenFn = await listen("maps-changed", (event) => {
       console.log("Received maps-changed event:", event.payload);
-      refreshLocalMaps(); // No argument needed
+      refreshLocalMaps();
     });
     console.log("Local maps watcher initialized.");
     if (!get(localMapsInitialized)) {
-      await refreshLocalMaps(); // Initial load
+      await refreshLocalMaps();
     }
-    return unlistenFn; // Return the actual unlisten function
+    return unlistenFn;
   } catch (error) {
     handleError(error, "Initializing maps watcher listener");
     localMapsInitialized.set(true);
     isLoadingLocalMaps.set(false);
-    return () => {}; // Return no-op unlistener on error
+    return () => {};
   }
 }
