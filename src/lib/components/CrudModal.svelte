@@ -4,15 +4,15 @@
   import type { ModalProps } from '$lib/stores/modalStore';
 
   $: currentProps = $modalStore;
-  // Confirmation mode is active if placeholder equals "I understand"
-  $: isConfirmationMode = $modalStore.placeholder === "I understand";
-  // Disable confirm (and secondary) until input exactly matches "I understand"
+  // Confirmation mode is active if placeholder equals "free dawg"
+  $: isConfirmationMode = $modalStore.placeholder === "free dawg";
+  // Disable confirm (and secondary) until input exactly matches "free dawg"
   $: isConfirmDisabled = isConfirmationMode
-      ? ($modalStore.inputValue !== "I understand")
+      ? ($modalStore.inputValue !== "free dawg")
       : false;
 
   function handleSave() {
-    if (isConfirmationMode && $modalStore.inputValue !== "I understand") {
+    if (isConfirmationMode && $modalStore.inputValue !== "free dawg") {
       return;
     }
     currentProps.onSave?.(currentProps.inputValue ?? "");

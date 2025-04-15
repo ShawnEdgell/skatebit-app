@@ -25,6 +25,6 @@
 <LocalMapList {localMaps} />
 {#if isLoading}
   <div class="flex items-center justify-center">
-    <span class="loading loading-spinner loading-lg mt-4"></span>
+    <span class="loading loading-spinner loading-lg gap-4"></span>
   </div>
 {/if}

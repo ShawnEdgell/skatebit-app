@@ -10,7 +10,7 @@
 	$: normalizedCurrentPath = currentPath ? normalizePath(currentPath) : '';
 </script>
 
-<div class="w-64">
+<div class="w-64 z-10">
 <!-- Vertical Button Group - Base container -->
 <div class="flex flex-col items-center space-y-1 p-2 bg-base-200 rounded-box shadow-md">
 	{#each tabs as tab (tab.subfolder)}
@@ -31,5 +31,5 @@
 			</span>
 		</button>
 	{/each}
-</div>
+	</div>
 </div>

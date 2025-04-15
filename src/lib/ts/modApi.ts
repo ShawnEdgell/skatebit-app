@@ -13,9 +13,6 @@ const sortMap = {
     (b.stats?.popularity_rank_position ?? Infinity),
   downloads: (a: Mod, b: Mod) =>
     (b.stats?.downloads_total ?? 0) - (a.stats?.downloads_total ?? 0),
-  rating: (a: Mod, b: Mod) =>
-    (b.stats?.ratings_weighted_aggregate ?? 0) -
-    (a.stats?.ratings_weighted_aggregate ?? 0),
 };
 
 type SortType = keyof typeof sortMap; // This ensures that only the valid keys of `sortMap` are allowed

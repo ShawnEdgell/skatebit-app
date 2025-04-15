@@ -37,6 +37,8 @@
     "core:window:allow-maximize",
     "core:window:allow-minimize",
     "core:window:allow-toggle-maximize",
+    "core:app:allow-version",
+    "core:app:default",
     "dialog:default",
     "dialog:allow-open",
     "updater:default",

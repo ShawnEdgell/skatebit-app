@@ -64,10 +64,12 @@
                 <div class="flex gap-1 flex-shrink-0">
                   {#if isActionable(entry)}
                     <button
+                      title="Rename"
                       class="btn btn-xs btn-ghost text-warning hover:bg-warning hover:text-warning-content"
                       on:click|stopPropagation={() => onRename(safeName(entry))}
                     >✏️</button>
                     <button
+                      title="Delete"  
                       class="btn btn-xs btn-ghost text-error hover:bg-error hover:text-error-content"
                       on:click|stopPropagation={() => onDelete(safeName(entry))}
                     >🗑️</button>

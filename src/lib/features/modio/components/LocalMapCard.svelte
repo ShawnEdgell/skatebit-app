@@ -150,11 +150,13 @@
 	>
 		<span slot="overlay">
 			<button
+				title="Open in Explorer"
 				class="btn btn-secondary btn-sm pointer-events-auto"
 				on:click|preventDefault|stopPropagation={openInExplorer}
 				disabled={!canPerformActions}>Open</button
 			>
 			<button
+				title="Delete"
 				class="btn btn-error btn-sm pointer-events-auto"
 				on:click|preventDefault|stopPropagation={triggerDelete}
 				disabled={!canPerformActions}>Delete</button
@@ -162,7 +164,7 @@
 		</span>
 	</GenericCard>
 	{#if isLoadingUrl && !blobUrl}
-		<div class="absolute inset-0 grid place-content-center bg-base-300/50 z-30 rounded-lg">
+		<div class="absolute inset-0 grid place-content-center bg-base-300/50 z-30">
 			<span class="loading loading-spinner loading-sm"></span>
 		</div>
 	{/if}

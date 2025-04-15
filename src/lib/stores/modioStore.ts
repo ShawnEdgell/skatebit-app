@@ -8,7 +8,7 @@ import {
 } from "$lib/api/modioConstants";
 import { handleError } from "$lib/ts/errorHandler";
 
-export type SortOption = "recent" | "popular" | "downloads" | "rating";
+export type SortOption = "recent" | "popular" | "downloads";
 
 function createModioStore() {
   const mods = writable<Mod[]>([]);

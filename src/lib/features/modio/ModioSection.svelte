@@ -16,7 +16,6 @@
     { label: 'Most Recent', value: 'recent' },
     { label: 'Popular', value: 'popular' },
     { label: 'Downloads', value: 'downloads' },
-    { label: 'Rating', value: 'rating' }
   ];
 
   async function handleSelectSort(e: CustomEvent<string>) {
@@ -28,7 +27,7 @@
 </script>
 
 <section>
-  <div class="flex flex-col md:flex-row items-center justify-between gap-4 mb-4">
+  <div class="mb-4 flex flex-col md:flex-row items-center justify-between">
     <SortBadges
       {sortOptions}
       selectedSort={$selectedSort}
@@ -54,7 +53,7 @@
       </div>
     {:else}
     <div class="flex-shrink-0 grid place-content-center p-4 h-full">
-      <p class="text-xs text-base-content/50 whitespace-nowrap">No mod.io maps found.</p>
+      <p class="text-sm text-base-content/60 whitespace-nowrap">No mod.io maps found.</p>
     </div>
     {/if}
   </div>

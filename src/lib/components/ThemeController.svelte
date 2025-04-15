@@ -10,7 +10,6 @@
 	const themes: Theme[] = [
 		{ label: 'Dark', value: 'dark' },
 		{ label: 'Cupcake', value: 'cupcake' },
-		{ label: 'Synthwave', value: 'synthwave' },
 		{ label: 'Retro', value: 'retro' },
 		{ label: 'Valentine', value: 'valentine' },
 		{ label: 'Aqua', value: 'aqua' },
@@ -21,6 +20,8 @@
 		{ label: 'Sunset', value: 'sunset' },
 		{ label: 'Dim', value: 'dim' },
 		{ label: 'Cyberpunk', value: 'cyberpunk' },
+		{ label: 'silk', value: 'silk' },
+		{ label: 'nord', value: 'nord' },
 	];
 
 	// Default to the first theme
@@ -44,7 +45,7 @@
 	}
 </script>
 
-<div class="dropdown dropdown-end">
+<div title="Theme" class="dropdown dropdown-end">
 	<!-- Static trigger with constant text "Theme" -->
 	<div tabindex="0" role="button" class="flex items-center gap-2">
 		<span>Theme</span>

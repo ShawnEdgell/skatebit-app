@@ -7,7 +7,7 @@
 
 <div
   role="listitem"
-  class="relative rounded-lg card shadow-md overflow-hidden flex-shrink-0 group aspect-video bg-base-200 w-80"
+  class="relative card shadow-md overflow-hidden flex-shrink-0 group aspect-video bg-base-200 w-80"
 >
   {#if imageUrl}
     <img

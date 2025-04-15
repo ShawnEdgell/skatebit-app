@@ -130,7 +130,7 @@
 </script>
 
 <!-- Template -->
-<div class="mb-4 flex flex-col md:flex-row items-center justify-between gap-4">
+<div class="flex flex-col md:flex-row items-center justify-between mb-4">
   <div class="flex items-center gap-2 flex-wrap">
     <h2 class="text-2xl mr-2 font-bold">Local Maps</h2>
     <button type="button" class="badge cursor-pointer transition-colors {currentSort === 'recent' ? 'badge-primary' : 'badge-outline hover:bg-base-content hover:text-base-100 hover:border-base-content'}" on:click={() => currentSort = 'recent'} disabled={$isLoadingLocalMaps}>Most Recent</button>

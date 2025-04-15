@@ -331,7 +331,7 @@
 		</div>
 
 		<!-- Content Row (Tabs + File List) -->
-		<div class="flex h-full mb-16 w-full overflow-hidden gap-4"> 
+		<div class="flex h-full mb-16.5 w-full overflow-hidden gap-4"> 
 			<TabSwitcher
 				{tabs}
 				currentPath={$currentPath}

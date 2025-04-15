@@ -62,7 +62,7 @@
 
 <div
 	role="listitem"
-	class="relative rounded-lg card shadow-md overflow-hidden flex-shrink-0 group aspect-video bg-base-200 h-45"
+	class="relative card shadow-md overflow-hidden flex-shrink-0 group aspect-video bg-base-200 h-45"
 >
 	{#if mod.imageUrl}
 		<img
@@ -93,20 +93,20 @@
 	{/if}
 
 	<div
-		class="absolute bottom-0 z-10 w-full p-2.5 bg-gradient-to-t from-black/70 to-transparent pointer-events-none"
+		class="absolute  bottom-0 z-10 w-full p-2.5 bg-gradient-to-t from-black/90 to-transparent pointer-events-none"
 	>
 		<span
-			class="font-semibold text-base md:text-lg text-white drop-shadow-md line-clamp-2 leading-tight"
+			class="font-semibold text-base md:text-lg text-white shadow-md line-clamp-2 leading-tight"
 		>
 			{mod.name ?? 'Untitled Mod'}
 		</span>
 		{#if mod.submitted_by || mod.date_added}
-			<div class="text-xs text-neutral-content/80 mt-1 flex items-center flex-wrap gap-x-1.5">
+			<div class="text-xs mt-1 flex items-center flex-wrap gap-x-1.5 text-white">
 				{#if mod.submitted_by?.username}
 					<span>{mod.submitted_by.username}</span>
 				{/if}
 				{#if mod.submitted_by && mod.date_added}
-					<span class="opacity-60">|</span>
+					<span>|</span>
 				{/if}
 				{#if mod.date_added}
 					<span title={new Date(mod.date_added * 1000).toLocaleString()}>
@@ -121,6 +121,7 @@
 		class="absolute inset-0 z-20 flex items-center justify-center gap-3 bg-neutral/70 opacity-0 transition-opacity duration-300 group-hover:opacity-100 pointer-events-none"
 	>
 		<a
+			title="View Details"
 			href={mod.profile_url}
 			target="_blank"
 			rel="noopener noreferrer"
@@ -129,6 +130,7 @@
 		>
 		{#if mod.modfile?.download?.binary_url}
 			<button
+				title="Install Map"
 				on:click|stopPropagation={handleDownload}
 				disabled={isInstalling}
 				class="btn btn-primary btn-sm pointer-events-auto"

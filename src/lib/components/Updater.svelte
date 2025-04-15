@@ -1,7 +1,10 @@
+<!-- src/lib/components/Updater.svelte -->
 <script lang="ts">
   import { onMount } from 'svelte';
   import { check } from '@tauri-apps/plugin-updater';
+  // If relaunch is not available, you can replace it with window.location.reload()
   import { relaunch } from '@tauri-apps/plugin-process';
+  import { getVersion } from '@tauri-apps/api/app';
   import { writable } from 'svelte/store';
 
   interface UpdaterInfo {
@@ -11,12 +14,19 @@
     [key: string]: any;
   }
 
+  // Updater stores
   const updateAvailable = writable(false);
   const updateInfo = writable<UpdaterInfo>({ version: '', body: '' });
-  const updateLog = writable<string>(''); 
+  const updateLog = writable<string>('');
+  const currentVersion = writable("");
 
   onMount(async () => {
     try {
+      // Retrieve the current app version from Tauri metadata.
+      const v = await getVersion();
+      currentVersion.set(v);
+      
+      // Check for update availability.
       const update = await check();
       updateLog.set("Update check completed.");
       if (update?.available) {
@@ -53,7 +63,7 @@
       <p>
         A new update (v{$updateInfo.version}) is available!
         {#if $updateInfo.date}
-          <br/>Released on: {$updateInfo.date.substring(0, 10)}
+          <br />Released on: {$updateInfo.date.substring(0, 10)}
         {/if}
       </p>
       <p class="mt-2">Release notes: {$updateInfo.body}</p>
@@ -64,3 +74,8 @@
     </div>
   </div>
 {/if}
+
+<!-- Footer showing the current version; in development, this may be a placeholder version -->
+<footer class="fixed inset-x-0 bottom-0 p-4 text-xs text-base-content/40 font-semibold">
+  Current Version: {$currentVersion}
+</footer>

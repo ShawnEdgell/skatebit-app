@@ -1,16 +1,17 @@
+<!-- src/lib/components/Navbar.svelte -->
 <script lang="ts">
-  import { Window } from '@tauri-apps/api/window';
-  import ThemeController from './ThemeController.svelte';
-  import FolderSelector from './FolderSelector.svelte';
-  import { page } from '$app/stores';
+	import { Window } from '@tauri-apps/api/window';
+	import ThemeController from './ThemeController.svelte';
+	import FolderSelector from './FolderSelector.svelte';
+	import { page } from '$app/stores';
 
-  const appWindow = Window.getCurrent();
+	const appWindow = Window.getCurrent();
 
-  async function closeWindow() {
-    await appWindow.close();
-  }
+	async function closeWindow() {
+		await appWindow.close();
+	}
 
-  async function minimizeWindow() {
+	async function minimizeWindow() {
 		await appWindow.minimize();
 	}
 
@@ -19,68 +20,76 @@
 	}
 </script>
 
-<div
-  class="navbar bg-base-300"
-  style="-webkit-app-region: drag;"
-  role="banner"
-  on:dblclick={toggleMaximize}
->
+<!-- The entire navbar is draggable by default -->
+<div class="navbar bg-base-300 px-4" style="-webkit-app-region: drag;" role="banner" on:dblclick={toggleMaximize}>
   <div class="flex justify-between w-full">
-    <ul class="menu menu-horizontal" style="-webkit-app-region: no-drag;">
-      <li>
-        <a
-          href="/"
-          class={`transition-colors ${
-            $page.url.pathname === '/' ? 'text-base-content' : 'text-base-content/50'
-          }`}
-        >
-          Folders
-        </a>
-      </li>
-      <li>
-        <a
-          href="/modio"
-          class={`transition-colors ${
-            $page.url.pathname.startsWith('/modio') ? 'text-base-content' : 'text-base-content/50'
-          }`}
-        >
-          Maps
-        </a>
-      </li>
-    </ul>
-
-    <ul class="menu menu-horizontal mr-2" style="-webkit-app-region: no-drag;">
-      <li>
-        <FolderSelector />
-      </li>
-      <li>
-        <ThemeController />
-      </li>
-    </ul>
-  </div>
-
-  <div class="flex-none " style="-webkit-app-region: no-drag;">
-
-  <button
-    data-tip="Minimize"
-    class="tooltip tooltip-bottom btn btn-xs h-6 w-6 btn-circle btn-soft mr-2"
-    on:click={minimizeWindow}
-    aria-label="Minimize Window"
-  >
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="h-4 w-4">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 12H4" />
-    </svg>
-  </button>
-
-  <button
-    data-tip="Close"
-    class="tooltip tooltip-bottom btn btn-xs h-6 w-6 btn-circle btn-soft mr-2"
-    on:click={closeWindow}
-    aria-label="Close Window"
-    >
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="h-4 w-4">
-    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12" />
-  </svg>
-  </button>
+    <!-- Left area: Draggable logo and navigation links -->
+    <div class="flex items-center">
+      <!-- The XLFM logo is draggable and has a default cursor -->
+      <h1 class="text-2xl tracking-tight font-black mr-2" style="cursor: default;">XLFM</h1>
+      <!-- Navigation links remain clickable -->
+      <ul class="menu menu-horizontal" style="-webkit-app-region: no-drag;">
+        <li>
+          <a
+            href="/"
+            class={`transition-colors ${$page.url.pathname === '/' ? 'text-base-content' : 'text-base-content/50'}`}
+            title="Folders"
+            >
+            Folders
+          </a>
+        </li>
+        <li>
+          <a
+            href="/modio"
+            class={`transition-colors ${$page.url.pathname.startsWith('/modio') ? 'text-base-content' : 'text-base-content/50'}`}
+            title="Maps"
+            >
+            Maps
+          </a>
+        </li>
+      </ul>
     </div>
+    
+    <!-- Right area: Interactive elements (non-draggable) -->
+    <div class="flex items-center" style="-webkit-app-region: no-drag;">
+      <ul class="menu menu-horizontal mr-2">
+        <li><FolderSelector /></li>
+        <li><ThemeController /></li>
+      </ul>
+      <div class="flex-none flex space-x-2">
+        <button
+          data-tip="Minimize"
+          class="tooltip tooltip-bottom btn btn-xs h-6 w-6 btn-circle btn-soft z-50"
+          on:click={minimizeWindow}
+        >
+          <!-- Minimize Icon -->
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="h-4 w-4">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 12H4" />
+          </svg>
+        </button>
+
+        <button
+          data-tip="Maximize"
+          class="tooltip tooltip-bottom btn btn-xs h-6 w-6 btn-circle btn-soft z-50"
+          on:click={toggleMaximize}
+        >
+          <!-- Maximize Icon: a simple square outline -->
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="h-4 w-4">
+            <rect x="4" y="4" width="16" height="16" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+
+        <button
+          data-tip="Close"
+          class="tooltip tooltip-bottom btn btn-xs h-6 w-6 btn-circle btn-soft z-50"
+          on:click={closeWindow}
+        >
+          <!-- Close Icon -->
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="h-4 w-4">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
 </div>
