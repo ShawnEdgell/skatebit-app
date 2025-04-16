@@ -1,6 +1,6 @@
 [package]
 name = "XLFM"
-version = "1.0.0"
+version = "1.0.2"
 description = "Skater XL File Manager"
 authors = ["Milky"]
 edition = "2021"
@@ -13,10 +13,12 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["protocol-asset"] }
 zip = "0.6"
 anyhow = "1.0"
 tauri-plugin-opener = "2"
+log = "0.4"
+env_logger = "0.10"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 walkdir = "2"
