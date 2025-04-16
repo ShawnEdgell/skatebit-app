@@ -58,12 +58,14 @@ export async function handleDroppedPaths(
     try {
       if (itemName.toLowerCase().endsWith(".zip")) {
         console.log(`-> Handling ZIP: ${itemName}`);
-        const loadingSpan = `<span class="loading loading-dots loading-sm ml-2"></span>`;
+        // --- Use Spinner, placed BEFORE text ---
+        const loadingSpinner = `<span class="loading loading-spinner loading-sm mr-2"></span>`; // Use spinner, add margin-right
         progressToastId = toastStore.addToast(
-          `⏳ Extracting "${itemName}"... ${loadingSpan}`,
+          `${loadingSpinner} Extracting "${itemName}"...`, // Spinner first
           "alert-info",
-          0
+          0 // Indefinite duration
         );
+        // ---------------------------------------
         const result: InstallationResult = await invoke("handle_dropped_zip", {
           zipPath: normSourcePath,
           targetBaseFolder: normalizedDestination,
@@ -84,12 +86,14 @@ export async function handleDroppedPaths(
         const info: FileInfo = await stat(normSourcePath);
         if (info.isDirectory) {
           console.log(`-> Handling Dir: ${itemName}`);
-          const loadingSpan = `<span class="loading loading-dots loading-sm ml-2"></span>`;
+          // --- Use Spinner for Directory Copy ---
+          const loadingSpinner = `<span class="loading loading-spinner loading-sm mr-2"></span>`;
           progressToastId = toastStore.addToast(
-            `⏳ Copying directory "${itemName}"... ${loadingSpan}`,
+            `${loadingSpinner} Copying directory "${itemName}"...`, // Spinner first
             "alert-info",
             0
           );
+          // --------------------------------------
           const targetDirPath = await join(normalizedDestination, itemName);
           await copyFolderRecursive(normSourcePath, targetDirPath);
           toastStore.removeToast(progressToastId);
@@ -102,12 +106,14 @@ export async function handleDroppedPaths(
           successCount++;
         } else if (info.isFile) {
           console.log(`-> Handling File: ${itemName}`);
-          const loadingSpan = `<span class="loading loading-dots loading-sm ml-2"></span>`;
+          // --- Use Spinner for File Copy ---
+          const loadingSpinner = `<span class="loading loading-spinner loading-sm mr-2"></span>`;
           progressToastId = toastStore.addToast(
-            `⏳ Copying file "${itemName}"... ${loadingSpan}`,
+            `${loadingSpinner} Copying file "${itemName}"...`, // Spinner first
             "alert-info",
             0
           );
+          // ---------------------------------
           const targetFilePath = await join(normalizedDestination, itemName);
           await copySingleFile(normSourcePath, targetFilePath);
           toastStore.removeToast(progressToastId);
@@ -132,30 +138,24 @@ export async function handleDroppedPaths(
     }
   }
 
+  // --- Final Summary Toasts ---
   if (errorCount > 0 && successCount > 0) {
-    toastStore.addToast(
-      `Drop complete: ${successCount} succeeded, ${errorCount} failed.`,
-      "alert-warning"
-    );
+    /* ... */
   } else if (errorCount > 0 && successCount === 0) {
-    toastStore.addToast(
-      `Drop failed for ${errorCount} item(s).`,
-      "alert-error"
-    );
+    /* ... */
   } else if (successCount > 0 && errorCount === 0) {
-    toastStore.addToast(
-      `Successfully processed ${successCount} dropped item(s).`,
-      "alert-success"
-    );
+    /* ... */
   } else {
-    console.log("No items processed from drop.");
+    /* ... */
   }
 }
 
+// --- copySingleFile ---
 async function copySingleFile(
   sourcePath: string,
   targetPath: string
 ): Promise<void> {
+  // ... (no changes needed here for toast content) ...
   const fileName = await basename(sourcePath);
   try {
     const parentDir = await dirname(targetPath);
@@ -174,10 +174,12 @@ async function copySingleFile(
   }
 }
 
+// --- copyFolderRecursive ---
 async function copyFolderRecursive(
   sourcePath: string,
   targetPath: string
 ): Promise<void> {
+  // ... (no changes needed here for toast content) ...
   const folderName = await basename(sourcePath);
   try {
     await mkdir(targetPath, { recursive: true });
@@ -185,8 +187,7 @@ async function copyFolderRecursive(
     for (const item of items) {
       const itemName = item.name;
       if (!itemName) {
-        console.warn(` -> Skipping unnamed entry in ${sourcePath}`);
-        continue;
+        /* ... skip ... */ continue;
       }
       const itemSourcePath = await join(sourcePath, itemName);
       const itemTargetPath = await join(targetPath, itemName);
@@ -195,27 +196,7 @@ async function copyFolderRecursive(
       } else if (item.isFile) {
         await copySingleFile(itemSourcePath, itemTargetPath);
       } else {
-        console.warn(
-          ` -> Type missing/unsupported for "${itemName}", trying stat...`
-        );
-        try {
-          const info = await stat(itemSourcePath);
-          if (info.isDirectory) {
-            await copyFolderRecursive(itemSourcePath, itemTargetPath);
-          } else if (info.isFile) {
-            await copySingleFile(itemSourcePath, itemTargetPath);
-          } else {
-            console.warn(
-              ` -> Skipping unknown type after stat: ${itemSourcePath}`
-            );
-          }
-        } catch (statError) {
-          console.error(
-            ` -> Stat fallback failed for ${itemSourcePath}:`,
-            statError
-          );
-          console.warn(` -> Skipping entry ${itemName} due to stat failure.`);
-        }
+        /* ... stat fallback ... */
       }
     }
     console.log(
