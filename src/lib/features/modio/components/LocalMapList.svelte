@@ -40,7 +40,7 @@
     }
     openModal({
       title: "Confirm Deletion",
-      message: `Are you sure you want to permanently delete "${nameToDelete}"? This cannot be undone.`,
+      message: `Move "${nameToDelete}"? to Recycle Bin?`,
       confirmText: "Delete",
       cancelText: "Cancel",
       confirmOnly: false,

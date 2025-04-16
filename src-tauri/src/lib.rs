@@ -3,18 +3,18 @@
 
 mod models;
 mod utils;
-mod error; 
+mod error;
 mod fs_commands;
 mod map_commands;
 mod installer_commands;
 
 
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Initialize logging - good practice
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    log::info!("Logger initialized, starting application build...");
 
-    env_logger::init(); 
-    
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
@@ -24,8 +24,7 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
-            // FS Commands
-            fs_commands::unzip_file,
+            fs_commands::handle_dropped_zip, 
             fs_commands::save_file,
             fs_commands::list_directory_entries,
             fs_commands::create_directory_rust,

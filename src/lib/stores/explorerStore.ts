@@ -11,20 +11,21 @@ export const isLoading = writable(false);
 export const folderMissing = writable(false);
 
 export async function refreshExplorer(path?: string) {
-  // Always use explorerDirectory as the fallback.
   const baseDir = get(explorerDirectory);
-  const dir = path || baseDir;
+  const current = get(currentPath);
+  const dir = path || current || baseDir;
+
   if (!dir || dir.trim() === "") {
     console.error("refreshExplorer: Received invalid or empty path:", dir);
     entries.set([]);
     isLoading.set(false);
     return;
   }
+
   isLoading.set(true);
   try {
     const result = await loadDirectoryEntries(dir);
     if (result.status === ListingStatus.DoesNotExist) {
-      console.warn("Directory does not exist:", dir);
       folderMissing.set(true);
       currentPath.set(dir);
       entries.set([]);

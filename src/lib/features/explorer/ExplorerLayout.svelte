@@ -51,18 +51,38 @@
   }
 
   async function handleCreateDirectory() {
-    const targetPath = $currentPath || $explorerDirectory;
-    if (!targetPath || targetPath.startsWith('/error')) {
+    // targetPath *is* the path that should be created when this is called
+    // due to the folder being missing. Use $currentPath which reflects that state.
+    const targetPath = $currentPath; // Get the path that needs creating
+
+    if (!targetPath || targetPath.startsWith('/error')) { // Basic validation
       handleError("Cannot create directory: Target path is invalid.", "Create Directory");
       return;
     }
+
+    // Normalize the path we intend to create
+    const pathTocreate = normalizePath(targetPath);
+    console.log(`Attempting to create missing directory: ${pathTocreate}`); // Log for debugging
+
     try {
-      const newDirFullPath = await join(targetPath, "New Folder"); // Example: Determine new path if needed
-      await invoke('create_directory_rust', { absolutePath: newDirFullPath });
-      handleSuccess(`Folder created successfully`, 'File Operation'); // Simplified message
-      await refreshExplorer(); // Refresh to show the new folder
+      // --- CORRECTED LOGIC ---
+      // Pass the path that *should* exist (the missing one) directly to the Rust command.
+      // 'create_directory_rust' will create this exact path.
+      await invoke('create_directory_rust', { absolutePath: pathTocreate });
+      // --- END CORRECTED LOGIC ---
+
+      // Extract the folder name from the path for the message
+      const createdFolderName = pathTocreate.split('/').pop() || pathTocreate;
+      handleSuccess(`Folder "${createdFolderName}" created.`, 'File Operation');
+
+      // Reset the missing state in the store after successful creation
+      folderMissing.set(false); // Assuming 'folderMissing' is a writable store import
+
+      // Refresh the explorer to show the contents of the newly created (empty) folder
+      await refreshExplorer();
     } catch (error) {
-      handleError(error, `Creating directory`); // Simplified message
+      const folderName = pathTocreate.split('/').pop() || pathTocreate;
+      handleError(error, `Creating directory "${folderName}"`);
     }
   }
 
@@ -206,7 +226,7 @@
 
     openModal({
       title: "Confirm Deletion",
-      message: `Permanently delete "${name}"? This cannot be undone.`,
+      message: `Move "${name}"? to Recycle Bin?`,
       confirmOnly: false,
       confirmText: 'Delete',
       cancelText: 'Cancel',

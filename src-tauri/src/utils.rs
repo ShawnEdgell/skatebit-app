@@ -9,7 +9,16 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 use walkdir::WalkDir;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 
+
+/// Generates a simple hash string from a Path, useful for cache keys.
+pub fn hash_path(path: &Path) -> String {
+    let mut hasher = DefaultHasher::new();
+    path.to_string_lossy().hash(&mut hasher);
+    format!("{:x}", hasher.finish())
+}
 
 // --- Constants / Static Data ---
 

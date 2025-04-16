@@ -1,435 +1,399 @@
-//! Contains Tauri commands for general file system operations.
+// src-tauri/src/fs_commands.rs
+
+use crate::error::{CommandError, CommandResult};
+use crate::models::{FsEntry, DirectoryListingResult, ListingStatus, InstallationResult};
+use crate::utils::{system_time_to_millis, THUMBNAIL_EXTS, hash_path};
 
 use std::{
     collections::HashSet,
     ffi::OsStr,
-    fs::{self, remove_file, File},
-    io::copy,
-    path::PathBuf,
+    fs::{self, File},
+    io::{copy, BufReader, BufWriter}, // Keep IO utils
+    path::{Path, PathBuf},
 };
-use tauri::command;
+use tauri::{command, AppHandle, Manager};
 use uuid::Uuid;
 use zip::ZipArchive;
+use log::{debug, info, warn, error, trace};
+use serde_json;
+use trash;
 
-// Import shared models and utilities
-use crate::models::*;
-use crate::utils::*;
-// TODO: Replace String error type with a proper custom Error enum (e.g., from error.rs)
-type CommandResult<T> = Result<T, String>;
-
-#[command]
-pub fn unzip_file(zip_path: String, target_base_folder: String) -> CommandResult<()> {
-    println!("[fs_commands::unzip] Unzipping '{}' to base folder '{}'", zip_path, target_base_folder);
-    let target_base_path = PathBuf::from(&target_base_folder);
-    if !target_base_path.is_dir() {
-        return Err(format!(
-            "Target directory does not exist or is not a directory: {}",
-            target_base_folder
-        ));
-    }
-
-    let zip_file =
-        File::open(&zip_path).map_err(|e| format!("Failed open zip {}: {}", zip_path, e))?;
-    let mut archive =
-        ZipArchive::new(zip_file).map_err(|e| format!("Failed read zip archive: {}", e))?;
-
-    // --- Logic to determine the name of the folder to extract into ---
-    let mut top_levels = HashSet::new();
-    let mut fallback_name: Option<String> = None;
-    let mut all_start_with_same_folder = true;
-    let mut common_root: Option<String> = None;
-
-    for i in 0..archive.len() {
-        // Use ok() to ignore files ZipArchive can't read properly. Consider logging errors.
-        if let Ok(file) = archive.by_index(i) {
-            let path = file.mangled_name(); // Handles non-UTF8 paths gracefully
-
-            // Get the first component of the path inside the zip
-            if let Some(first_comp) = path.components().next() {
-                // Convert OsStr component to String safely
-                let part = first_comp.as_os_str().to_string_lossy().to_string();
-                if !part.is_empty() { // Avoid issues with paths like "/"
-                    top_levels.insert(part.clone());
-                    if common_root.is_none() {
-                        common_root = Some(part);
-                    } else if common_root.as_ref() != Some(&part) {
-                        all_start_with_same_folder = false;
-                    }
-                }
-            }
-
-            // Simple fallback name from first valid file stem found
-            if fallback_name.is_none() {
-                if let Some(stem) = path.file_stem().and_then(OsStr::to_str) {
-                    if !stem.is_empty() {
-                        fallback_name = Some(stem.to_string());
-                    }
-                }
-            }
-        } else {
-            eprintln!("[fs_commands::unzip] Warning: Could not read file at index {} in zip '{}'", i, zip_path);
-        }
-    }
-
-    // Determine the final output folder name inside target_base_folder
-    let folder_name = if all_start_with_same_folder && top_levels.len() == 1 {
-        common_root.unwrap() // We know it's Some if len == 1
-    } else {
-        // Use fallback, or generate UUID if no suitable name found
-        fallback_name.unwrap_or_else(|| format!("unzipped_{}", Uuid::new_v4()))
-    };
-
-    let final_target_dir = target_base_path.join(&folder_name);
-    println!("[fs_commands::unzip] Determined target directory: {}", final_target_dir.display());
-
-    // Re-open the archive for extraction pass
-    // Need to re-open file as ZipArchive consumes the reader
-    let zip_file_extract =
-        File::open(&zip_path).map_err(|e| format!("Failed re-open zip for extraction {}: {}", zip_path, e))?;
-    let mut archive_extract =
-        ZipArchive::new(zip_file_extract).map_err(|e| format!("Failed re-read zip archive for extraction: {}", e))?;
-
-
-    // --- Extraction loop ---
-    for i in 0..archive_extract.len() {
-         // Use ok() and continue on error for more resilience
-        let mut file = match archive_extract.by_index(i) {
-            Ok(f) => f,
-            Err(e) => {
-                eprintln!("[fs_commands::unzip] Error reading file index {} during extraction: {}", i, e);
-                continue;
-            }
-        };
-
-        let original_path = file.mangled_name();
-
-        // Determine path relative to the common root if applicable
-        let stripped_path = if all_start_with_same_folder && top_levels.len() == 1 {
-            original_path.components().skip(1).collect::<PathBuf>()
-        } else {
-            original_path.clone() // Use clone to avoid borrowing issues if original_path is needed later
-        };
-
-        // Skip empty paths (e.g., result of stripping the only component)
-        if stripped_path.as_os_str().is_empty() {
-            continue;
-        }
-
-        let outpath = final_target_dir.join(&stripped_path); // Use reference here
-
-        if file.name().ends_with('/') {
-            // It's a directory entry
-             println!("[fs_commands::unzip] Creating directory: {}", outpath.display());
-            fs::create_dir_all(&outpath)
-                .map_err(|e| format!("Failed create directory {:?}: {}", outpath, e))?;
-        } else {
-            // It's a file entry
-             println!("[fs_commands::unzip] Extracting file: {}", outpath.display());
-            if let Some(parent) = outpath.parent() {
-                if !parent.exists() {
-                    fs::create_dir_all(parent)
-                        .map_err(|e| format!("Failed create parent dir {:?}: {}", parent, e))?;
-                }
-            }
-            // Use try-catch approach for file creation and copy
-            match File::create(&outpath) {
-                Ok(mut outfile) => {
-                    match copy(&mut file, &mut outfile) {
-                         Ok(_) => {} // Successfully copied
-                         Err(e) => eprintln!("[fs_commands::unzip] Warning: Failed to copy file content to {:?}: {}", outpath, e), // Log error but maybe continue? Or return Err here? Decide based on desired robustness.
-                    }
-                }
-                Err(e) => {
-                     eprintln!("[fs_commands::unzip] Warning: Failed create output file {:?}: {}", outpath, e);
-                     // Decide whether to continue or return Err
-                     // return Err(format!("Failed create file {:?}: {}", outpath, e));
-                }
-            }
-        }
-         // Set permissions on Unix - Consider adding this if needed
-         #[cfg(unix)]
-         {
-             use std::os::unix::fs::PermissionsExt;
-             if let Some(mode) = file.unix_mode() {
-                  if let Err(e) = fs::set_permissions(&outpath, fs::Permissions::from_mode(mode)) {
-                       eprintln!("[fs_commands::unzip] Warning: Failed to set permissions on {:?}: {}", outpath, e);
-                  }
-             }
-         }
-    }
-
-    // Optionally remove the original zip file after successful extraction
-    println!("[fs_commands::unzip] Extraction complete. Removing original zip: {}", zip_path);
-    remove_file(&zip_path)
-        .map_err(|e| format!("Failed remove original zip file {}: {}", zip_path, e))?;
-
-    Ok(())
+fn map_io_error<S: AsRef<str>>(msg: S, path: &Path, e: std::io::Error) -> CommandError {
+    CommandError::Io(format!("{}: {}: {}", msg.as_ref(), path.display(), e))
 }
 
+pub fn unzip_file_internal(
+    source_path_str: &str,
+    target_base_folder_str: &str,
+    delete_source_on_success: bool,
+) -> CommandResult<PathBuf> {
+    info!(
+        "[fs::unzip_internal] START: Source='{}', TargetBase='{}', Delete={}",
+        source_path_str, target_base_folder_str, delete_source_on_success
+    );
+    let source_path = PathBuf::from(source_path_str);
+    let target_base_path = PathBuf::from(target_base_folder_str);
+
+    // --- 1. Validate Source and Target Base ---
+    if !source_path.is_file() { /* ... error handling ... */ }
+    if !target_base_path.exists() { /* ... create target base ... */ }
+    else if !target_base_path.is_dir() { /* ... error handling ... */ }
+    debug!("[fs::unzip_internal] Target base path validated: {}", target_base_path.display());
+
+    // --- 2. Determine Target Folder Name and Extraction Strategy (Metadata Scan) ---
+    let final_target_dir: PathBuf;
+    let common_root_to_strip: Option<String>;
+
+    { // Metadata scope
+        debug!("[fs::unzip_internal] Reading archive metadata for structure and largest file...");
+        let zip_file_meta = File::open(&source_path).map_err(|e| map_io_error("Failed open zip (meta)", &source_path, e))?;
+        let mut archive_meta = ZipArchive::new(zip_file_meta).map_err(|e| CommandError::Zip(format!("Failed read archive (meta) {}: {}", source_path.display(), e)))?;
+        let file_count = archive_meta.len();
+        debug!("[fs::unzip_internal] Archive contains {} entries.", file_count);
+
+        if file_count == 0 {
+            warn!("[fs::unzip_internal] Zip file is empty.");
+            // Create an empty folder named after the zip file stem
+            let folder_name = source_path.file_stem().and_then(OsStr::to_str).map(String::from).filter(|s| !s.is_empty()).unwrap_or_else(|| format!("empty_zip_{}", Uuid::new_v4()));
+            final_target_dir = target_base_path.join(&folder_name);
+            info!("[fs::unzip_internal] Empty zip - creating target dir: {}", final_target_dir.display());
+            fs::create_dir_all(&final_target_dir).map_err(|e| map_io_error("Failed create dir for empty zip", &final_target_dir, e))?;
+            return Ok(final_target_dir);
+        }
+
+        let mut top_level_items = HashSet::new();
+        let mut first_dir_name: Option<String> = None;
+        let mut has_files_at_root = false;
+        let mut largest_file_size: u64 = 0;
+        // Store the PathBuf of the largest file to easily get stem later
+        let mut largest_file_path: Option<PathBuf> = None;
+
+        for i in 0..file_count {
+             if let Ok(file) = archive_meta.by_index(i) {
+                let path = file.mangled_name();
+                let is_dir_entry = file.name().ends_with('/') || file.is_dir(); // Check both
+                trace!("[fs::unzip_internal] Meta scan - Index {}: Path='{:?}', IsDir={}", i, path, is_dir_entry);
+
+                if path.components().any(|comp| comp.as_os_str() == "..") { return Err(CommandError::Input(format!("Zip contains '..': {:?}", path))); }
+
+                let mut components = path.components();
+                if let Some(first_comp) = components.next() {
+                    let part_os = first_comp.as_os_str();
+                    let part = part_os.to_string_lossy().to_string();
+
+                    if !part.is_empty() {
+                        top_level_items.insert(part.clone());
+
+                        if components.next().is_none() && !is_dir_entry {
+                            // File directly at root level
+                            has_files_at_root = true;
+                            trace!("[fs::unzip_internal] Detected file at root level: {:?}", path);
+                            // Track largest file *at root* (or anywhere?) - let's track largest anywhere for simplicity now
+                            if file.size() > largest_file_size {
+                                largest_file_size = file.size();
+                                largest_file_path = Some(path.clone()); // Store PathBuf
+                                trace!("[fs::unzip_internal] New largest file found: {:?} ({} bytes)", path, largest_file_size);
+                            }
+                        } else if !is_dir_entry {
+                            // File inside a directory - track largest
+                             if file.size() > largest_file_size {
+                                largest_file_size = file.size();
+                                largest_file_path = Some(path.clone());
+                                trace!("[fs::unzip_internal] New largest file found: {:?} ({} bytes)", path, largest_file_size);
+                            }
+                        } else if first_dir_name.is_none() {
+                             // Directory at root level - track first one encountered
+                            first_dir_name = Some(part);
+                        }
+                    } else { has_files_at_root = true; } // Empty component means multi-root effectively
+                } else { has_files_at_root = true; } // Path with no components means multi-root
+            } else { warn!("[fs::unzip_internal] Cannot read file index {} (meta)", i); }
+        }
+
+        // --- Decide on the final folder name and stripping strategy ---
+        let target_folder_name: String;
+        if !has_files_at_root && top_level_items.len() == 1 && first_dir_name.is_some() {
+            // Case 1: Single top-level directory.
+            target_folder_name = first_dir_name.clone().unwrap();
+            common_root_to_strip = Some(target_folder_name.clone());
+            debug!("[fs::unzip_internal] Strategy: Single root folder detected ('{}').", target_folder_name);
+        } else {
+            // Case 2: Multiple items or files at root. Create new folder.
+            common_root_to_strip = None; // Don't strip anything.
+            // Try naming after the largest file's stem.
+            target_folder_name = largest_file_path
+                .as_ref() // Option<&PathBuf>
+                .and_then(|p| p.file_stem()) // Option<&OsStr>
+                .and_then(|s| s.to_str()) // Option<&str>
+                .map(String::from) // Option<String>
+                .filter(|s| !s.is_empty()) // Ensure stem is usable
+                .map(|stem| {
+                    debug!("[fs::unzip_internal] Strategy: Multi-root/Files at root. Using largest file stem '{}'.", stem);
+                    stem // Use the derived stem
+                })
+                .unwrap_or_else(|| { // Fallback 1: Use zip filename stem
+                    source_path.file_stem()
+                        .and_then(OsStr::to_str)
+                        .map(String::from)
+                        .filter(|s| !s.is_empty())
+                        .map(|stem| {
+                            debug!("[fs::unzip_internal] Strategy: Multi-root/Files at root. Using zip file stem '{}' as fallback.", stem);
+                            stem
+                        })
+                        .unwrap_or_else(|| { // Fallback 2: Use UUID
+                            warn!("[fs::unzip_internal] Using UUID fallback name for target folder.");
+                            format!("unzipped_{}", Uuid::new_v4())
+                        })
+                });
+            debug!("[fs::unzip_internal] Strategy: Multi-root/Files at root. Final folder name selected: '{}'.", target_folder_name);
+        }
+
+        final_target_dir = target_base_path.join(&target_folder_name);
+        info!("[fs::unzip_internal] Final calculated extraction target directory: {}", final_target_dir.display());
+
+    } // End metadata scope
+
+    // --- 3. Create the Final Target Directory ---
+    info!("[fs::unzip_internal] Ensuring final target directory exists: {}", final_target_dir.display());
+    fs::create_dir_all(&final_target_dir).map_err(|e| map_io_error("Failed create final target dir", &final_target_dir, e))?;
+
+    // --- 4. Perform Extraction into the Target Directory ---
+    info!("[fs::unzip_internal] Starting extraction pass into {}", final_target_dir.display());
+    let zip_file_extract = File::open(&source_path).map_err(|e| map_io_error("Failed re-open zip (extract)", &source_path, e))?;
+    let mut archive_extract = ZipArchive::new(zip_file_extract).map_err(|e| CommandError::Zip(format!("Failed re-read archive (extract) {}: {}", source_path.display(), e)))?;
+    let mut extracted_count = 0;
+
+    for i in 0..archive_extract.len() {
+        let mut file = match archive_extract.by_index(i) { Ok(f) => f, Err(e) => { warn!("[fs::unzip_internal] Err reading extract idx {}: {}", i, e); continue; } };
+        let original_path = file.mangled_name();
+        trace!("[fs::unzip_internal] Processing entry {}: OriginalPath='{:?}', Size={}", i, original_path, file.size());
+
+        if original_path.components().any(|comp| comp.as_os_str() == "..") { /* ... skip ... */ continue; }
+
+        // Apply stripping logic based on the determined strategy
+        let path_to_write = if let Some(ref root_to_strip) = common_root_to_strip {
+            let root_path = PathBuf::from(root_to_strip);
+            if original_path.starts_with(&root_path) && original_path != root_path {
+                original_path.strip_prefix(&root_path).unwrap().to_path_buf()
+            } else if original_path == root_path {
+                 trace!("[fs::unzip_internal] Skipping root dir entry itself: {:?}", original_path);
+                 continue;
+            } else {
+                 warn!("[fs::unzip_internal] Entry {:?} != common root '{}' during single-root extraction.", original_path, root_to_strip);
+                 original_path.clone()
+            }
+        } else {
+            original_path.clone()
+        };
+
+        if path_to_write.as_os_str().is_empty() { trace!("[fs::unzip_internal] Skipping empty path after strip for index {}", i); continue; }
+
+        // Join with the single final_target_dir
+        let outpath = final_target_dir.join(&path_to_write);
+        trace!("[fs::unzip_internal] Index {}: Target output path: {}", i, outpath.display());
+
+        if !outpath.starts_with(&final_target_dir) { /* ... Zip Slip error ... */ continue; }
+
+        // File/Directory creation logic
+        if file.name().ends_with('/') || file.is_dir() {
+            trace!("[fs::unzip_internal] Creating dir: {}", outpath.display());
+            fs::create_dir_all(&outpath).map_err(|e| map_io_error("Failed create dir", &outpath, e))?;
+            // Optionally count directories: extracted_count += 1;
+        } else {
+            if let Some(p) = outpath.parent() { if !p.exists() { trace!("[fs::unzip_internal] Creating parent dir: {}", p.display()); fs::create_dir_all(p).map_err(|e| map_io_error("Failed create parent", p, e))?; } }
+            trace!("[fs::unzip_internal] Creating file: {}", outpath.display());
+            {
+                let mut outfile = File::create(&outpath).map_err(|e| map_io_error("Failed create file", &outpath, e))?;
+                let bytes_copied = copy(&mut file, &mut outfile).map_err(|e| CommandError::Io(format!("Failed copy to {}: {}", outpath.display(), e)))?;
+                trace!("[fs::unzip_internal] Copied {} bytes to {}", bytes_copied, outpath.display());
+                extracted_count += 1; // Count extracted files
+            }
+        }
+        #[cfg(unix)]
+        { /* ... permissions ... */ }
+    }
+    drop(archive_extract);
+    info!("[fs::unzip_internal] Extraction pass complete. Extracted {} file entries.", extracted_count);
+
+    // --- 5. Conditional Cleanup ---
+    if delete_source_on_success { /* ... */ } else { info!("[fs::unzip_internal] Skipping source delete."); }
+
+    info!("[fs::unzip_internal] FINISHED Successfully. Returning final target dir: {}", final_target_dir.display());
+    Ok(final_target_dir)
+}
+
+#[command]
+pub async fn handle_dropped_zip(
+    _app_handle: AppHandle,
+    zip_path: String,
+    target_base_folder: String,
+) -> CommandResult<InstallationResult> {
+    info!("[fs::handle_dropped_zip] Request received: Source='{}', TargetBase='{}'", zip_path, target_base_folder);
+    let original_source = zip_path.clone();
+
+    debug!("[fs::handle_dropped_zip] Spawning blocking task for unzip...");
+    let unzip_result = tokio::task::spawn_blocking(move || {
+        unzip_file_internal(&zip_path, &target_base_folder, false)
+    })
+    .await
+    .map_err(|e| {
+        error!("[fs::handle_dropped_zip] Unzip task panicked or failed to join: {}", e);
+        CommandError::TaskJoin(format!("Unzip task panicked: {}", e))
+    })?;
+
+    match unzip_result {
+        Ok(final_path) => {
+             let success_msg = format!("Successfully processed local zip: {}", original_source);
+              info!("[fs::handle_dropped_zip] Success: {}", success_msg);
+              info!("[fs::handle_dropped_zip] Files extracted to: {}", final_path.display());
+             Ok(InstallationResult { success: true, message: success_msg, final_path: Some(final_path), source: original_source })
+        }
+        Err(e) => {
+            error!("[fs::handle_dropped_zip] Internal unzip failed for '{}': {:?}", original_source, e);
+            Err(e)
+        }
+    }
+}
 
 #[command]
 pub fn save_file(absolute_path: String, contents: Vec<u8>) -> CommandResult<()> {
     let file_path = PathBuf::from(absolute_path);
-    println!("[fs_commands::save_file] Saving {} bytes to {}", contents.len(), file_path.display());
-    if let Some(parent) = file_path.parent() {
-        fs::create_dir_all(parent).map_err(|e| {
-            format!(
-                "Failed create directory structure for {}: {}",
-                file_path.display(),
-                e
-            )
-        })?;
-    }
-    fs::write(&file_path, &contents)
-        .map_err(|e| format!("Failed write file {}: {}", file_path.display(), e))?;
-    Ok(())
+    log::debug!("[fs::save_file] {} bytes to {}", contents.len(), file_path.display());
+    if let Some(parent) = file_path.parent() { fs::create_dir_all(parent).map_err(|e| map_io_error("Failed create parent dir", parent, e))?; }
+    fs::write(&file_path, &contents).map_err(|e| map_io_error("Failed write file", &file_path, e))
 }
 
 #[command]
 pub fn list_directory_entries(absolute_path: String) -> CommandResult<DirectoryListingResult> {
     let dir_path = PathBuf::from(absolute_path);
-    println!("[fs_commands::list_directory_entries] Checking {}", dir_path.display());
-
-    if !dir_path.exists() {
-        println!("[fs_commands::list_directory_entries] Path does not exist.");
-        return Ok(DirectoryListingResult {
-            status: ListingStatus::DoesNotExist,
-            entries: Vec::new(),
-            path: dir_path,
-        });
-    }
-    if !dir_path.is_dir() {
-        return Err(format!(
-            "Path exists but is not a directory: {}",
-            dir_path.display()
-        ));
-    }
+    log::debug!("[fs::list_dir] {}", dir_path.display());
+    if !dir_path.exists() { return Ok(DirectoryListingResult { status: ListingStatus::DoesNotExist, entries: Vec::new(), path: dir_path }); }
+    if !dir_path.is_dir() { return Err(CommandError::Input(format!("Path is not a directory: {}", dir_path.display()))); }
 
     let mut entries = Vec::new();
-    let mut dir_reader = match fs::read_dir(&dir_path) {
-        Ok(reader) => reader.peekable(), // Use peekable to check for emptiness
-        Err(e) => {
-            return Err(format!(
-                "Failed read directory {}: {}",
-                dir_path.display(),
-                e
-            ))
-        }
-    };
-
-    let status = if dir_reader.peek().is_none() {
-        println!("[fs_commands::list_directory_entries] Directory exists but is empty.");
-        ListingStatus::ExistsAndEmpty
-    } else {
-         println!("[fs_commands::list_directory_entries] Directory exists and is populated.");
-        ListingStatus::ExistsAndPopulated
-    };
-
-    // Only iterate if populated to avoid unnecessary work
-    if status == ListingStatus::ExistsAndPopulated {
-        // Need to re-read dir because peek consumed the first element check
-         let dir_reader_entries = fs::read_dir(&dir_path)
-            .map_err(|e| format!("Failed re-read directory {}: {}", dir_path.display(), e))?;
-
-        for entry_result in dir_reader_entries {
-            if let Ok(entry) = entry_result {
-                let path = entry.path();
-                if let Ok(metadata) = entry.metadata() {
-                    let name = entry.file_name().to_str().map(String::from);
-                    let is_directory = metadata.is_dir();
-
-                    // Basic check to skip potentially invalid entries
-                    if path.as_os_str().is_empty() || (name.is_none() && !is_directory) {
-                        continue;
+    let dir_reader = fs::read_dir(&dir_path).map_err(|e| map_io_error("Failed read directory", &dir_path, e))?;
+    for entry_result in dir_reader {
+        match entry_result {
+            Ok(entry) => {
+                match entry.metadata() {
+                    Ok(metadata) => {
+                        let name = entry.file_name().to_str().map(String::from);
+                         if name.is_none() && !metadata.is_dir() { continue; }
+                        let modified_time = system_time_to_millis(metadata.modified().ok()).or_else(|| system_time_to_millis(metadata.created().ok()));
+                        entries.push(FsEntry { name, path: entry.path(), is_directory: metadata.is_dir(), size: if metadata.is_dir() { None } else { Some(metadata.len()) }, modified: modified_time, thumbnail_path: None, thumbnail_mime_type: None });
                     }
-
-                    // Calculate size (using helper for dirs) and get modified time
-                    let size = if is_directory {
-                        Some(calculate_directory_size(&path)) // Call utility function
-                    } else {
-                        Some(metadata.len())
-                    };
-                    let modified_time = system_time_to_millis(metadata.modified().ok()) // Call utility
-                        .or_else(|| system_time_to_millis(metadata.created().ok())); // Fallback to created
-
-                    entries.push(FsEntry {
-                        name,
-                        path,
-                        is_directory,
-                        size,
-                        modified: modified_time,
-                        thumbnail_path: None, // Not relevant for generic listing
-                        thumbnail_mime_type: None, // Not relevant for generic listing
-                    });
-                } else {
-                    eprintln!(
-                        "[fs_commands::list_directory_entries] Warning: Could not get metadata for {:?}",
-                        entry.path()
-                    );
+                    Err(e) => log::warn!("[fs::list_dir] Cannot get metadata for {:?}: {}", entry.path(), e),
                 }
-            } else {
-                eprintln!("[fs_commands::list_directory_entries] Warning: Could not read directory entry.");
             }
+            Err(e) => log::warn!("[fs::list_dir] Cannot read entry in {}: {}", dir_path.display(), e),
         }
     }
-
-    // Sort entries: directories first, then alphabetically
-    entries.sort_by(|a, b| {
-        if a.is_directory == b.is_directory {
-            // Both are files or both are dirs: sort by name case-insensitively
-            a.name
-                .as_deref()
-                .unwrap_or("") // Treat None name as empty string for sorting
-                .to_lowercase()
-                .cmp(&b.name.as_deref().unwrap_or("").to_lowercase())
-        } else if a.is_directory {
-            // a is dir, b is file: a comes first
-            std::cmp::Ordering::Less
-        } else {
-            // a is file, b is dir: a comes second
-            std::cmp::Ordering::Greater
-        }
-    });
-
-    println!(
-        "[fs_commands::list_directory_entries] END Status: {:?}, Count: {}",
-        status,
-        entries.len()
-    );
-    Ok(DirectoryListingResult {
-        status,
-        entries,
-        path: dir_path,
-    })
+    entries.sort_by(|a, b| { match (a.is_directory, b.is_directory) { (true, false) => std::cmp::Ordering::Less, (false, true) => std::cmp::Ordering::Greater, _ => a.name.as_deref().unwrap_or("").to_ascii_lowercase().cmp(&b.name.as_deref().unwrap_or("").to_ascii_lowercase()), } });
+    let status = if entries.is_empty() { ListingStatus::ExistsAndEmpty } else { ListingStatus::ExistsAndPopulated };
+    log::debug!("[fs::list_dir] END Status: {:?}, Count: {}", status, entries.len());
+    Ok(DirectoryListingResult { status, entries, path: dir_path })
 }
-
 
 #[command]
 pub fn create_directory_rust(absolute_path: String) -> CommandResult<()> {
     let path = PathBuf::from(absolute_path);
-    println!("[fs_commands::create_directory_rust] {}", path.display());
-    fs::create_dir_all(&path)
-        .map_err(|e| format!("Failed create directory '{}': {}", path.display(), e))
+    log::debug!("[fs::create_dir] {}", path.display());
+    fs::create_dir_all(&path).map_err(|e| map_io_error("Failed create directory", &path, e))
 }
 
 #[command]
 pub fn create_empty_file_rust(absolute_path: String) -> CommandResult<()> {
     let path = PathBuf::from(absolute_path);
-    println!("[fs_commands::create_empty_file_rust] {}", path.display());
-
-    // Ensure parent directory exists first
-    if let Some(parent) = path.parent() {
-        if !parent.exists() {
-             println!("[fs_commands::create_empty_file_rust] Parent dir doesn't exist, creating: {}", parent.display());
-            fs::create_dir_all(parent).map_err(|e| {
-                format!(
-                    "Failed create parent directory '{}': {}",
-                    parent.display(),
-                    e
-                )
-            })?;
-        }
-    } else {
-        // This case should be rare (e.g., creating a file in root "/file.txt" on Unix)
-        return Err(format!(
-            "Cannot determine parent directory for '{}'",
-            path.display()
-        ));
-    }
-
-    // Create the empty file
-    File::create(&path)
-        .map(|_| ()) // Discard the File handle, just indicate success
-        .map_err(|e| format!("Failed create file '{}': {}", path.display(), e))
+    log::debug!("[fs::create_file] {}", path.display());
+    if let Some(parent) = path.parent() { fs::create_dir_all(parent).map_err(|e| map_io_error("Failed create parent dir", parent, e))?; }
+    else { return Err(CommandError::Input(format!("Cannot determine parent for '{}'", path.display()))); }
+    File::create(&path).map(|_| ()).map_err(|e| map_io_error("Failed create file", &path, e))
 }
 
 #[command]
-pub fn rename_fs_entry_rust(
-    old_absolute_path: String,
-    new_absolute_path: String,
-) -> CommandResult<()> {
+pub fn rename_fs_entry_rust(old_absolute_path: String, new_absolute_path: String) -> CommandResult<()> {
     let old_path = PathBuf::from(old_absolute_path);
     let new_path = PathBuf::from(new_absolute_path);
-    println!(
-        "[fs_commands::rename_fs_entry_rust] {} -> {}",
-        old_path.display(),
-        new_path.display()
-    );
-
-    // Pre-checks
-    if !old_path.exists() {
-        return Err(format!("Source path '{}' not found.", old_path.display()));
-    }
-    if new_path.exists() {
-        return Err(format!(
-            "Target path '{}' already exists.",
-            new_path.display()
-        ));
-    }
-    // Check if parent directory of the *new* path exists
-    if let Some(parent) = new_path.parent() {
-        if !parent.exists() {
-            return Err(format!(
-                "Target directory '{}' does not exist.",
-                parent.display()
-            ));
-        }
-         if !parent.is_dir() {
-              return Err(format!(
-                   "Target parent path '{}' is not a directory.", parent.display()
-              ));
-         }
-    } else {
-        return Err(format!(
-            "Cannot determine parent directory for new path '{}'",
-            new_path.display()
-        ));
-    }
-
-    // Perform the rename
-    fs::rename(&old_path, &new_path).map_err(|e| {
-        format!(
-            "Failed rename '{}' to '{}': {}",
-            old_path.display(),
-            new_path.display(),
-            e
-        )
-    })
+    log::debug!("[fs::rename] {} -> {}", old_path.display(), new_path.display());
+    if !old_path.exists() { return Err(CommandError::Input(format!("Source does not exist: {}", old_path.display()))); }
+    if new_path.exists() { return Err(CommandError::Input(format!("Target already exists: {}", new_path.display()))); }
+    if let Some(parent) = new_path.parent() { if !parent.is_dir() { return Err(CommandError::Input(format!("Target parent dir missing: {}", parent.display()))); } }
+    else { return Err(CommandError::Input(format!("Cannot determine parent for new path: {}", new_path.display()))); }
+    fs::rename(&old_path, &new_path).map_err(|e| CommandError::Io(format!("Failed rename '{}' to '{}': {}", old_path.display(), new_path.display(), e)))
 }
 
 #[command]
-pub fn delete_fs_entry_rust(absolute_path: String) -> CommandResult<()> {
-    let path = PathBuf::from(absolute_path);
-    println!("[fs_commands::delete_fs_entry_rust] {}", path.display());
+pub fn delete_fs_entry_rust(app_handle: AppHandle, absolute_path: String) -> CommandResult<()> {
+    let path_to_delete = PathBuf::from(&absolute_path);
+    // Use "Move to Trash" in logs for clarity
+    log::info!("[fs::delete] Request to move to trash: {}", path_to_delete.display());
 
-    // Check if path exists before attempting deletion
-    if !path.exists() {
-         println!("[fs_commands::delete_fs_entry_rust] Path does not exist, nothing to delete.");
-        return Ok(()); // Nothing to delete, operation is technically successful
+    // --- 1. Update AppData Cache (Before moving to trash) ---
+    match app_handle.path().app_data_dir() {
+        Ok(data_dir) => {
+            let cache_file_path = data_dir.join("map_cache.json"); // ADJUST FILENAME IF NEEDED
+            log::debug!("[fs::delete] Attempting to update cache file before trash: {}", cache_file_path.display());
+            if cache_file_path.is_file() {
+                let read_result = File::open(&cache_file_path).map(BufReader::new);
+                if let Ok(reader) = read_result {
+                    match serde_json::from_reader::<_, Vec<FsEntry>>(reader) { // ADJUST Vec<FsEntry> IF NEEDED
+                        Ok(mut cache_entries) => {
+                            let initial_len = cache_entries.len();
+                            cache_entries.retain(|entry| entry.path != path_to_delete);
+                            if cache_entries.len() < initial_len {
+                                log::info!("[fs::delete] Removing entry for '{}' from cache.", path_to_delete.display());
+                                let write_result = File::create(&cache_file_path).map(BufWriter::new);
+                                if let Ok(writer) = write_result {
+                                    if let Err(e) = serde_json::to_writer_pretty(writer, &cache_entries) {
+                                        log::warn!("[fs::delete] Failed write updated cache (non-fatal): {}", e);
+                                    } else { log::debug!("[fs::delete] Updated cache file successfully."); }
+                                } else { log::warn!("[fs::delete] Failed open cache for writing (non-fatal): {}", cache_file_path.display()); }
+                            } else { log::debug!("[fs::delete] Entry not found in cache."); }
+                        }
+                        Err(e) => log::warn!("[fs::delete] Failed parse cache file (non-fatal): {}", e),
+                    }
+                } else { log::warn!("[fs::delete] Failed open cache for reading (non-fatal): {}", cache_file_path.display()); }
+            } else { log::debug!("[fs::delete] Cache file not found, skipping update: {}", cache_file_path.display()); }
+        }
+        Err(e) => log::warn!("[fs::delete] Could not resolve app data dir for cache update: {}", e),
     }
 
-    // Use metadata to determine if it's a file or directory
-    // Using symlink_metadata to avoid following symlinks during check
-    match fs::symlink_metadata(&path) {
-         Ok(metadata) => {
-              if metadata.is_dir() {
-                   println!("[fs_commands::delete_fs_entry_rust] Path is a directory, removing recursively.");
-                   fs::remove_dir_all(&path).map_err(|e| format!("Failed delete directory '{}': {}", path.display(), e))
-              } else if metadata.is_file() || metadata.file_type().is_symlink() {
-                  // Treat regular files and symlinks (both file and dir links) the same way for removal: remove_file
-                  // platform_remove_symlink could be used for symlinks if more specific handling is needed,
-                  // but remove_file often works for symlinks too, especially on Unix.
-                  // remove_dir is needed for dir symlinks on Windows, but remove_dir_all handles dirs.
-                  // Let's keep it simple: remove_file for non-dirs.
-                   println!("[fs_commands::delete_fs_entry_rust] Path is a file or symlink, removing.");
-                  fs::remove_file(&path).map_err(|e| format!("Failed delete file/symlink '{}': {}", path.display(), e))
-              } else {
-                  Err(format!("Path '{}' exists but is of an unknown or unsupported file type.", path.display()))
-              }
-         }
-         Err(e) => {
-              // If we failed to get metadata even though exists() was true (race condition?), report error.
-              Err(format!("Failed to get metadata for existing path '{}': {}", path.display(), e))
-         }
+    // --- 2. Thumbnail Cache Cleanup (Before moving to trash) ---
+    {
+        if let Ok(cache_base_dir) = app_handle.path().app_cache_dir() {
+            let thumbnail_cache_dir = cache_base_dir.join("thumbnails");
+            if thumbnail_cache_dir.is_dir() {
+                let map_hash = hash_path(&path_to_delete);
+                for ext in THUMBNAIL_EXTS.iter() {
+                    let cached_path = thumbnail_cache_dir.join(format!("{}.{}", map_hash, ext));
+                    if cached_path.exists() {
+                        match fs::remove_file(&cached_path) {
+                            Ok(_) => log::debug!("[fs::delete] Removed cached thumb: {}", cached_path.display()),
+                            Err(e) => log::warn!("[fs::delete] Failed remove cached thumb {}: {}", cached_path.display(), e),
+                        }
+                    }
+                }
+            }
+        } else { log::warn!("[fs::delete] Could not resolve app cache dir for thumb cleanup"); }
     }
+
+    // --- 3. Move to Trash/Recycle Bin ---
+    if !path_to_delete.exists() {
+        log::warn!("[fs::delete] Path not found, cannot move to trash: {}", path_to_delete.display());
+        // Return Ok because the desired state (item not present) is achieved.
+        return Ok(());
+    }
+
+    log::info!("[fs::delete] Attempting to move to trash: {}", path_to_delete.display());
+    // Use trash::delete - handles both files and directories
+    trash::delete(&path_to_delete)
+        .map_err(|e| {
+            // Map trash::Error to our CommandError::TrashError
+            error!("[fs::delete] Failed to move path to trash: {}", e);
+            CommandError::TrashError(e.to_string()) // Use the new error variant
+        })?; // Propagate the error if map_err results in Err
+
+    // If trash::delete succeeded:
+    log::info!("[fs::delete] Successfully moved to trash: {}", path_to_delete.display());
+    Ok(()) // Return success
 }

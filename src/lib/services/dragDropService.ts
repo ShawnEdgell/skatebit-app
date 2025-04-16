@@ -1,210 +1,234 @@
 import { invoke } from "@tauri-apps/api/core";
-import { join } from "@tauri-apps/api/path";
+import { join, basename, dirname } from "@tauri-apps/api/path";
 import {
-  readFile,
-  writeFile,
   readDir,
   mkdir,
   stat,
+  copyFile,
   type DirEntry as TauriDirEntry,
   type FileInfo,
 } from "@tauri-apps/plugin-fs";
 import { handleError } from "$lib/utils/errorHandler";
 import { toastStore } from "$lib/stores/uiStore";
-import { normalizePath, getFileName } from "$lib/services/pathService";
+import { normalizePath } from "$lib/services/pathService";
+
+interface InstallationResult {
+  success: boolean;
+  message: string;
+  final_path?: string;
+  source: string;
+}
 
 export async function handleDroppedPaths(
   paths: string[],
-  currentDestAbsolutePath: string // Expect absolute path
+  currentDestAbsolutePath: string
 ): Promise<void> {
   let successCount = 0;
   let errorCount = 0;
-
-  // Ensure destination path is valid before starting loop
-  if (
-    !currentDestAbsolutePath ||
-    currentDestAbsolutePath.startsWith("/error") ||
-    currentDestAbsolutePath.trim() === ""
-  ) {
+  if (!currentDestAbsolutePath || currentDestAbsolutePath.trim() === "") {
     handleError(
-      `Cannot handle drop: Destination path is invalid ('${currentDestAbsolutePath}').`,
+      `Invalid drop destination: '${currentDestAbsolutePath}'`,
       "File Drop"
     );
     return;
   }
+  const normalizedDestination = normalizePath(currentDestAbsolutePath);
 
   for (const sourcePath of paths) {
-    const normSourcePath = normalizePath(sourcePath); // Normalize source path
+    const normSourcePath = normalizePath(sourcePath);
     if (!normSourcePath) {
-      console.warn(`Skipping drop for invalid source path: ${sourcePath}`);
+      console.warn(`Skipping invalid source path format: ${sourcePath}`);
       errorCount++;
-      continue; // Skip this item
+      continue;
+    }
+    let itemName = "unknown_item";
+    try {
+      itemName = await basename(normSourcePath);
+      if (!itemName) throw new Error("Basename empty");
+    } catch (e) {
+      console.error(`Failed get basename for '${normSourcePath}':`, e);
+      handleError(e, `determining name for ${normSourcePath}`);
+      errorCount++;
+      continue;
     }
 
-    const itemName = getFileName(normSourcePath); // Get name from normalized path
+    console.log(`Processing dropped item: ${itemName} (${normSourcePath})`);
+    let progressToastId: number | null = null;
 
     try {
-      const info: FileInfo = await stat(normSourcePath);
-
-      if (normSourcePath.toLowerCase().endsWith(".zip")) {
-        console.log(`Processing dropped zip file: ${itemName}`);
-        // Pass the intended *destination directory* to the Rust command
-        await invoke("unzip_file", {
+      if (itemName.toLowerCase().endsWith(".zip")) {
+        console.log(`-> Handling ZIP: ${itemName}`);
+        const loadingSpan = `<span class="loading loading-dots loading-sm ml-2"></span>`;
+        progressToastId = toastStore.addToast(
+          `⏳ Extracting "${itemName}"... ${loadingSpan}`,
+          "alert-info",
+          0
+        );
+        const result: InstallationResult = await invoke("handle_dropped_zip", {
           zipPath: normSourcePath,
-          // ---> FIX: Pass destination directory as target_base_folder <---
-          targetBaseFolder: currentDestAbsolutePath,
+          targetBaseFolder: normalizedDestination,
         });
-        toastStore.addToast(`Unzipped "${itemName}"`, "alert-success");
-        successCount++;
-      } else if (info.isDirectory) {
-        console.log(`Processing dropped directory: ${itemName}`);
-        const targetAbsolutePath = normalizePath(
-          await join(currentDestAbsolutePath, itemName)
-        );
-        if (!targetAbsolutePath) {
+        toastStore.removeToast(progressToastId);
+        progressToastId = null;
+        if (result.success) {
+          console.log(`-> ZIP OK: ${result.message}`);
+          toastStore.addToast(`✅ Processed "${itemName}"`, "alert-success");
+          successCount++;
+        } else {
+          console.error(`-> ZIP FAIL: ${result.message}`);
           throw new Error(
-            `Could not construct target path for directory ${itemName}.`
+            result.message || `Processing failed for ${itemName}`
           );
         }
-        await copyFolderRecursive(normSourcePath, targetAbsolutePath);
-        successCount++;
-      } else if (info.isFile) {
-        console.log(`Processing dropped file: ${itemName}`);
-        const targetAbsolutePath = normalizePath(
-          await join(currentDestAbsolutePath, itemName)
-        );
-        if (!targetAbsolutePath) {
-          throw new Error(
-            `Could not construct target path for file ${itemName}.`
-          );
-        }
-        await copySingleFile(normSourcePath, targetAbsolutePath);
-        successCount++;
       } else {
-        console.warn(`Skipping unknown file type: ${normSourcePath}`);
-        toastStore.addToast(
-          `Skipped unknown type: "${itemName}"`,
-          "alert-warning"
-        );
+        const info: FileInfo = await stat(normSourcePath);
+        if (info.isDirectory) {
+          console.log(`-> Handling Dir: ${itemName}`);
+          const loadingSpan = `<span class="loading loading-dots loading-sm ml-2"></span>`;
+          progressToastId = toastStore.addToast(
+            `⏳ Copying directory "${itemName}"... ${loadingSpan}`,
+            "alert-info",
+            0
+          );
+          const targetDirPath = await join(normalizedDestination, itemName);
+          await copyFolderRecursive(normSourcePath, targetDirPath);
+          toastStore.removeToast(progressToastId);
+          progressToastId = null;
+          toastStore.addToast(
+            `✅ Copied directory "${itemName}"`,
+            "alert-success"
+          );
+          console.log(`-> Dir copy OK: "${itemName}"`);
+          successCount++;
+        } else if (info.isFile) {
+          console.log(`-> Handling File: ${itemName}`);
+          const loadingSpan = `<span class="loading loading-dots loading-sm ml-2"></span>`;
+          progressToastId = toastStore.addToast(
+            `⏳ Copying file "${itemName}"... ${loadingSpan}`,
+            "alert-info",
+            0
+          );
+          const targetFilePath = await join(normalizedDestination, itemName);
+          await copySingleFile(normSourcePath, targetFilePath);
+          toastStore.removeToast(progressToastId);
+          progressToastId = null;
+          toastStore.addToast(`✅ Copied file "${itemName}"`, "alert-success");
+          console.log(`-> File copy OK: "${itemName}"`);
+          successCount++;
+        } else {
+          console.warn(`-> Skipping unknown type: ${normSourcePath}`);
+          toastStore.addToast(
+            `Skipped unknown type: "${itemName}"`,
+            "alert-warning"
+          );
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
+      toastStore.removeToast(progressToastId);
+      progressToastId = null;
       errorCount++;
-      // Pass normalized source path to error handler
-      handleError(
-        error,
-        `processing dropped item ${itemName || normSourcePath}`
-      );
+      console.error(`-> FAIL item "${itemName}":`, error);
+      handleError(error, `processing dropped item: ${itemName}`);
     }
   }
 
-  // Optional summary toast
-  if (successCount > 0 && errorCount === 0) {
-    // toastStore.addToast(`Successfully processed ${successCount} dropped item(s).`, "alert-info");
-  } else if (successCount > 0 && errorCount > 0) {
+  if (errorCount > 0 && successCount > 0) {
     toastStore.addToast(
-      `Processed ${successCount} item(s) with ${errorCount} error(s).`,
+      `Drop complete: ${successCount} succeeded, ${errorCount} failed.`,
       "alert-warning"
     );
-  } else if (errorCount > 0) {
-    // Handled by individual errors, maybe no summary needed or a generic failure toast
+  } else if (errorCount > 0 && successCount === 0) {
+    toastStore.addToast(
+      `Drop failed for ${errorCount} item(s).`,
+      "alert-error"
+    );
+  } else if (successCount > 0 && errorCount === 0) {
+    toastStore.addToast(
+      `Successfully processed ${successCount} dropped item(s).`,
+      "alert-success"
+    );
+  } else {
+    console.log("No items processed from drop.");
   }
 }
 
-// Keep copySingleFile as is (looks okay)
-export async function copySingleFile(
+async function copySingleFile(
   sourcePath: string,
-  targetAbsolutePath: string
+  targetPath: string
 ): Promise<void> {
-  const fileName = getFileName(sourcePath);
+  const fileName = await basename(sourcePath);
   try {
-    console.log(
-      `Copying file "${fileName}" from "${sourcePath}" to "${targetAbsolutePath}"`
-    );
-    const fileData = await readFile(sourcePath);
-    // Ensure parent directory exists for the target file
-    const parentDir =
-      targetAbsolutePath.substring(0, targetAbsolutePath.lastIndexOf("/")) ||
-      "/";
-    if (parentDir !== "/") {
-      // Avoid trying to create root
+    const parentDir = await dirname(targetPath);
+    const isRoot = parentDir === "/" || /^[a-zA-Z]:[\\/]?$/.test(parentDir);
+    if (!isRoot) {
       await mkdir(parentDir, { recursive: true });
     }
-    await writeFile(targetAbsolutePath, fileData);
-    console.log(`Copied file "${fileName}" successfully.`);
-    // Optional success toast here? Might be too noisy.
-    // toastStore.addToast(`Copied file: ${fileName}`, "alert-success");
+    await copyFile(sourcePath, targetPath);
+    console.log(` -> Copied file "${fileName}" to "${targetPath}"`);
   } catch (error) {
     console.error(
-      `Error copying file ${fileName} from ${sourcePath} to ${targetAbsolutePath}:`,
+      ` -> Error copying file "${fileName}" to "${targetPath}":`,
       error
     );
-    // Re-throw to be caught by handleDroppedPaths
     throw error;
   }
 }
 
-// Keep copyFolderRecursive as is (looks okay)
-export async function copyFolderRecursive(
+async function copyFolderRecursive(
   sourcePath: string,
-  targetAbsolutePath: string
+  targetPath: string
 ): Promise<void> {
-  const folderName = getFileName(sourcePath);
+  const folderName = await basename(sourcePath);
   try {
-    console.log(
-      `Copying folder "${folderName}" from "${sourcePath}" to "${targetAbsolutePath}"`
-    );
-    // Create the target directory first
-    await mkdir(targetAbsolutePath, { recursive: true });
+    await mkdir(targetPath, { recursive: true });
     const items: TauriDirEntry[] = await readDir(sourcePath);
-
     for (const item of items) {
       const itemName = item.name;
       if (!itemName) {
-        console.warn(`Skipping item with no name inside ${sourcePath}`);
+        console.warn(` -> Skipping unnamed entry in ${sourcePath}`);
         continue;
       }
-
-      // Construct full paths for source and target items
       const itemSourcePath = await join(sourcePath, itemName);
-      const itemTargetPath = await join(targetAbsolutePath, itemName);
-
-      // Check if item is a directory (TauriDirEntry might not have isDirectory directly)
-      // Need to stat again or rely on name not having extension (less reliable)
-      // Or assume TauriDirEntry provides type info if possible
-      let isItemDirectory = false;
-      if (item.isDirectory !== undefined) {
-        // If Tauri provides it directly
-        isItemDirectory = item.isDirectory;
+      const itemTargetPath = await join(targetPath, itemName);
+      if (item.isDirectory) {
+        await copyFolderRecursive(itemSourcePath, itemTargetPath);
+      } else if (item.isFile) {
+        await copySingleFile(itemSourcePath, itemTargetPath);
       } else {
-        // Fallback: Stat the item to check if it's a directory
+        console.warn(
+          ` -> Type missing/unsupported for "${itemName}", trying stat...`
+        );
         try {
-          const itemInfo = await stat(itemSourcePath);
-          isItemDirectory = itemInfo.isDirectory;
+          const info = await stat(itemSourcePath);
+          if (info.isDirectory) {
+            await copyFolderRecursive(itemSourcePath, itemTargetPath);
+          } else if (info.isFile) {
+            await copySingleFile(itemSourcePath, itemTargetPath);
+          } else {
+            console.warn(
+              ` -> Skipping unknown type after stat: ${itemSourcePath}`
+            );
+          }
         } catch (statError) {
           console.error(
-            `Could not stat item ${itemSourcePath} during recursive copy:`,
+            ` -> Stat fallback failed for ${itemSourcePath}:`,
             statError
           );
-          continue; // Skip item if stat fails
+          console.warn(` -> Skipping entry ${itemName} due to stat failure.`);
         }
       }
-
-      if (isItemDirectory) {
-        await copyFolderRecursive(itemSourcePath, itemTargetPath);
-      } else {
-        // It's a file
-        await copySingleFile(itemSourcePath, itemTargetPath);
-      }
     }
-    console.log(`Copied folder "${folderName}" successfully.`);
-    // Optional success toast here? Might be too noisy.
-    // toastStore.addToast(`Copied folder: ${folderName}`, "alert-success");
+    console.log(
+      ` -> Copied contents of folder "${folderName}" to "${targetPath}"`
+    );
   } catch (error) {
     console.error(
-      `Error copying folder ${folderName} from ${sourcePath} to ${targetAbsolutePath}:`,
+      ` -> Error copying folder "${folderName}" to "${targetPath}":`,
       error
     );
-    // Re-throw to be caught by handleDroppedPaths
     throw error;
   }
 }
+
+// Ensure normalizePath is defined, e.g.:
+// function normalizePath(path: string): string { return path.replace(/\\/g, '/'); }

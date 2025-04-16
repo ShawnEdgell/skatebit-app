@@ -1,3 +1,4 @@
+<!-- toast.svelte -->
 <script lang="ts">
   import { toastStore } from '$lib/stores/uiStore';
   import type { Toast } from '$lib/types/uiTypes';
@@ -14,10 +15,12 @@
   });
 </script>
 
-<div class="toast toast-center z-999">
+<!-- Use a container that allows stacking, toast-end is common -->
+<div class="toast toast-center z-[9999]">
   {#each toasts as toast (toast.id)}
-    <div class="alert {toast.variant}">
-      <span>{toast.message}</span>
+    <div class="alert {toast.variant} shadow-lg">
+      <!-- Use {@html} to render the message content -->
+      <span>{@html toast.message}</span>
     </div>
   {/each}
 </div>
