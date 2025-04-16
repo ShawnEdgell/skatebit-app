@@ -1,12 +1,12 @@
 <!-- src/lib/components/LocalMapCard.svelte -->
 <script lang="ts">
-	import type { FsEntry } from '$lib/ts/fsOperations';
+	import type { FsEntry } from '$lib/types/fsTypes';
 	import GenericCard from './GenericCard.svelte';
 	import { readFile, exists } from '@tauri-apps/plugin-fs';
 	import { revealItemInDir } from '@tauri-apps/plugin-opener';
 	import { createEventDispatcher, onMount, tick } from 'svelte';
 	import { formatFileSize } from '$lib/utils/formatter';
-	import { normalizePath } from '$lib/ts/pathUtils';
+	import { normalizePath } from '$lib/services/pathService';
 
 	export let localMap: FsEntry;
 	const dispatch = createEventDispatcher();

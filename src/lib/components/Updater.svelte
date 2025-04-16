@@ -66,7 +66,7 @@
           <br />Released on: {$updateInfo.date.substring(0, 10)}
         {/if}
       </p>
-      <p class="mt-2">Release notes: {$updateInfo.body}</p>
+      <!-- <p class="mt-2">Release notes: {$updateInfo.body}</p> -->
       <div class="modal-action">
         <button class="btn btn-primary" on:click={updateNow}>Update Now</button>
         <button class="btn btn-secondary" on:click={() => updateAvailable.set(false)}>Cancel</button>

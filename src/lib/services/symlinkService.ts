@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { documentDir, join } from "@tauri-apps/api/path";
 
-export async function updateSymlink(newFolder: string) {
+export async function updateMapsSymlink(newFolder: string) {
   try {
     const docDir = await documentDir();
     if (!docDir) throw new Error("Could not determine Documents directory.");

@@ -1,5 +1,5 @@
-import { toastStore } from "$lib/stores/toastStore";
-import type { ToastVariant } from "$lib/stores/toastStore";
+import { toastStore } from "$lib/stores/uiStore";
+import type { ToastVariant } from "$lib/types/uiTypes";
 
 // Utility function for showing toasts
 function showToast(message: string, variant: ToastVariant, duration: number) {

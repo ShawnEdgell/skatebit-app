@@ -2,14 +2,6 @@
   import DropZone from '$lib/components/DropZone.svelte';
   import ModioSection from './ModioSection.svelte';
   import LocalMapsSection from './LocalMapsSection.svelte';
-  import { onMount } from 'svelte';
-  import { refreshLocalMaps } from '$lib/stores/localMapsStore';
-  import { modioStore } from '$lib/stores/modioStore';
-
-  onMount(() => {
-    modioStore.refresh();
-    refreshLocalMaps();
-  });
 </script>
 
 <DropZone />
@@ -18,7 +10,7 @@
   <div class="bg-base-100 p-4 rounded-box shadow-md z-10">
     <ModioSection />
   </div>
-   <div class="bg-base-100 p-4 rounded-box shadow-md z-10">
+  <div class="bg-base-100 p-4 rounded-box shadow-md z-10">
     <LocalMapsSection />
   </div>
 </main>

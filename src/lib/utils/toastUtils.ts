@@ -1,6 +1,6 @@
 // src/lib/ts/toastUtils.ts
-import { toastStore } from "$lib/stores/toastStore";
-import type { ToastVariant } from "$lib/stores/toastStore";
+import { toastStore } from "$lib/stores/uiStore";
+import type { ToastVariant } from "$lib/types/uiTypes";
 
 export function showToast(
   message: string,

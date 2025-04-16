@@ -38,7 +38,7 @@ export function draggable(node: HTMLElement) {
   node.addEventListener("pointerdown", pointerDown);
   node.addEventListener("pointermove", pointerMove);
   node.addEventListener("pointerup", pointerUp);
-  node.addEventListener("pointercancel", pointerUp); // Handle pointer cancellation
+  node.addEventListener("pointercancel", pointerUp);
 
   return {
     destroy() {

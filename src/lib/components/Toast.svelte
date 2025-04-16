@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { toastStore, type Toast } from '$lib/stores/toastStore';
+  import { toastStore } from '$lib/stores/uiStore';
+  import type { Toast } from '$lib/types/uiTypes';
   import { onDestroy } from 'svelte';
 
   let toasts: Toast[] = [];

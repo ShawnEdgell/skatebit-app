@@ -1,27 +1,27 @@
-<!-- src/lib/features/modio/components/LocalMapList.svelte -->
 <script lang="ts">
-  // Script part is the same as the previous 'no comments' version...
-  import { onMount, createEventDispatcher } from 'svelte';
-  import LocalMapCard from './LocalMapCard.svelte';
-  import type { FsEntry } from '$lib/ts/fsOperations';
-  import {
-      localMapsStore,
-      localMapsInitialized,
-      refreshLocalMaps,
-      isLoadingLocalMaps
-  } from '$lib/stores/localMapsStore';
-  import { localMapsSearchQuery, localMapsSearchResults } from '$lib/stores/localMapsSearchStore';
+  import { onMount, createEventDispatcher, onDestroy, afterUpdate } from 'svelte';
   import { get } from 'svelte/store';
-  import { openModal } from "$lib/stores/modalStore";
-  import { deleteEntryFs } from '$lib/ts/fsOperations';
-  import { handleError, handleSuccess } from '$lib/ts/errorHandler';
+  import LocalMapCard from './LocalMapCard.svelte';
+  import type { FsEntry } from '$lib/types/fsTypes';
+  import { localMaps, localMapsLoading, refreshLocalMaps } from '$lib/stores/mapsStore';
+  import { localSearchQuery as localMapsSearchQuery, localSearchResults as localMapsSearchResults } from '$lib/stores/localSearchStore';
+  import { openModal } from '$lib/stores/uiStore';
+  import { deleteEntry } from '$lib/services/fileService';
+  import { handleError, handleSuccess } from '$lib/utils/errorHandler';
 
-  export let localMaps: FsEntry[] = [];
+  // Declare the prop
+  export let localMapsProp: FsEntry[] = [];
 
+  // If you want to keep the store for other logic, you can still do that.
+  // For example, use localMapsProp in place of $localMaps if desired.
+  
   const dispatch = createEventDispatcher();
-  let scrollContainer: HTMLElement;
-  let sentinel: HTMLElement;
-  let observer: IntersectionObserver;
+  
+  let scrollContainer: HTMLElement | undefined = undefined;
+  let sentinel: HTMLElement | undefined = undefined;
+  let observer: IntersectionObserver | null = null;
+  let observerAttached = false;
+
   let isDragging = false;
   let startX = 0;
   let scrollLeft = 0;
@@ -29,7 +29,8 @@
   type SortCriteria = 'recent' | 'alphabetical' | 'size';
   let currentSort: SortCriteria = 'recent';
 
-  $: sortedMaps = [...localMaps].sort((a, b) => {
+  // Use localMapsProp if you want to sort passed in maps:
+  $: sortedMaps = [...localMapsProp].sort((a, b) => {
     if (currentSort === 'alphabetical') {
       return (a.name ?? '').localeCompare(b.name ?? '', undefined, { sensitivity: 'base' });
     } else if (currentSort === 'recent') {
@@ -43,119 +44,128 @@
   $: displayMaps = $localMapsSearchQuery.trim() ? $localMapsSearchResults : sortedMaps;
 
   function handlePointerDown(e: PointerEvent) {
-    if ((e.target as HTMLElement).closest('button, a')) return;
+    if ((e.target as HTMLElement).closest('button, a') || !scrollContainer) return;
     isDragging = true;
-    const target = e.currentTarget as HTMLElement;
-    target.style.cursor = 'grabbing';
-    target.setPointerCapture(e.pointerId);
-    startX = e.clientX - target.offsetLeft;
-    scrollLeft = target.scrollLeft;
+    scrollContainer.style.cursor = 'grabbing';
+    scrollContainer.setPointerCapture(e.pointerId);
+    startX = e.clientX - scrollContainer.offsetLeft;
+    scrollLeft = scrollContainer.scrollLeft;
   }
   function handlePointerMove(e: PointerEvent) {
-    if (!isDragging) return;
+    if (!isDragging || !scrollContainer) return;
     e.preventDefault();
-    const target = e.currentTarget as HTMLElement;
-    const x = e.clientX - target.offsetLeft;
-    target.scrollLeft = scrollLeft - (x - startX) * 1.5;
+    const x = e.clientX - scrollContainer.offsetLeft;
+    scrollContainer.scrollLeft = scrollLeft - (x - startX) * 1.5;
   }
   function handlePointerUp(e: PointerEvent) {
-    if (!isDragging) return;
+    if (!isDragging || !scrollContainer) return;
     isDragging = false;
-    const target = e.currentTarget as HTMLElement;
-    target.style.cursor = 'grab';
-    target.releasePointerCapture(e.pointerId);
+    scrollContainer.style.cursor = 'grab';
+    scrollContainer.releasePointerCapture(e.pointerId);
   }
 
   async function handleRequestDelete(event: CustomEvent<{ path: string; name: string | null }>) {
     const absolutePathToDelete = event.detail.path;
     const nameToDelete = event.detail.name ?? 'this item';
-
     if (!absolutePathToDelete) {
-        handleError("Cannot delete item: Path is missing.", "Delete Operation");
-        return;
+      handleError("Cannot delete item: Path is missing.", "Delete Operation");
+      return;
     }
-
-    // This configuration ALREADY achieves what you want:
     openModal({
-        title: "Confirm Deletion", // Title shown
-        message: `Are you sure you want to permanently delete "${nameToDelete}"? This cannot be undone.`, // Message shown
-        confirmText: "Delete",   // Text for the confirm button
-        cancelText: "Cancel",    // Text for the cancel button
-        confirmOnly: false,      // Ensures cancel button is shown (default is false anyway)
-        confirmClass: "btn-error", // Styles the confirm button as error/red
-        onSave: async () => {    // Action for the "Delete" (confirm) button
-            try {
-                await deleteEntryFs(absolutePathToDelete);
-                handleSuccess(`"${nameToDelete}" deleted successfully.`, "Deletion");
-                await refreshLocalMaps();
-            } catch (error) {
-                console.error(`Deletion failed for ${absolutePathToDelete} in component handler:`, error);
-                handleError(error, `Deleting ${nameToDelete}`);
-            }
-        },
-        // onCancel is optional if you just want it to close the modal
+      title: "Confirm Deletion",
+      message: `Are you sure you want to permanently delete "${nameToDelete}"? This cannot be undone.`,
+      confirmText: "Delete",
+      cancelText: "Cancel",
+      confirmOnly: false,
+      confirmClass: "btn-error",
+      onSave: async () => {
+        try {
+          await deleteEntry(absolutePathToDelete);
+          handleSuccess(`"${nameToDelete}" deleted successfully.`, "Deletion");
+          await refreshLocalMaps();
+        } catch (error) {
+          console.error(`Deletion failed for ${absolutePathToDelete}:`, error);
+          handleError(error, `Deleting ${nameToDelete}`);
+        }
+      }
     });
   }
 
-  let storeSubscription: (() => void) | null = null;
-
   onMount(() => {
-    storeSubscription = localMapsStore.subscribe(value => {
-      localMaps = value;
-    });
-
-    if (!get(localMapsInitialized) && !get(isLoadingLocalMaps)) {
-      refreshLocalMaps();
-    } else {
-        localMaps = get(localMapsStore);
+    if (!get(localMapsLoading)) {
+       refreshLocalMaps();
     }
 
     observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting && !get(isLoadingLocalMaps)) {
-          dispatch('loadMore');
+      (entries: IntersectionObserverEntry[]) => {
+        if (entries[0]?.isIntersecting && !$localMapsLoading) {
+          // dispatch('loadMore');
         }
       },
-      { root: scrollContainer, threshold: 0.1, rootMargin: '0px 0px 200px 0px' }
+      { root: null, threshold: 0.1, rootMargin: '0px 0px 200px 0px' }
     );
-    if (sentinel && scrollContainer) observer.observe(sentinel);
-    scrollContainer?.addEventListener('pointercancel', handlePointerUp);
 
     return () => {
-      if (storeSubscription) storeSubscription();
       observer?.disconnect();
-      scrollContainer?.removeEventListener('pointercancel', handlePointerUp);
     };
+  });
+
+  afterUpdate(() => {
+    if (scrollContainer && sentinel && observer && !observerAttached) {
+      observer.observe(sentinel);
+      scrollContainer.addEventListener('pointercancel', handlePointerUp);
+      observerAttached = true;
+    }
+  });
+
+  onDestroy(() => {
+    observer?.disconnect();
+    scrollContainer?.removeEventListener('pointercancel', handlePointerUp);
   });
 </script>
 
 <!-- Template -->
 <div class="flex flex-col md:flex-row items-center justify-between mb-4">
-  <div class="flex items-center gap-2 flex-wrap">
+  <div class="flex items-center gap-2 flex-wrap ">
     <h2 class="text-2xl mr-2 font-bold">Local Maps</h2>
-    <button type="button" class="badge cursor-pointer transition-colors {currentSort === 'recent' ? 'badge-primary' : 'badge-outline hover:bg-base-content hover:text-base-100 hover:border-base-content'}" on:click={() => currentSort = 'recent'} disabled={$isLoadingLocalMaps}>Most Recent</button>
-    <button type="button" class="badge cursor-pointer transition-colors {currentSort === 'alphabetical' ? 'badge-primary' : 'badge-outline hover:bg-base-content hover:text-base-100 hover:border-base-content'}" on:click={() => currentSort = 'alphabetical'} disabled={$isLoadingLocalMaps}>A-Z</button>
-    <button type="button" class="badge cursor-pointer transition-colors {currentSort === 'size' ? 'badge-primary' : 'badge-outline hover:bg-base-content hover:text-base-100 hover:border-base-content'}" on:click={() => currentSort = 'size'} disabled={$isLoadingLocalMaps}>Size</button>
+    <button type="button"
+      class="badge cursor-pointer transition-colors {currentSort === 'recent' ? 'badge-primary' : 'badge-outline hover:bg-base-content hover:text-base-100 hover:border-base-content'}"
+      on:click={() => currentSort = 'recent'}
+      disabled={$localMapsLoading}>
+      Most Recent
+    </button>
+    <button type="button"
+      class="badge cursor-pointer transition-colors {currentSort === 'alphabetical' ? 'badge-primary' : 'badge-outline hover:bg-base-content hover:text-base-100 hover:border-base-content'}"
+      on:click={() => currentSort = 'alphabetical'}
+      disabled={$localMapsLoading}>
+      A-Z
+    </button>
+    <button type="button"
+      class="badge cursor-pointer transition-colors {currentSort === 'size' ? 'badge-primary' : 'badge-outline hover:bg-base-content hover:text-base-100 hover:border-base-content'}"
+      on:click={() => currentSort = 'size'}
+      disabled={$localMapsLoading}>
+      Size
+    </button>
   </div>
-  <input type="text" placeholder="Search local maps..." bind:value={$localMapsSearchQuery} class="input input-sm input-bordered w-full max-w-xs" disabled={$isLoadingLocalMaps} />
+  <input type="text" placeholder="Search local maps..." bind:value={$localMapsSearchQuery} class="input input-sm input-bordered w-full max-w-xs" disabled={$localMapsLoading} />
 </div>
 
-<div class="relative min-h-[10rem]">
-  {#if $isLoadingLocalMaps && displayMaps.length === 0}
+<div class="relative h-51">
+  {#if $localMapsLoading && $localMaps.length === 0}
     <div class="absolute inset-0 flex items-center justify-center p-4 z-10">
-       <span class="loading loading-spinner loading-lg"></span>
+      <span class="loading loading-spinner loading-lg"></span>
     </div>
-  {:else if !$isLoadingLocalMaps && displayMaps.length === 0}
+  {:else if !$localMapsLoading && displayMaps.length === 0}
     <div class="h-full flex items-center justify-center p-4 min-h-[10rem]">
       <p class="text-center text-base-content/60 text-sm">
-          {#if $localMapsSearchQuery.trim()}
-              No maps found matching '{$localMapsSearchQuery}'.
-          {:else}
-              No local maps found.
-          {/if}
+        {#if $localMapsSearchQuery.trim()}
+          No maps found matching '{$localMapsSearchQuery}'.
+        {:else}
+          No local maps found.
+        {/if}
       </p>
     </div>
-  {:else if displayMaps.length > 0}
+  {:else}
     <div
       bind:this={scrollContainer}
       class="flex flex-row gap-4 overflow-x-auto pb-2 select-none touch-pan-x scrollbar-thin h-full {isDragging ? 'cursor-grabbing' : 'cursor-grab'}"
@@ -163,17 +173,16 @@
       on:pointerdown={handlePointerDown}
       on:pointermove={handlePointerMove}
       on:pointerup={handlePointerUp}
-      on:pointerleave={handlePointerUp}
-      >
+      on:pointerleave={handlePointerUp}>
       {#each displayMaps as map, i (map.path ?? map.name ?? i)}
         <LocalMapCard localMap={map} on:requestDelete={handleRequestDelete} />
       {/each}
       <div bind:this={sentinel} class="flex-shrink-0 w-[1px] h-full"></div>
     </div>
-     {#if $isLoadingLocalMaps}
-       <div class="absolute inset-0 flex items-center justify-center text-center p-4 z-10 bg-base-200/50 rounded-box">
-            <span class="loading loading-spinner loading-md"></span>
-        </div>
-     {/if}
+    {#if $localMapsLoading && $localMaps.length > 0}
+      <div class="absolute inset-0 flex items-center justify-center text-center p-4 z-10 bg-base-200/50 rounded-box">
+        <span class="loading loading-spinner loading-md"></span>
+      </div>
+    {/if}
   {/if}
 </div>

@@ -1,30 +1,16 @@
-<!-- src/lib/components/LocalMapSection.svelte -->
+<!-- src/lib/features/modio/LocalMapsSection.svelte -->
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { localMapsStore, localMapsInitialized, refreshLocalMaps } from '$lib/stores/localMapsStore';
-  import { get } from 'svelte/store';
-  import LocalMapList from './components/LocalMapList.svelte';
+  import { localMaps } from '$lib/stores/mapsStore';
+  import LocalMapList from '$lib/features/modio/components/LocalMapList.svelte';
+  import type { FsEntry } from '$lib/types/fsTypes'; // Import FsEntry
 
-  let localMaps = [];
-  let isLoading = false;
+  // --- Declare the variable with its type ---
+  let mapsForList: FsEntry[] = [];
 
-  onMount(async () => {
-    isLoading = true;
-    try {
-      if (!get(localMapsInitialized)) {
-        await refreshLocalMaps();
-      }
-    } finally {
-      isLoading = false;
-    }
-  });
+  // --- Assign it reactively (no type annotation here) ---
+  $: mapsForList = $localMaps;
 
-  $: localMaps = $localMapsStore;
 </script>
 
-<LocalMapList {localMaps} />
-{#if isLoading}
-  <div class="flex items-center justify-center">
-    <span class="loading loading-spinner loading-lg gap-4"></span>
-  </div>
-{/if}
+<!-- Pass the correctly typed variable -->
+<LocalMapList localMapsProp={mapsForList} />

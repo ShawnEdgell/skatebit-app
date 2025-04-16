@@ -1,5 +1,5 @@
 // src/routes/modio/+page.server.ts
-import type { Mod } from "$lib/types/modio";
+import type { Mod } from "$lib/types/modioTypes";
 import { db } from "$lib/firebase/firebase";
 import { doc, getDoc } from "firebase/firestore";
 
