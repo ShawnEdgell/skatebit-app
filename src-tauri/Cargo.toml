@@ -1,6 +1,6 @@
 [package]
 name = "XLFM"
-version = "1.0.2"
+version = "1.0.3"
 description = "Skater XL File Manager"
 authors = ["Milky"]
 edition = "2021"

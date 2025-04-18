@@ -11,6 +11,7 @@ use std::{
     path::{Path, PathBuf},
 };
 use tauri::{command, AppHandle, Manager};
+use tauri::Emitter;
 
 
 // --- Hashing dependency is used within hash_path ---
@@ -82,115 +83,113 @@ fn cache_thumbnail_if_needed(
 }
 
 #[command]
-pub fn create_maps_symlink(new_folder: String, target_link: String) -> CommandResult<()> {
-    let target_path = Path::new(&target_link);
+pub fn is_symlink(path: String) -> CommandResult<bool> {
+  let p = Path::new(&path);
+  match std::fs::symlink_metadata(p) {
+    Ok(meta) => Ok(meta.file_type().is_symlink()),
+    Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(false),
+    Err(e) => Err(CommandError::Io(format!(
+      "Failed checking symlink metadata for {}: {}",
+      path, e
+    ))),
+  }
+}
+
+#[command]
+pub fn create_maps_symlink(
+    app_handle: AppHandle,
+    new_folder: String,
+    target_link: String
+) -> CommandResult<()> {
     let source_path = Path::new(&new_folder);
+    let target_path = Path::new(&target_link);
 
-    log::info!(
-        "[map_commands::create_maps_symlink] Attempting. Source: '{}', Target: '{}'",
-        new_folder, target_link
-    );
-
-    if !source_path.exists() {
-        return Err(CommandError::Input(format!(
-            "Source folder '{}' does not exist. Cannot create symlink.", new_folder
-        )));
-    }
+    // 1) validate source
     if !source_path.is_dir() {
-        return Err(CommandError::Input(format!(
-            "Source path '{}' is not a directory.", new_folder
-        )));
+        return Err(CommandError::Input(format!("Source not a directory: {}", new_folder)));
     }
 
+    // 2) remove or backup any existing target
     match fs::symlink_metadata(target_path) {
         Ok(metadata) => {
             if metadata.file_type().is_symlink() {
-                log::info!(
-                    "[map_commands::create_maps_symlink] Target path '{}' exists and is a symlink. Removing old link.", target_link
-                );
+                log::info!("[map_commands::create_maps_symlink] Removing old link at '{}'", target_link);
                 platform_remove_symlink(&target_link)
-                    .map_err(|e| CommandError::Symlink(format!("Failed to remove existing symlink at target: {}", e)))?;
+                    .map_err(|e| CommandError::Symlink(format!("Failed to remove existing symlink: {}", e)))?;
             } else if metadata.is_dir() {
-                log::info!(
-                    "[map_commands::create_maps_symlink] Target path '{}' exists and is a directory. Backing it up.", target_link
-                );
-                let mut backup_target_str = format!("{}_backup", &target_link);
-                let mut counter = 1;
-                while Path::new(&backup_target_str).exists() {
-                    counter += 1;
-                    backup_target_str = format!("{}_backup_{}", &target_link, counter);
+                log::info!("[map_commands::create_maps_symlink] Backing up existing directory '{}'", target_link);
+                let mut backup = format!("{}_backup", &target_link);
+                let mut i = 1;
+                while Path::new(&backup).exists() {
+                    i += 1;
+                    backup = format!("{}_backup_{}", &target_link, i);
                 }
-                log::info!("[map_commands::create_maps_symlink] Attempting to rename existing directory '{}' to '{}'", target_link, backup_target_str);
-                fs::rename(target_path, &backup_target_str)
-                    .map_err(|e| CommandError::Io(format!("Failed to backup directory '{}' to '{}': {}", target_link, backup_target_str, e)))?;
-                log::info!("[map_commands::create_maps_symlink] Successfully backed up existing directory to '{}'", backup_target_str);
+                fs::rename(target_path, &backup)
+                    .map_err(|e| CommandError::Io(format!("Failed to backup '{}' to '{}': {}", target_link, backup, e)))?;
+                log::info!("[map_commands::create_maps_symlink] Backed up to '{}'", backup);
             } else {
                 return Err(CommandError::Input(format!(
-                    "Target path '{}' exists but is not a symlink or directory. Please check/remove it manually.", target_link
+                    "Target '{}' exists but is not a symlink or dir. Remove it manually.",
+                    target_link
                 )));
             }
         }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            log::info!(
-                "[map_commands::create_maps_symlink] Target path '{}' does not exist. Proceeding to create link.", target_link
-            );
+            log::info!("[map_commands::create_maps_symlink] No existing target at '{}', creating new link.", target_link);
         }
         Err(e) => {
-            return Err(CommandError::Io(format!(
-                "Error checking metadata for target path '{}': {}", target_link, e
-            )));
+            return Err(CommandError::Io(format!("Error checking '{}' metadata: {}", target_link, e)));
         }
     }
 
-    log::info!(
-        "[map_commands::create_maps_symlink] Creating link from '{}' pointing TO '{}'",
-        target_link, new_folder
-    );
+    // 3) create the symlink
+    log::info!("[map_commands::create_maps_symlink] Creating link '{}' → '{}'", target_link, new_folder);
     #[cfg(unix)]
     {
-        use std::os::unix::fs::symlink;
-        symlink(source_path, target_path)
-            .map_err(|e| CommandError::Symlink(format!("Failed to create unix symlink '{}' -> '{}': {}", target_link, new_folder, e)))?;
+        std::os::unix::fs::symlink(source_path, target_path)
+            .map_err(|e| CommandError::Symlink(format!("Unix symlink failed: {}", e)))?;
     }
     #[cfg(windows)]
     {
-        use std::os::windows::fs::symlink_dir;
-        symlink_dir(source_path, target_path)
-             .map_err(|e| CommandError::Symlink(format!("Failed to create windows directory symlink '{}' -> '{}': {}. Ensure app runs with privileges if needed.", target_link, new_folder, e)))?;
+        std::os::windows::fs::symlink_dir(source_path, target_path)
+            .map_err(|e| CommandError::Symlink(format!("Win symlink failed: {}. Run as admin?", e)))?;
     }
     #[cfg(not(any(unix, windows)))]
     {
-        return Err(CommandError::Operation(
-            "Symlink creation not supported on this platform.".to_string(),
-        ));
+        return Err(CommandError::Operation("Symlinks unsupported on this platform.".into()));
     }
 
-    log::info!(
-        "[map_commands::create_maps_symlink] Successfully created symlink '{}' -> '{}'",
-        target_link, new_folder
-    );
+    log::info!("[map_commands::create_maps_symlink] Symlink created successfully.");
+
+    // 4) notify frontend
+    app_handle
+        .emit("maps-changed", ())
+        .map_err(|e| CommandError::Io(format!("Failed to emit maps-changed: {}", e)))?;
+
     Ok(())
 }
 
 #[command]
-pub fn remove_maps_symlink(link_path_str: String) -> CommandResult<()> {
-    log::info!(
-        "[map_commands::remove_maps_symlink] Request received for path: {}", link_path_str
-    );
-    match platform_remove_symlink(&link_path_str) {
-        Ok(removed) => {
-            log::info!(
-                "[map_commands::remove_maps_symlink] Helper result: symlink_removed={}", removed
-            );
-            Ok(())
-        }
-        Err(e) => {
-            log::error!(
-                "[map_commands::remove_maps_symlink] Helper returned error: {}", e
-            );
-            Err(CommandError::Symlink(e))
-        }
+pub fn remove_maps_symlink(
+    app_handle: AppHandle,
+    link_path_str: String
+) -> CommandResult<()> {
+    log::info!("[map_commands::remove_maps_symlink] Removing symlink at '{}'", link_path_str);
+
+    let removed = platform_remove_symlink(&link_path_str)
+        .map_err(CommandError::Symlink)?;
+
+    if removed {
+        log::info!("[map_commands::remove_maps_symlink] Symlink removed.");
+        // notify frontend
+        app_handle
+            .emit("maps-changed", ())
+            .map_err(|e| CommandError::Io(format!("Failed to emit maps-changed: {}", e)))?;
+    } else {
+        log::info!("[map_commands::remove_maps_symlink] No symlink found at '{}'", link_path_str);
     }
+
+    Ok(())
 }
 
 #[command]

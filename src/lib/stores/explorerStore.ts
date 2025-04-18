@@ -1,63 +1,73 @@
 // src/lib/stores/explorerStore.ts
-import { writable, get } from "svelte/store";
-import { loadDirectoryEntries } from "$lib/services/fileService";
-import { explorerDirectory } from "./globalPathsStore";
-import { ListingStatus } from "$lib/types/fsTypes";
-import type { FsEntry } from "$lib/types/fsTypes";
+import { writable, get } from 'svelte/store'
+import { loadDirectoryEntries } from '$lib/services/fileService'
+import { explorerDirectory } from './globalPathsStore'
+import { ListingStatus } from '$lib/types/fsTypes'
+import type { FsEntry } from '$lib/types/fsTypes'
 
-export const entries = writable<FsEntry[]>([]);
-export const currentPath = writable("");
-export const isLoading = writable(false);
-export const folderMissing = writable(false);
+// ← NEW: import Tauri’s event listener
+import { listen } from '@tauri-apps/api/event'
+
+export const entries = writable<FsEntry[]>([])
+export const currentPath = writable('')
+export const isLoading = writable(false)
+export const folderMissing = writable(false)
 
 export async function refreshExplorer(path?: string) {
-  const baseDir = get(explorerDirectory);
-  const current = get(currentPath);
-  const dir = path || current || baseDir;
+  const baseDir = get(explorerDirectory)
+  const current = get(currentPath)
+  const dir = path || current || baseDir
 
-  if (!dir || dir.trim() === "") {
-    console.error("refreshExplorer: Received invalid or empty path:", dir);
-    entries.set([]);
-    isLoading.set(false);
-    return;
+  if (!dir || dir.trim() === '') {
+    console.error('refreshExplorer: Received invalid or empty path:', dir)
+    entries.set([])
+    isLoading.set(false)
+    return
   }
 
-  isLoading.set(true);
+  isLoading.set(true)
   try {
-    const result = await loadDirectoryEntries(dir);
+    const result = await loadDirectoryEntries(dir)
     if (result.status === ListingStatus.DoesNotExist) {
-      folderMissing.set(true);
-      currentPath.set(dir);
-      entries.set([]);
+      folderMissing.set(true)
+      currentPath.set(dir)
+      entries.set([])
     } else {
-      folderMissing.set(false);
-      entries.set(result.entries);
-      currentPath.set(result.path);
+      folderMissing.set(false)
+      entries.set(result.entries)
+      currentPath.set(result.path)
     }
   } catch (e) {
-    console.error("Error loading directory entries for", dir, e);
-    entries.set([]);
+    console.error('Error loading directory entries for', dir, e)
+    entries.set([])
   } finally {
-    isLoading.set(false);
+    isLoading.set(false)
   }
 }
 
 // Automatically refresh explorer whenever explorerDirectory changes.
 explorerDirectory.subscribe((path) => {
-  if (path && path.trim() !== "") {
-    // Always use explorerDirectory, ignoring any changes to mapsDirectory.
-    refreshExplorer(path);
+  if (path && path.trim() !== '') {
+    refreshExplorer(path)
   } else {
     console.warn(
-      "explorerDirectory has an invalid value. Skipping explorer refresh."
-    );
+      'explorerDirectory has an invalid value. Skipping explorer refresh.',
+    )
   }
-});
+})
+
+// ← NEW: listen for any “maps-changed” events from Rust and refresh
+listen('maps-changed', () => {
+  console.log('Received maps-changed event — reloading explorer')
+  refreshExplorer()
+}).catch((e) => {
+  console.warn('Failed to subscribe to maps-changed event:', e)
+})
 
 export async function initializeStore(): Promise<void> {
-  await refreshExplorer();
+  await refreshExplorer()
 }
 
 export async function setPath(newPath: string): Promise<void> {
-  await refreshExplorer(newPath);
+  await refreshExplorer(newPath)
 }

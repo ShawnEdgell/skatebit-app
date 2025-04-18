@@ -1,57 +1,59 @@
 <!-- src/lib/components/Updater.svelte -->
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { check } from '@tauri-apps/plugin-updater';
+  import { onMount } from 'svelte'
+  import { check } from '@tauri-apps/plugin-updater'
   // If relaunch is not available, you can replace it with window.location.reload()
-  import { relaunch } from '@tauri-apps/plugin-process';
-  import { getVersion } from '@tauri-apps/api/app';
-  import { writable } from 'svelte/store';
+  import { relaunch } from '@tauri-apps/plugin-process'
+  import { getVersion } from '@tauri-apps/api/app'
+  import { writable } from 'svelte/store'
 
   interface UpdaterInfo {
-    version: string;
-    date?: string;
-    body: string;
-    [key: string]: any;
+    version: string
+    date?: string
+    body: string
+    [key: string]: any
   }
 
   // Updater stores
-  const updateAvailable = writable(false);
-  const updateInfo = writable<UpdaterInfo>({ version: '', body: '' });
-  const updateLog = writable<string>('');
-  const currentVersion = writable("");
+  const updateAvailable = writable(false)
+  const updateInfo = writable<UpdaterInfo>({ version: '', body: '' })
+  const updateLog = writable<string>('')
+  const currentVersion = writable('')
 
   onMount(async () => {
     try {
       // Retrieve the current app version from Tauri metadata.
-      const v = await getVersion();
-      currentVersion.set(v);
-      
+      const v = await getVersion()
+      currentVersion.set(v)
+
       // Check for update availability.
-      const update = await check();
-      updateLog.set("Update check completed.");
+      const update = await check()
+      updateLog.set('Update check completed.')
       if (update?.available) {
-        updateInfo.set(update as UpdaterInfo);
-        updateAvailable.set(true);
-        updateLog.set(`Update available: v${(update as UpdaterInfo).version}`);
+        updateInfo.set(update as UpdaterInfo)
+        updateAvailable.set(true)
+        updateLog.set(`Update available: v${(update as UpdaterInfo).version}`)
       } else {
-        updateLog.set("Your app is up to date.");
+        updateLog.set('Your app is up to date.')
       }
     } catch (error) {
-      updateLog.set(`Error checking updates: ${error}`);
+      updateLog.set(`Error checking updates: ${error}`)
     }
-  });
+  })
 
   async function updateNow() {
     try {
-      const update = await check();
+      const update = await check()
       if (update?.available) {
-        updateLog.set(`Downloading update v${(update as UpdaterInfo).version}...`);
-        await update.downloadAndInstall();
-        updateLog.set("Update installed. Restarting app...");
-        await relaunch();
+        updateLog.set(
+          `Downloading update v${(update as UpdaterInfo).version}...`,
+        )
+        await update.downloadAndInstall()
+        updateLog.set('Update installed. Restarting app...')
+        await relaunch()
       }
     } catch (error) {
-      updateLog.set(`Error updating: ${error}`);
+      updateLog.set(`Error updating: ${error}`)
     }
   }
 </script>
@@ -69,13 +71,18 @@
       <!-- <p class="mt-2">Release notes: {$updateInfo.body}</p> -->
       <div class="modal-action">
         <button class="btn btn-primary" on:click={updateNow}>Update Now</button>
-        <button class="btn btn-secondary" on:click={() => updateAvailable.set(false)}>Cancel</button>
+        <button
+          class="btn btn-secondary"
+          on:click={() => updateAvailable.set(false)}>Cancel</button
+        >
       </div>
     </div>
   </div>
 {/if}
 
 <!-- Footer showing the current version; in development, this may be a placeholder version -->
-<footer class="fixed inset-x-0 bottom-0 p-4 text-xs text-base-content/40 font-semibold">
+<footer
+  class="fixed inset-x-0 bottom-0 p-4 text-xs text-base-content/40 font-semibold"
+>
   Current Version: {$currentVersion}
 </footer>

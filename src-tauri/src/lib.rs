@@ -32,6 +32,7 @@ pub fn run() {
             fs_commands::rename_fs_entry_rust,
             fs_commands::delete_fs_entry_rust,
             // Map Commands
+            map_commands::is_symlink,
             map_commands::create_maps_symlink,
             map_commands::remove_maps_symlink,
             map_commands::list_local_maps,

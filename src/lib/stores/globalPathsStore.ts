@@ -1,63 +1,55 @@
 // src/lib/stores/globalPathsStore.ts
-import { writable } from "svelte/store";
-import { resolveDocPath } from "$lib/services/pathService";
+import { writable, derived } from 'svelte/store'
+import { resolveDocPath } from '$lib/services/pathService'
 
-// For maps only – used exclusively by the maps feature.
-export const mapsDirectory = writable<string>("");
-// Flag indicating whether the maps folder is custom (symlinked).
-export const isMapsSymlinked = writable<boolean>(false);
+// 1. Hold the default (resolved once at startup)
+let _defaultMapsPath = ''
 
-// For the file explorer – the base folder for file browsing (e.g., the entire SkaterXL folder).
-export const explorerDirectory = writable<string>("");
+// 2. The actual maps‐directory the UI should use:
+export const mapsDirectory = writable<string>('')
 
-/**
- * Initializes mapsDirectory.
- * Checks localStorage for a custom maps folder.
- * If not found, uses the default (Documents/SkaterXL/Maps).
- */
+// 3. A derived boolean: true iff mapsDirectory ≠ default
+export const isMapsSymlinked = derived(
+  mapsDirectory,
+  ($mapsDirectory) =>
+    _defaultMapsPath !== '' &&
+    $mapsDirectory.trim() !== _defaultMapsPath.trim(),
+)
+
+// 4. Explorer’s root
+export const explorerDirectory = writable<string>('')
+
+/** Initialize both mapsDirectory & explorerDirectory */
 export async function initializeGlobalPaths() {
-  const storedMaps = localStorage.getItem("customMapsDirectory");
-  if (storedMaps && storedMaps.trim() !== "") {
-    console.log(
-      "[GlobalPathsStore] Loaded custom mapsDirectory from localStorage:",
-      storedMaps
-    );
-    mapsDirectory.set(storedMaps);
-    isMapsSymlinked.set(true);
+  // resolve default only once
+  _defaultMapsPath = (await resolveDocPath('SkaterXL', 'Maps')) || ''
+
+  // pull any override
+  const stored = localStorage.getItem('customMapsDirectory') || ''
+  if (stored && stored.trim() !== '' && stored !== _defaultMapsPath) {
+    mapsDirectory.set(stored)
   } else {
-    const defaultMapsPath = await resolveDocPath("SkaterXL", "Maps");
-    console.log(
-      "[GlobalPathsStore] No custom maps found in localStorage, using default:",
-      defaultMapsPath
-    );
-    mapsDirectory.set(defaultMapsPath || "");
-    isMapsSymlinked.set(false);
+    mapsDirectory.set(_defaultMapsPath)
   }
 }
 
-/**
- * Initializes explorerDirectory.
- */
+/** Only for the explorer view */
 export async function initializeExplorerPaths() {
-  const defaultExplorerPath = await resolveDocPath("SkaterXL");
-  console.log(
-    "[GlobalPathsStore] Explorer directory set to:",
-    defaultExplorerPath
-  );
-  explorerDirectory.set(defaultExplorerPath || "");
+  const base = (await resolveDocPath('SkaterXL')) || ''
+  explorerDirectory.set(base)
 }
 
-// Persist mapsDirectory to localStorage whenever its value changes.
-mapsDirectory.subscribe((value) => {
-  if (value && value.trim() !== "") {
-    localStorage.setItem("customMapsDirectory", value);
-    console.log(
-      "[GlobalPathsStore] Saved mapsDirectory to localStorage:",
-      value
-    );
-  } else {
-    console.warn(
-      "[GlobalPathsStore] mapsDirectory is empty; not saving to localStorage."
-    );
+// 5. Persist custom folder whenever mapsDirectory changes _after_ default is known
+mapsDirectory.subscribe((val) => {
+  if (!_defaultMapsPath) {
+    // still booting – don’t touch localStorage yet
+    return
   }
-});
+  if (val.trim() !== '' && val !== _defaultMapsPath) {
+    localStorage.setItem('customMapsDirectory', val)
+    console.log('[GlobalPathsStore] Saved custom mapsDirectory:', val)
+  } else {
+    localStorage.removeItem('customMapsDirectory')
+    console.log('[GlobalPathsStore] Reset to default mapsDirectory')
+  }
+})

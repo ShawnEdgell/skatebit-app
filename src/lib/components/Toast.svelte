@@ -1,18 +1,18 @@
 <!-- toast.svelte -->
 <script lang="ts">
-  import { toastStore } from '$lib/stores/uiStore';
-  import type { Toast } from '$lib/types/uiTypes';
-  import { onDestroy } from 'svelte';
+  import { toastStore } from '$lib/stores/uiStore'
+  import type { Toast } from '$lib/types/uiTypes'
+  import { onDestroy } from 'svelte'
 
-  let toasts: Toast[] = [];
+  let toasts: Toast[] = []
 
   const unsubscribe = toastStore.subscribe((value: Toast[]) => {
-    toasts = value;
-  });
+    toasts = value
+  })
 
   onDestroy(() => {
-    unsubscribe();
-  });
+    unsubscribe()
+  })
 </script>
 
 <!-- Use a container that allows stacking, toast-end is common -->

@@ -1,7 +1,7 @@
 <script lang="ts">
-  import DropZone from '$lib/components/DropZone.svelte';
-  import ModioSection from './ModioSection.svelte';
-  import LocalMapsSection from './LocalMapsSection.svelte';
+  import DropZone from '$lib/components/DropZone.svelte'
+  import ModioSection from './ModioSection.svelte'
+  import LocalMapsSection from './LocalMapsSection.svelte'
 </script>
 
 <DropZone />

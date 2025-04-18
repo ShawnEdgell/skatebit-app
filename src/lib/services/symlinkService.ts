@@ -1,20 +1,23 @@
-import { invoke } from "@tauri-apps/api/core";
-import { documentDir, join } from "@tauri-apps/api/path";
+// src/lib/services/symlinkService.ts
+import { invoke } from '@tauri-apps/api/core'
+import { documentDir, join } from '@tauri-apps/api/path'
+import { mapsDirectory } from '$lib/stores/globalPathsStore'
 
+/**
+ * Point the Documents/SkaterXL/Maps link at `newFolder`,
+ * then update our mapsDirectory store so the UI responds immediately.
+ */
 export async function updateMapsSymlink(newFolder: string) {
-  try {
-    const docDir = await documentDir();
-    if (!docDir) throw new Error("Could not determine Documents directory.");
-    // Build the target link: Documents/SkaterXL/Maps
-    const targetLink = await join(docDir, "SkaterXL", "Maps");
-    // Use camelCase keys so that Tauri converts them properly.
-    await invoke("create_maps_symlink", {
-      newFolder: newFolder,
-      targetLink: targetLink,
-    });
-    console.log("Symbolic link updated successfully.");
-  } catch (error) {
-    console.error("Error updating symlink:", error);
-    throw error;
-  }
+  const docs = await documentDir()
+  if (!docs) throw new Error('Could not determine Documents directory.')
+  const targetLink = await join(docs, 'SkaterXL', 'Maps')
+
+  await invoke('create_maps_symlink', {
+    newFolder,
+    targetLink,
+  })
+
+  // only update the mapsDirectory here:
+  mapsDirectory.set(newFolder)
+  console.log('Symbolic link updated successfully.')
 }
