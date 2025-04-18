@@ -1,14 +1,8 @@
-<!-- src/lib/features/explorer/LocalMapList.svelte -->
 <script lang="ts">
-  import { onMount, onDestroy, createEventDispatcher, tick } from 'svelte'
-  import { get } from 'svelte/store'
+  import { createEventDispatcher, tick } from 'svelte'
   import LocalMapCard from './LocalMapCard.svelte'
   import type { FsEntry } from '$lib/types/fsTypes'
-  import {
-    localMaps,
-    localMapsLoading,
-    refreshLocalMaps,
-  } from '$lib/stores/mapsStore'
+  import { localMaps, localMapsLoading } from '$lib/stores/mapsStore'
   import {
     localSearchQuery as localMapsSearchQuery,
     localSearchResults as localMapsSearchResults,
@@ -19,12 +13,13 @@
   import { draggable } from '$lib/actions/draggable'
 
   const dispatch = createEventDispatcher()
-  let scrollContainer: HTMLElement | undefined
+  let scrollContainer: HTMLElement
 
   type SortCriteria = 'recent' | 'alphabetical' | 'size'
+  // ← typed options array
+  const sortOptions: SortCriteria[] = ['recent', 'alphabetical', 'size']
   let currentSort: SortCriteria = 'recent'
 
-  // Scroll back to left edge
   async function scrollToStart() {
     await tick()
     scrollContainer?.scrollTo({ left: 0, behavior: 'smooth' })
@@ -37,7 +32,7 @@
       })
     } else if (currentSort === 'recent') {
       return (b.modified ?? 0) - (a.modified ?? 0)
-    } /* size */ else {
+    } else {
       return (b.size ?? 0) - (a.size ?? 0)
     }
   })
@@ -46,7 +41,7 @@
     ? $localMapsSearchResults
     : sortedMaps
 
-  async function handleRequestDelete(
+  function handleRequestDelete(
     event: CustomEvent<{ path: string; name: string | null }>,
   ) {
     const { path, name } = event.detail
@@ -59,74 +54,39 @@
       message: `Move "${name ?? 'this item'}" to the Recycle Bin?`,
       confirmText: 'Delete',
       cancelText: 'Cancel',
-      confirmOnly: false,
       confirmClass: 'btn-error',
       onSave: async () => {
         try {
           await deleteEntry(path)
           handleSuccess(`"${name}" deleted successfully.`, 'Deletion')
-          await refreshLocalMaps()
         } catch (err) {
           handleError(err, `Deleting ${name}`)
         }
       },
     })
   }
-
-  onMount(() => {
-    if (!$localMapsLoading && $localMaps.length === 0) {
-      refreshLocalMaps()
-    }
-  })
-
-  onDestroy(() => {
-    // no special cleanup
-  })
 </script>
 
 <div class="flex flex-col md:flex-row items-center justify-between mb-4">
   <div class="flex items-center gap-2 flex-wrap">
     <h2 class="text-2xl mr-2 font-bold">Local Maps</h2>
 
-    <button
-      class="badge cursor-pointer transition-colors {currentSort === 'recent'
-        ? 'badge-primary'
-        : 'badge-outline hover:bg-base-content hover:text-base-100 hover:border-base-content'}"
-      on:click={async () => {
-        currentSort = 'recent'
-        await scrollToStart()
-      }}
-      disabled={$localMapsLoading || $localMaps.length === 0}
-    >
-      Most Recent
-    </button>
-
-    <button
-      class="badge cursor-pointer transition-colors {currentSort ===
-      'alphabetical'
-        ? 'badge-primary'
-        : 'badge-outline hover:bg-base-content hover:text-base-100 hover:border-base-content'}"
-      on:click={async () => {
-        currentSort = 'alphabetical'
-        await scrollToStart()
-      }}
-      disabled={$localMapsLoading || $localMaps.length === 0}
-    >
-      A‑Z
-    </button>
-
-    <button
-      class="badge cursor-pointer transition-colors {currentSort === 'size'
-        ? 'badge-primary'
-        : 'badge-outline hover:bg-base-content hover:text-base-100 hover:border-base-content'}"
-      on:click={async () => {
-        currentSort = 'size'
-        await scrollToStart()
-      }}
-      disabled={$localMapsLoading || $localMaps.length === 0}
-    >
-      Size
-    </button>
+    {#each sortOptions as criteria}
+      <button
+        class="badge cursor-pointer transition-colors {currentSort === criteria
+          ? 'badge-primary'
+          : 'badge-outline hover:bg-base-content hover:text-base-100 hover:border-base-content'}"
+        on:click={async () => {
+          currentSort = criteria
+          await scrollToStart()
+        }}
+        disabled={$localMapsLoading || $localMaps.length === 0}
+      >
+        {#if criteria === 'recent'}Most Recent{/if}
+        {#if criteria === 'alphabetical'}A‑Z{/if}
+        {#if criteria === 'size'}Size{/if}
+      </button>
+    {/each}
   </div>
 
   <input

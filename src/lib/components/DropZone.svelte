@@ -3,7 +3,6 @@
   import { getCurrentWebview } from '@tauri-apps/api/webview'
   import { handleDroppedPaths } from '$lib/services/dragDropService'
   import { mapsDirectory } from '$lib/stores/globalPathsStore'
-  import { refreshLocalMaps } from '$lib/stores/mapsStore'
   import { handleError } from '$lib/utils/errorHandler'
 
   let isDraggingOver = false
@@ -32,7 +31,6 @@
             }
             try {
               await handleDroppedPaths(event.payload.paths, mapsPath)
-              await refreshLocalMaps()
             } catch (error) {
               handleError(error, 'Processing Dropped Files')
             }

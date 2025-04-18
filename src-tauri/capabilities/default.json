@@ -8,6 +8,7 @@
     "fs:allow-read",
     "fs:allow-read-dir",
     "fs:allow-write",
+    "fs:allow-watch",
     "fs:allow-remove",
     "fs:allow-rename",
     "fs:allow-create",

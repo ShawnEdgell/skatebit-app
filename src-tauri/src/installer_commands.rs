@@ -106,8 +106,12 @@ pub async fn download_and_install(
                 let success_msg = format!("Installation successful ({:.2?}s)", duration);
                 log::info!("[installer::download_and_install] {}", success_msg);
                 emit_progress(&app_handle, "complete", 1.0, success_msg.clone(), &original_source);
-                let _ = app_handle.emit("maps-changed", ());
+                // ↓ Fire maps‑changed so front‑end reloads
+                app_handle
+                    .emit("maps-changed", ())
+                    .map_err(|e| CommandError::Io(format!("Failed to emit maps-changed: {}", e)))?;
                 final_result = Ok(InstallationResult { success: true, message: success_msg, final_path: Some(final_path), source: original_source });
+            
             }
             Err(e) => {
                 log::error!("[installer::download_and_install] Unzip failed: {:?}", e);
@@ -142,7 +146,10 @@ pub async fn download_and_install(
                  let success_msg = format!("File saved successfully ({:.2?}s)", duration);
                  log::info!("[installer::download_and_install] {}", success_msg);
                  emit_progress(&app_handle, "complete", 1.0, success_msg.clone(), &original_source);
-                 let _ = app_handle.emit("maps-changed", ());
+                // ↓ Fire maps‑changed so front‑end reloads
+                app_handle
+                   .emit("maps-changed", ())
+                   .map_err(|e| CommandError::Io(format!("Failed to emit maps-changed: {}", e)))?;
                  final_result = Ok(InstallationResult { success: true, message: success_msg, final_path: Some(target_file_path), source: original_source });
              }
              Err(e) => {

@@ -1,38 +1,42 @@
 <!-- src/routes/+layout.svelte -->
 <script lang="ts">
   import '../app.css'
+  import { onMount, onDestroy } from 'svelte'
   import NavBar from '$lib/components/NavBar.svelte'
   import CrudModal from '$lib/components/CrudModal.svelte'
   import Toast from '$lib/components/Toast.svelte'
   import Updater from '$lib/components/Updater.svelte'
-  import { onMount, onDestroy } from 'svelte'
+
+  // 1) Path setup
   import {
     initializeGlobalPaths,
     initializeExplorerPaths,
   } from '$lib/stores/globalPathsStore'
-  import {
-    initializeLocalMapsWatcher,
-    refreshLocalMaps,
-    refreshModioMaps,
-  } from '$lib/stores/mapsStore'
 
-  let unlisten: () => void
+  // 2) Maps: remote + local (auto‑refresh lives in the store)
+  import { refreshModioMaps, refreshLocalMaps } from '$lib/stores/mapsStore'
+
+  // 3) Explorer
+  import { refreshExplorer, watchExplorer } from '$lib/stores/explorerStore'
+
+  let unlistenExplorer: () => void
 
   onMount(async () => {
-    // Step 1: Load & persist user paths
+    // Bootstrap all of your base paths
     await initializeGlobalPaths()
     await initializeExplorerPaths()
 
-    // Step 2: One‑time initial loads
+    // One‑time fetches
     await refreshModioMaps()
     await refreshLocalMaps()
+    await refreshExplorer()
 
-    // Step 3: Watch for any maps‑changed events and refresh only local maps
-    unlisten = await initializeLocalMapsWatcher()
+    // fire up the explorer FS watcher
+    unlistenExplorer = await watchExplorer()
   })
 
   onDestroy(() => {
-    unlisten?.()
+    unlistenExplorer?.()
   })
 </script>
 

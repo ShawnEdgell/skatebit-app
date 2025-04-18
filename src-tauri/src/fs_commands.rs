@@ -8,10 +8,10 @@ use std::{
     collections::HashSet,
     ffi::OsStr,
     fs::{self, File},
-    io::{copy, BufReader, BufWriter}, // Keep IO utils
+    io::{copy, BufReader, BufWriter},
     path::{Path, PathBuf},
 };
-use tauri::{command, AppHandle, Manager};
+use tauri::{command, AppHandle, Manager, Emitter};
 use uuid::Uuid;
 use zip::ZipArchive;
 use log::{debug, info, warn, error, trace};
@@ -224,32 +224,45 @@ pub fn unzip_file_internal(
 
 #[command]
 pub async fn handle_dropped_zip(
-    _app_handle: AppHandle,
+    app_handle: AppHandle,              // <-- dropped underscore here
     zip_path: String,
     target_base_folder: String,
 ) -> CommandResult<InstallationResult> {
-    info!("[fs::handle_dropped_zip] Request received: Source='{}', TargetBase='{}'", zip_path, target_base_folder);
-    let original_source = zip_path.clone();
+    info!("[fs::handle_dropped_zip] Source='{}', TargetBase='{}'", zip_path, target_base_folder);
 
-    debug!("[fs::handle_dropped_zip] Spawning blocking task for unzip...");
+    let original_source = zip_path.clone();
     let unzip_result = tokio::task::spawn_blocking(move || {
         unzip_file_internal(&zip_path, &target_base_folder, false)
     })
     .await
     .map_err(|e| {
-        error!("[fs::handle_dropped_zip] Unzip task panicked or failed to join: {}", e);
+        error!("[fs::handle_dropped_zip] Task panicked: {}", e);
         CommandError::TaskJoin(format!("Unzip task panicked: {}", e))
     })?;
 
     match unzip_result {
         Ok(final_path) => {
-             let success_msg = format!("Successfully processed local zip: {}", original_source);
-              info!("[fs::handle_dropped_zip] Success: {}", success_msg);
-              info!("[fs::handle_dropped_zip] Files extracted to: {}", final_path.display());
-             Ok(InstallationResult { success: true, message: success_msg, final_path: Some(final_path), source: original_source })
+            let success_msg = format!("Processed local zip: {}", original_source);
+            info!("[fs::handle_dropped_zip] {}", success_msg);
+
+            app_handle
+            .emit("maps-changed", ())
+            .map_err(|e| CommandError::Io(format!("Failed to emit maps-changed: {}", e)))?;
+
+            // 2) Tell the Explorer store to reload (if you want your Explorer tab to update too)
+            app_handle
+            .emit("explorer-changed", ())
+            .map_err(|e| CommandError::Io(format!("Failed to emit explorer-changed: {}", e)))?;
+
+            Ok(InstallationResult {
+             success: true,
+            message: success_msg,
+            final_path: Some(final_path),
+            source: original_source,
+            })
         }
         Err(e) => {
-            error!("[fs::handle_dropped_zip] Internal unzip failed for '{}': {:?}", original_source, e);
+            error!("[fs::handle_dropped_zip] Unzip failed: {:?}", e);
             Err(e)
         }
     }
@@ -257,11 +270,16 @@ pub async fn handle_dropped_zip(
 
 #[command]
 pub fn save_file(absolute_path: String, contents: Vec<u8>) -> CommandResult<()> {
-    let file_path = PathBuf::from(absolute_path);
-    log::debug!("[fs::save_file] {} bytes to {}", contents.len(), file_path.display());
-    if let Some(parent) = file_path.parent() { fs::create_dir_all(parent).map_err(|e| map_io_error("Failed create parent dir", parent, e))?; }
-    fs::write(&file_path, &contents).map_err(|e| map_io_error("Failed write file", &file_path, e))
+    let file_path = PathBuf::from(&absolute_path);
+    debug!("[fs::save_file] Writing {} bytes to {}", contents.len(), file_path.display());
+    if let Some(parent) = file_path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| map_io_error("Failed create parent dir", parent, e))?;
+    }
+    fs::write(&file_path, &contents)
+        .map_err(|e| map_io_error("Failed write file", &file_path, e))
 }
+
 
 #[command]
 pub fn list_directory_entries(absolute_path: String) -> CommandResult<DirectoryListingResult> {
@@ -295,31 +313,75 @@ pub fn list_directory_entries(absolute_path: String) -> CommandResult<DirectoryL
 }
 
 #[command]
-pub fn create_directory_rust(absolute_path: String) -> CommandResult<()> {
-    let path = PathBuf::from(absolute_path);
-    log::debug!("[fs::create_dir] {}", path.display());
-    fs::create_dir_all(&path).map_err(|e| map_io_error("Failed create directory", &path, e))
+pub fn create_directory_rust(
+  app_handle: AppHandle,
+  absolute_path: String
+) -> CommandResult<()> {
+  let path = std::path::PathBuf::from(&absolute_path);
+  log::info!("[fs::create_dir] {}", path.display());
+  // 1) create (or error)
+  std::fs::create_dir_all(&path)
+    .map_err(|e| CommandError::Io(format!("Failed create directory: {}", e)))?;
+
+  // 2) notify front‑end that maps AND explorer should refresh
+  app_handle
+    .emit("maps-changed", ())
+    .map_err(|e| CommandError::Io(format!("Emit maps-changed failed: {}", e)))?;
+  app_handle
+    .emit("explorer-changed", ())
+    .map_err(|e| CommandError::Io(format!("Emit explorer-changed failed: {}", e)))?;
+
+  Ok(())
 }
 
 #[command]
-pub fn create_empty_file_rust(absolute_path: String) -> CommandResult<()> {
-    let path = PathBuf::from(absolute_path);
-    log::debug!("[fs::create_file] {}", path.display());
-    if let Some(parent) = path.parent() { fs::create_dir_all(parent).map_err(|e| map_io_error("Failed create parent dir", parent, e))?; }
-    else { return Err(CommandError::Input(format!("Cannot determine parent for '{}'", path.display()))); }
-    File::create(&path).map(|_| ()).map_err(|e| map_io_error("Failed create file", &path, e))
+pub fn create_empty_file_rust(
+  app_handle: AppHandle,
+  absolute_path: String
+) -> CommandResult<()> {
+  let path = std::path::PathBuf::from(&absolute_path);
+  log::info!("[fs::create_file] {}", path.display());
+
+  if let Some(parent) = path.parent() {
+    std::fs::create_dir_all(parent)
+      .map_err(|e| CommandError::Io(format!("Failed create parent dir: {}", e)))?;
+  }
+  std::fs::File::create(&path)
+    .map_err(|e| CommandError::Io(format!("Failed create file: {}", e)))?;
+
+  // Emit same two events:
+  app_handle
+    .emit("maps-changed", ())
+    .map_err(|e| CommandError::Io(format!("Emit maps-changed failed: {}", e)))?;
+  app_handle
+    .emit("explorer-changed", ())
+    .map_err(|e| CommandError::Io(format!("Emit explorer-changed failed: {}", e)))?;
+
+  Ok(())
 }
 
 #[command]
-pub fn rename_fs_entry_rust(old_absolute_path: String, new_absolute_path: String) -> CommandResult<()> {
-    let old_path = PathBuf::from(old_absolute_path);
-    let new_path = PathBuf::from(new_absolute_path);
-    log::debug!("[fs::rename] {} -> {}", old_path.display(), new_path.display());
-    if !old_path.exists() { return Err(CommandError::Input(format!("Source does not exist: {}", old_path.display()))); }
-    if new_path.exists() { return Err(CommandError::Input(format!("Target already exists: {}", new_path.display()))); }
-    if let Some(parent) = new_path.parent() { if !parent.is_dir() { return Err(CommandError::Input(format!("Target parent dir missing: {}", parent.display()))); } }
-    else { return Err(CommandError::Input(format!("Cannot determine parent for new path: {}", new_path.display()))); }
-    fs::rename(&old_path, &new_path).map_err(|e| CommandError::Io(format!("Failed rename '{}' to '{}': {}", old_path.display(), new_path.display(), e)))
+pub fn rename_fs_entry_rust(
+  app_handle: AppHandle,
+  old_absolute_path: String,
+  new_absolute_path: String
+) -> CommandResult<()> {
+  let old = std::path::PathBuf::from(&old_absolute_path);
+  let new = std::path::PathBuf::from(&new_absolute_path);
+  log::info!("[fs::rename] {} -> {}", old.display(), new.display());
+
+  std::fs::rename(&old, &new)
+    .map_err(|e| CommandError::Io(format!("Failed rename: {}", e)))?;
+
+  // And again, emit both:
+  app_handle
+    .emit("maps-changed", ())
+    .map_err(|e| CommandError::Io(format!("Emit maps-changed failed: {}", e)))?;
+  app_handle
+    .emit("explorer-changed", ())
+    .map_err(|e| CommandError::Io(format!("Emit explorer-changed failed: {}", e)))?;
+
+  Ok(())
 }
 
 #[command]
@@ -395,5 +457,8 @@ pub fn delete_fs_entry_rust(app_handle: AppHandle, absolute_path: String) -> Com
 
     // If trash::delete succeeded:
     log::info!("[fs::delete] Successfully moved to trash: {}", path_to_delete.display());
+    app_handle
+        .emit("maps-changed", ())
+        .map_err(|e| CommandError::Io(format!("Failed to emit maps‑changed: {}", e)))?;
     Ok(()) // Return success
 }

@@ -1,68 +1,66 @@
 // src/lib/stores/explorerStore.ts
 import { writable, get } from 'svelte/store'
-import { loadDirectoryEntries } from '$lib/services/fileService'
-import { explorerDirectory } from './globalPathsStore'
-import { ListingStatus } from '$lib/types/fsTypes'
-import type { FsEntry } from '$lib/types/fsTypes'
-
-// ← NEW: import Tauri’s event listener
 import { listen } from '@tauri-apps/api/event'
+import { createFolderStore } from './folderStore'
+import { explorerDirectory } from './globalPathsStore'
+import { loadDirectoryEntries } from '$lib/services/fileService'
+import { ListingStatus } from '$lib/types/fsTypes'
+import type { FsEntry, DirectoryListingResult } from '$lib/types/fsTypes'
+import { handleError } from '$lib/utils/errorHandler'
 
-export const entries = writable<FsEntry[]>([])
-export const currentPath = writable('')
-export const isLoading = writable(false)
+// NEW: import localMaps & mapsDirectory to coordinate updates
+import { localMaps } from './mapsStore'
+import { mapsDirectory } from './globalPathsStore'
+
 export const folderMissing = writable(false)
 
-export async function refreshExplorer(path?: string) {
-  const baseDir = get(explorerDirectory)
-  const current = get(currentPath)
-  const dir = path || current || baseDir
+const _explorer = createFolderStore<FsEntry, DirectoryListingResult>(
+  explorerDirectory,
+  '',
+  async (dir) => {
+    const res = await loadDirectoryEntries(dir)
+    folderMissing.set(res.status === ListingStatus.DoesNotExist)
+    return res
+  },
+  (res) => (res.status === ListingStatus.DoesNotExist ? [] : res.entries),
+)
 
-  if (!dir || dir.trim() === '') {
-    console.error('refreshExplorer: Received invalid or empty path:', dir)
-    entries.set([])
-    isLoading.set(false)
-    return
-  }
+export const entries = _explorer.entries
+export const currentPath = _explorer.currentPath
+export const isLoading = _explorer.loading
+export const explorerError = _explorer.error
+export const refreshExplorer = _explorer.refresh
 
-  isLoading.set(true)
-  try {
-    const result = await loadDirectoryEntries(dir)
-    if (result.status === ListingStatus.DoesNotExist) {
-      folderMissing.set(true)
-      currentPath.set(dir)
-      entries.set([])
-    } else {
-      folderMissing.set(false)
-      entries.set(result.entries)
-      currentPath.set(result.path)
-    }
-  } catch (e) {
-    console.error('Error loading directory entries for', dir, e)
-    entries.set([])
-  } finally {
-    isLoading.set(false)
+// Auto‑refresh on custom Tauri events (maps‑changed, etc.)
+;['explorer-changed', 'maps-changed', 'stats-changed', 'gear-changed'].forEach(
+  (evt) => {
+    listen(evt, () => {
+      const dir = get(currentPath) || get(explorerDirectory)
+      if (dir && dir.trim()) {
+        _explorer
+          .refresh(dir)
+          .catch((e) => handleError(e, `Explorer refresh on ${evt}`))
+      }
+    })
+  },
+)
+
+// **NEW**: whenever localMaps changes, refresh if viewing the Maps folder
+localMaps.subscribe(() => {
+  const view = get(currentPath)
+  const maps = get(mapsDirectory)
+  if (view && maps && view.trim() === maps.trim()) {
+    _explorer
+      .refresh(view)
+      .catch((e) => handleError(e, 'Explorer refresh on Local Maps change'))
   }
+})
+
+export async function watchExplorer(): Promise<() => void> {
+  // we already set up module‑level listeners above,
+  // so watchExplorer can just return a no‑op or cleanup if desired
+  return () => {}
 }
-
-// Automatically refresh explorer whenever explorerDirectory changes.
-explorerDirectory.subscribe((path) => {
-  if (path && path.trim() !== '') {
-    refreshExplorer(path)
-  } else {
-    console.warn(
-      'explorerDirectory has an invalid value. Skipping explorer refresh.',
-    )
-  }
-})
-
-// ← NEW: listen for any “maps-changed” events from Rust and refresh
-listen('maps-changed', () => {
-  console.log('Received maps-changed event — reloading explorer')
-  refreshExplorer()
-}).catch((e) => {
-  console.warn('Failed to subscribe to maps-changed event:', e)
-})
 
 export async function initializeStore(): Promise<void> {
   await refreshExplorer()

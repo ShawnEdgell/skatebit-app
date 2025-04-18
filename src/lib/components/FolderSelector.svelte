@@ -58,7 +58,6 @@
 
       mapsDirectory.set(normalizedDefault)
       handleSuccess('Maps folder reset to default', 'Installation')
-      await refreshLocalMaps()
       await tick()
     } catch (err) {
       handleError(err, 'Resetting to default')
@@ -151,8 +150,6 @@
                   )
                 }
               }
-
-              await refreshLocalMaps()
               await tick()
 
               if (
