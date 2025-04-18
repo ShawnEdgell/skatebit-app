@@ -1,7 +1,7 @@
 <!-- src/lib/components/Updater.svelte -->
 <script lang="ts">
   import { onMount } from 'svelte'
-  import { check } from '@tauri-apps/plugin-updater'
+  import { check, Update } from '@tauri-apps/plugin-updater'
   // If relaunch is not available, you can replace it with window.location.reload()
   import { relaunch } from '@tauri-apps/plugin-process'
   import { getVersion } from '@tauri-apps/api/app'
@@ -14,25 +14,31 @@
     [key: string]: any
   }
 
-  // Updater stores
+  // --- Stores ---
   const updateAvailable = writable(false)
   const updateInfo = writable<UpdaterInfo>({ version: '', body: '' })
   const updateLog = writable<string>('')
   const currentVersion = writable('')
 
+  // We'll stash the Update object here so downloadAndInstall() really runs.
+  let currentUpdate: Update | null = null
+
   onMount(async () => {
     try {
-      // Retrieve the current app version from Tauri metadata.
+      // 1) Get our app's version
       const v = await getVersion()
       currentVersion.set(v)
 
-      // Check for update availability.
-      const update = await check()
+      // 2) Check once for updates
+      updateLog.set('Checking for updates…')
+      const upd = await check()
       updateLog.set('Update check completed.')
-      if (update?.available) {
-        updateInfo.set(update as UpdaterInfo)
+
+      if (upd && upd.available) {
+        currentUpdate = upd
+        updateInfo.set(upd as UpdaterInfo)
         updateAvailable.set(true)
-        updateLog.set(`Update available: v${(update as UpdaterInfo).version}`)
+        updateLog.set(`Update available: v${upd.version}`)
       } else {
         updateLog.set('Your app is up to date.')
       }
@@ -42,16 +48,15 @@
   })
 
   async function updateNow() {
+    if (!currentUpdate) {
+      // nothing to install
+      return
+    }
     try {
-      const update = await check()
-      if (update?.available) {
-        updateLog.set(
-          `Downloading update v${(update as UpdaterInfo).version}...`,
-        )
-        await update.downloadAndInstall()
-        updateLog.set('Update installed. Restarting app...')
-        await relaunch()
-      }
+      updateLog.set(`Downloading update v${currentUpdate.version}…`)
+      await currentUpdate.downloadAndInstall()
+      updateLog.set('Update installed. Restarting…')
+      await relaunch()
     } catch (error) {
       updateLog.set(`Error updating: ${error}`)
     }
@@ -68,19 +73,24 @@
           <br />Released on: {$updateInfo.date.substring(0, 10)}
         {/if}
       </p>
-      <!-- <p class="mt-2">Release notes: {$updateInfo.body}</p> -->
+      <p class="mt-2 text-sm whitespace-pre-wrap">
+        {$updateInfo.body}
+      </p>
       <div class="modal-action">
-        <button class="btn btn-primary" on:click={updateNow}>Update Now</button>
+        <button class="btn btn-primary" on:click={updateNow}>
+          Update Now
+        </button>
         <button
           class="btn btn-secondary"
-          on:click={() => updateAvailable.set(false)}>Cancel</button
+          on:click={() => updateAvailable.set(false)}
         >
+          Cancel
+        </button>
       </div>
     </div>
   </div>
 {/if}
 
-<!-- Footer showing the current version; in development, this may be a placeholder version -->
 <footer
   class="fixed inset-x-0 bottom-0 p-4 text-xs text-base-content/40 font-semibold"
 >

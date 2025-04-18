@@ -139,7 +139,7 @@
   />
 </div>
 
-<div class="relative h-51">
+<div class="h-51">
   {#if $localMapsLoading && $localMaps.length === 0}
     <div class="absolute inset-0 flex items-center justify-center p-4 z-10">
       <span class="loading loading-spinner loading-lg"></span>
