@@ -14,7 +14,7 @@ use std::{
 use tauri::{command, AppHandle, Manager, Emitter};
 use uuid::Uuid;
 use zip::ZipArchive;
-use log::{debug, info, warn, error, trace};
+use log::{debug, info, error};
 use serde_json;
 use trash;
 
@@ -23,249 +23,157 @@ fn map_io_error<S: AsRef<str>>(msg: S, path: &Path, e: std::io::Error) -> Comman
 }
 
 pub fn unzip_file_internal(
-    source_path_str: &str,
-    target_base_folder_str: &str,
+    source: &str,
+    target_base: &str,
     delete_source_on_success: bool,
 ) -> CommandResult<PathBuf> {
-    info!(
-        "[fs::unzip_internal] START: Source='{}', TargetBase='{}', Delete={}",
-        source_path_str, target_base_folder_str, delete_source_on_success
-    );
-    let source_path = PathBuf::from(source_path_str);
-    let target_base_path = PathBuf::from(target_base_folder_str);
+    info!("unzip: {} → {} (delete? {})", source, target_base, delete_source_on_success);
+    let src = PathBuf::from(source);
+    let base = PathBuf::from(target_base);
 
-    // --- 1. Validate Source and Target Base ---
-    if !source_path.is_file() { /* ... error handling ... */ }
-    if !target_base_path.exists() { /* ... create target base ... */ }
-    else if !target_base_path.is_dir() { /* ... error handling ... */ }
-    debug!("[fs::unzip_internal] Target base path validated: {}", target_base_path.display());
+    // 1) Open ZIP for metadata scan
+    let meta_file = File::open(&src).map_err(|e| map_io_error("open zip for meta", &src, e))?;
+    let mut meta = ZipArchive::new(meta_file)
+        .map_err(|e| CommandError::Zip(format!("read zip meta: {}", e)))?;
+    let count = meta.len();
+    debug!("archive contains {} entries", count);
 
-    // --- 2. Determine Target Folder Name and Extraction Strategy (Metadata Scan) ---
-    let final_target_dir: PathBuf;
-    let common_root_to_strip: Option<String>;
-
-    { // Metadata scope
-        debug!("[fs::unzip_internal] Reading archive metadata for structure and largest file...");
-        let zip_file_meta = File::open(&source_path).map_err(|e| map_io_error("Failed open zip (meta)", &source_path, e))?;
-        let mut archive_meta = ZipArchive::new(zip_file_meta).map_err(|e| CommandError::Zip(format!("Failed read archive (meta) {}: {}", source_path.display(), e)))?;
-        let file_count = archive_meta.len();
-        debug!("[fs::unzip_internal] Archive contains {} entries.", file_count);
-
-        if file_count == 0 {
-            warn!("[fs::unzip_internal] Zip file is empty.");
-            // Create an empty folder named after the zip file stem
-            let folder_name = source_path.file_stem().and_then(OsStr::to_str).map(String::from).filter(|s| !s.is_empty()).unwrap_or_else(|| format!("empty_zip_{}", Uuid::new_v4()));
-            final_target_dir = target_base_path.join(&folder_name);
-            info!("[fs::unzip_internal] Empty zip - creating target dir: {}", final_target_dir.display());
-            fs::create_dir_all(&final_target_dir).map_err(|e| map_io_error("Failed create dir for empty zip", &final_target_dir, e))?;
-            return Ok(final_target_dir);
-        }
-
-        let mut top_level_items = HashSet::new();
-        let mut first_dir_name: Option<String> = None;
-        let mut has_files_at_root = false;
-        let mut largest_file_size: u64 = 0;
-        // Store the PathBuf of the largest file to easily get stem later
-        let mut largest_file_path: Option<PathBuf> = None;
-
-        for i in 0..file_count {
-             if let Ok(file) = archive_meta.by_index(i) {
-                let path = file.mangled_name();
-                let is_dir_entry = file.name().ends_with('/') || file.is_dir(); // Check both
-                trace!("[fs::unzip_internal] Meta scan - Index {}: Path='{:?}', IsDir={}", i, path, is_dir_entry);
-
-                if path.components().any(|comp| comp.as_os_str() == "..") { return Err(CommandError::Input(format!("Zip contains '..': {:?}", path))); }
-
-                let mut components = path.components();
-                if let Some(first_comp) = components.next() {
-                    let part_os = first_comp.as_os_str();
-                    let part = part_os.to_string_lossy().to_string();
-
-                    if !part.is_empty() {
-                        top_level_items.insert(part.clone());
-
-                        if components.next().is_none() && !is_dir_entry {
-                            // File directly at root level
-                            has_files_at_root = true;
-                            trace!("[fs::unzip_internal] Detected file at root level: {:?}", path);
-                            // Track largest file *at root* (or anywhere?) - let's track largest anywhere for simplicity now
-                            if file.size() > largest_file_size {
-                                largest_file_size = file.size();
-                                largest_file_path = Some(path.clone()); // Store PathBuf
-                                trace!("[fs::unzip_internal] New largest file found: {:?} ({} bytes)", path, largest_file_size);
-                            }
-                        } else if !is_dir_entry {
-                            // File inside a directory - track largest
-                             if file.size() > largest_file_size {
-                                largest_file_size = file.size();
-                                largest_file_path = Some(path.clone());
-                                trace!("[fs::unzip_internal] New largest file found: {:?} ({} bytes)", path, largest_file_size);
-                            }
-                        } else if first_dir_name.is_none() {
-                             // Directory at root level - track first one encountered
-                            first_dir_name = Some(part);
-                        }
-                    } else { has_files_at_root = true; } // Empty component means multi-root effectively
-                } else { has_files_at_root = true; } // Path with no components means multi-root
-            } else { warn!("[fs::unzip_internal] Cannot read file index {} (meta)", i); }
-        }
-
-        // --- Decide on the final folder name and stripping strategy ---
-        let target_folder_name: String;
-        if !has_files_at_root && top_level_items.len() == 1 && first_dir_name.is_some() {
-            // Case 1: Single top-level directory.
-            target_folder_name = first_dir_name.clone().unwrap();
-            common_root_to_strip = Some(target_folder_name.clone());
-            debug!("[fs::unzip_internal] Strategy: Single root folder detected ('{}').", target_folder_name);
-        } else {
-            // Case 2: Multiple items or files at root. Create new folder.
-            common_root_to_strip = None; // Don't strip anything.
-            // Try naming after the largest file's stem.
-            target_folder_name = largest_file_path
-                .as_ref() // Option<&PathBuf>
-                .and_then(|p| p.file_stem()) // Option<&OsStr>
-                .and_then(|s| s.to_str()) // Option<&str>
-                .map(String::from) // Option<String>
-                .filter(|s| !s.is_empty()) // Ensure stem is usable
-                .map(|stem| {
-                    debug!("[fs::unzip_internal] Strategy: Multi-root/Files at root. Using largest file stem '{}'.", stem);
-                    stem // Use the derived stem
-                })
-                .unwrap_or_else(|| { // Fallback 1: Use zip filename stem
-                    source_path.file_stem()
-                        .and_then(OsStr::to_str)
-                        .map(String::from)
-                        .filter(|s| !s.is_empty())
-                        .map(|stem| {
-                            debug!("[fs::unzip_internal] Strategy: Multi-root/Files at root. Using zip file stem '{}' as fallback.", stem);
-                            stem
-                        })
-                        .unwrap_or_else(|| { // Fallback 2: Use UUID
-                            warn!("[fs::unzip_internal] Using UUID fallback name for target folder.");
-                            format!("unzipped_{}", Uuid::new_v4())
-                        })
-                });
-            debug!("[fs::unzip_internal] Strategy: Multi-root/Files at root. Final folder name selected: '{}'.", target_folder_name);
-        }
-
-        final_target_dir = target_base_path.join(&target_folder_name);
-        info!("[fs::unzip_internal] Final calculated extraction target directory: {}", final_target_dir.display());
-
-    } // End metadata scope
-
-    // --- 3. Create the Final Target Directory ---
-    info!("[fs::unzip_internal] Ensuring final target directory exists: {}", final_target_dir.display());
-    fs::create_dir_all(&final_target_dir).map_err(|e| map_io_error("Failed create final target dir", &final_target_dir, e))?;
-
-    // --- 4. Perform Extraction into the Target Directory ---
-    info!("[fs::unzip_internal] Starting extraction pass into {}", final_target_dir.display());
-    let zip_file_extract = File::open(&source_path).map_err(|e| map_io_error("Failed re-open zip (extract)", &source_path, e))?;
-    let mut archive_extract = ZipArchive::new(zip_file_extract).map_err(|e| CommandError::Zip(format!("Failed re-read archive (extract) {}: {}", source_path.display(), e)))?;
-    let mut extracted_count = 0;
-
-    for i in 0..archive_extract.len() {
-        let mut file = match archive_extract.by_index(i) { Ok(f) => f, Err(e) => { warn!("[fs::unzip_internal] Err reading extract idx {}: {}", i, e); continue; } };
-        let original_path = file.mangled_name();
-        trace!("[fs::unzip_internal] Processing entry {}: OriginalPath='{:?}', Size={}", i, original_path, file.size());
-
-        if original_path.components().any(|comp| comp.as_os_str() == "..") { /* ... skip ... */ continue; }
-
-        // Apply stripping logic based on the determined strategy
-        let path_to_write = if let Some(ref root_to_strip) = common_root_to_strip {
-            let root_path = PathBuf::from(root_to_strip);
-            if original_path.starts_with(&root_path) && original_path != root_path {
-                original_path.strip_prefix(&root_path).unwrap().to_path_buf()
-            } else if original_path == root_path {
-                 trace!("[fs::unzip_internal] Skipping root dir entry itself: {:?}", original_path);
-                 continue;
-            } else {
-                 warn!("[fs::unzip_internal] Entry {:?} != common root '{}' during single-root extraction.", original_path, root_to_strip);
-                 original_path.clone()
-            }
-        } else {
-            original_path.clone()
-        };
-
-        if path_to_write.as_os_str().is_empty() { trace!("[fs::unzip_internal] Skipping empty path after strip for index {}", i); continue; }
-
-        // Join with the single final_target_dir
-        let outpath = final_target_dir.join(&path_to_write);
-        trace!("[fs::unzip_internal] Index {}: Target output path: {}", i, outpath.display());
-
-        if !outpath.starts_with(&final_target_dir) { /* ... Zip Slip error ... */ continue; }
-
-        // File/Directory creation logic
-        if file.name().ends_with('/') || file.is_dir() {
-            trace!("[fs::unzip_internal] Creating dir: {}", outpath.display());
-            fs::create_dir_all(&outpath).map_err(|e| map_io_error("Failed create dir", &outpath, e))?;
-            // Optionally count directories: extracted_count += 1;
-        } else {
-            if let Some(p) = outpath.parent() { if !p.exists() { trace!("[fs::unzip_internal] Creating parent dir: {}", p.display()); fs::create_dir_all(p).map_err(|e| map_io_error("Failed create parent", p, e))?; } }
-            trace!("[fs::unzip_internal] Creating file: {}", outpath.display());
-            {
-                let mut outfile = File::create(&outpath).map_err(|e| map_io_error("Failed create file", &outpath, e))?;
-                let bytes_copied = copy(&mut file, &mut outfile).map_err(|e| CommandError::Io(format!("Failed copy to {}: {}", outpath.display(), e)))?;
-                trace!("[fs::unzip_internal] Copied {} bytes to {}", bytes_copied, outpath.display());
-                extracted_count += 1; // Count extracted files
-            }
-        }
-        #[cfg(unix)]
-        { /* ... permissions ... */ }
+    // If empty, just create an empty folder named after stem
+    if count == 0 {
+        let stem = src
+            .file_stem()
+            .and_then(OsStr::to_str)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+            .unwrap_or_else(|| format!("empty_zip_{}", Uuid::new_v4()));
+        let out = base.join(&stem);
+        fs::create_dir_all(&out).map_err(|e| map_io_error("mkdir empty", &out, e))?;
+        return Ok(out);
     }
-    drop(archive_extract);
-    info!("[fs::unzip_internal] Extraction pass complete. Extracted {} file entries.", extracted_count);
 
-    // --- 5. Conditional Cleanup ---
-    if delete_source_on_success { /* ... */ } else { info!("[fs::unzip_internal] Skipping source delete."); }
+    // Gather top‑level items and track largest file
+    let mut roots = HashSet::new();
+    let mut has_root_file = false;
+    let mut largest: Option<(u64, PathBuf)> = None;
 
-    info!("[fs::unzip_internal] FINISHED Successfully. Returning final target dir: {}", final_target_dir.display());
-    Ok(final_target_dir)
+    for i in 0..count {
+        let entry = meta.by_index(i).map_err(|e| CommandError::Zip(format!("{}", e)))?;
+        let path = entry.mangled_name();
+
+        if path.components().any(|c| c.as_os_str() == "..") {
+            return Err(CommandError::Input(format!("unsafe path {:?}", path)));
+        }
+
+        // record top level
+        if let Some(first) = path.components().next() {
+            let s = first.as_os_str().to_string_lossy().to_string();
+            roots.insert(s);
+            if path.components().count() == 1 && !entry.is_dir() {
+                has_root_file = true;
+            }
+        }
+
+        // track largest file
+        if !entry.is_dir() {
+            let sz = entry.size();
+            if largest.as_ref().map_or(true, |(prev, _)| sz > *prev) {
+                largest = Some((sz, path.clone()));
+            }
+        }
+    }
+
+    // Decide output folder name + stripping
+    let (out_base, strip_root) = if roots.len() == 1 && !has_root_file {
+        let only = roots.into_iter().next().unwrap();
+        (base.join(&only), Some(only))
+    } else {
+        let name = largest
+            .as_ref()
+            .and_then(|(_, p)| p.file_stem())
+            .and_then(OsStr::to_str)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+            .or_else(|| {
+                src.file_stem()
+                    .and_then(OsStr::to_str)
+                    .map(str::to_string)
+            })
+            .unwrap_or_else(|| format!("unzipped_{}", Uuid::new_v4()));
+        (base.join(&name), None)
+    };
+
+    fs::create_dir_all(&out_base).map_err(|e| map_io_error("mkdir out_base", &out_base, e))?;
+    info!("extracting into {:?}", out_base);
+
+    // 2) Re‑open for extraction
+    let extract_file = File::open(&src).map_err(|e| map_io_error("open zip for extract", &src, e))?;
+    let mut archive = ZipArchive::new(extract_file)
+        .map_err(|e| CommandError::Zip(format!("read zip extract: {}", e)))?;
+
+    let mut extracted = 0;
+    for i in 0..archive.len() {
+        let mut entry = archive.by_index(i).map_err(|e| CommandError::Zip(format!("{}", e)))?;
+        let mut out_path = entry.mangled_name();
+
+        // strip single root if any
+        if let Some(root) = &strip_root {
+            if out_path.starts_with(root) {
+                out_path = out_path.strip_prefix(root).unwrap().to_path_buf();
+            } else {
+                continue;
+            }
+        }
+
+        if out_path.as_os_str().is_empty() {
+            continue;
+        }
+
+        let dest = out_base.join(&out_path);
+        if entry.is_dir() {
+            fs::create_dir_all(&dest).map_err(|e| map_io_error("mkdir dir", &dest, e))?;
+        } else {
+            if let Some(p) = dest.parent() {
+                fs::create_dir_all(p).map_err(|e| map_io_error("mkdir parent", p, e))?;
+            }
+            let mut out = File::create(&dest).map_err(|e| map_io_error("create file", &dest, e))?;
+            copy(&mut entry, &mut out)
+                .map_err(|e| CommandError::Io(format!("write {:?}: {}", dest, e)))?;
+            extracted += 1;
+        }
+    }
+
+    info!("extracted {} files", extracted);
+    if delete_source_on_success {
+        fs::remove_file(&src).map_err(|e| map_io_error("delete zip", &src, e))?;
+    }
+    Ok(out_base)
 }
 
 #[command]
 pub async fn handle_dropped_zip(
-    app_handle: AppHandle,              // <-- dropped underscore here
+    app: AppHandle,
     zip_path: String,
-    target_base_folder: String,
+    target_base: String,
 ) -> CommandResult<InstallationResult> {
-    info!("[fs::handle_dropped_zip] Source='{}', TargetBase='{}'", zip_path, target_base_folder);
-
-    let original_source = zip_path.clone();
-    let unzip_result = tokio::task::spawn_blocking(move || {
-        unzip_file_internal(&zip_path, &target_base_folder, false)
+    let src_clone = zip_path.clone();
+    let out_dir = tokio::task::spawn_blocking(move || {
+        unzip_file_internal(&zip_path, &target_base, true)
     })
     .await
-    .map_err(|e| {
-        error!("[fs::handle_dropped_zip] Task panicked: {}", e);
-        CommandError::TaskJoin(format!("Unzip task panicked: {}", e))
-    })?;
+    .map_err(|e| CommandError::TaskJoin(format!("{:?}", e)))??;
 
-    match unzip_result {
-        Ok(final_path) => {
-            let success_msg = format!("Processed local zip: {}", original_source);
-            info!("[fs::handle_dropped_zip] {}", success_msg);
+    // let the UI know both lists need refreshing
+    app.emit("maps-changed", ())
+        .map_err(|e| CommandError::Io(format!("emit maps-changed: {}", e)))?;
+    app.emit("explorer-changed", ())
+        .map_err(|e| CommandError::Io(format!("emit explorer-changed: {}", e)))?;
 
-            app_handle
-            .emit("maps-changed", ())
-            .map_err(|e| CommandError::Io(format!("Failed to emit maps-changed: {}", e)))?;
-
-            // 2) Tell the Explorer store to reload (if you want your Explorer tab to update too)
-            app_handle
-            .emit("explorer-changed", ())
-            .map_err(|e| CommandError::Io(format!("Failed to emit explorer-changed: {}", e)))?;
-
-            Ok(InstallationResult {
-             success: true,
-            message: success_msg,
-            final_path: Some(final_path),
-            source: original_source,
-            })
-        }
-        Err(e) => {
-            error!("[fs::handle_dropped_zip] Unzip failed: {:?}", e);
-            Err(e)
-        }
-    }
+    Ok(InstallationResult {
+        success: true,
+        message: format!("Extracted \"{}\"", src_clone),
+        final_path: Some(out_dir),
+        source: src_clone,
+    })
 }
 
 #[command]

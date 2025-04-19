@@ -2,63 +2,74 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { check, Update } from '@tauri-apps/plugin-updater'
-  // If relaunch is not available, you can replace it with window.location.reload()
   import { relaunch } from '@tauri-apps/plugin-process'
   import { getVersion } from '@tauri-apps/api/app'
-  import { writable } from 'svelte/store'
+  import { writable, derived } from 'svelte/store'
 
   interface UpdaterInfo {
     version: string
-    date?: string
-    body: string
-    [key: string]: any
+    pub_date?: string
+    notes: string
   }
 
   // --- Stores ---
   const updateAvailable = writable(false)
-  const updateInfo = writable<UpdaterInfo>({ version: '', body: '' })
+  const updateInfo = writable<UpdaterInfo>({
+    version: '',
+    pub_date: '',
+    notes: '',
+  })
   const updateLog = writable<string>('')
-  const currentVersion = writable('')
+  const currentVersion = writable<string>('')
 
-  // We'll stash the Update object here so downloadAndInstall() really runs.
+  // nicely formatted date (e.g. "April 18, 2025")
+  const formattedDate = derived(updateInfo, ($info) => {
+    if (!$info.pub_date) return ''
+    const d = new Date($info.pub_date)
+    return d.toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    })
+  })
+
   let currentUpdate: Update | null = null
 
   onMount(async () => {
     try {
-      // 1) Get our app's version
-      const v = await getVersion()
-      currentVersion.set(v)
+      currentVersion.set(await getVersion())
 
-      // 2) Check once for updates
       updateLog.set('Checking for updates…')
       const upd = await check()
       updateLog.set('Update check completed.')
 
-      if (upd && upd.available) {
+      if (upd?.available) {
         currentUpdate = upd
-        updateInfo.set(upd as UpdaterInfo)
+        // plugin-updater will expose pub_date & notes
+        updateInfo.set({
+          version: upd.version,
+          pub_date: (upd as any).pub_date,
+          notes: (upd as any).notes,
+        })
         updateAvailable.set(true)
         updateLog.set(`Update available: v${upd.version}`)
       } else {
         updateLog.set('Your app is up to date.')
       }
-    } catch (error) {
-      updateLog.set(`Error checking updates: ${error}`)
+    } catch (e) {
+      updateLog.set(`Error checking updates: ${e}`)
     }
   })
 
   async function updateNow() {
-    if (!currentUpdate) {
-      // nothing to install
-      return
-    }
+    if (!currentUpdate) return
     try {
       updateLog.set(`Downloading update v${currentUpdate.version}…`)
       await currentUpdate.downloadAndInstall()
       updateLog.set('Update installed. Restarting…')
       await relaunch()
-    } catch (error) {
-      updateLog.set(`Error updating: ${error}`)
+    } catch (e) {
+      updateLog.set(`Error updating: ${e}`)
     }
   }
 </script>
@@ -69,12 +80,12 @@
       <h3 class="font-bold text-lg">Update Available!</h3>
       <p>
         A new update (v{$updateInfo.version}) is available!
-        {#if $updateInfo.date}
-          <br />Released on: {$updateInfo.date.substring(0, 10)}
+        {#if $formattedDate}
+          <br />Released on: {$formattedDate}
         {/if}
       </p>
       <p class="mt-2 text-sm whitespace-pre-wrap">
-        {$updateInfo.body}
+        {$updateInfo.notes}
       </p>
       <div class="modal-action">
         <button class="btn btn-primary" on:click={updateNow}>
