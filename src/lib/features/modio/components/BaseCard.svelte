@@ -31,14 +31,14 @@
 
   {#if badgeText}
     <span
-      class="bg-neutral/50 absolute top-1 right-1 rounded px-2 py-1 text-xs text-white"
+      class="absolute top-1 right-1 rounded bg-black/50 px-2 py-1 text-xs text-white"
     >
       {badgeText}
     </span>
   {/if}
 
   <div
-    class="from-neutral pointer-events-none absolute bottom-0 z-10 w-full bg-gradient-to-t to-transparent p-3"
+    class="pointer-events-none absolute bottom-0 z-10 w-full bg-gradient-to-t from-black/80 to-transparent p-3"
   >
     <span
       class="line-clamp-2 text-lg leading-tight font-semibold text-white shadow-md"
@@ -49,7 +49,7 @@
   </div>
 
   <div
-    class="bg-neutral/70 pointer-events-none absolute inset-0 z-20 flex items-center justify-center gap-3 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+    class="pointer-events-none absolute inset-0 z-20 flex items-center justify-center gap-3 bg-black/70 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
   >
     <slot name="actions" />
   </div>
