@@ -1,4 +1,3 @@
-// src/lib/stores/mapsStore.ts
 import { writable, get } from 'svelte/store'
 import { listen } from '@tauri-apps/api/event'
 import { createFolderStore } from './folderStore'
@@ -16,7 +15,7 @@ import type { Mod } from '$lib/types/modioTypes'
 // 1) LOCAL MAPS store
 const _localMaps = createFolderStore<FsEntry, { entries: FsEntry[] }>(
   mapsDirectory,
-  '', // pass through
+  '', // pass through raw path
   async (dir) => {
     console.log('[mapsStore] loading local maps from:', dir)
     const { entries } = await loadLocalMaps(dir)
@@ -26,35 +25,56 @@ const _localMaps = createFolderStore<FsEntry, { entries: FsEntry[] }>(
   (r) => r.entries,
 )
 
+// Keep a search index up to date
 _localMaps.entries.subscribe((all) => {
   localMapsSearchIndex.clear()
   localMapsSearchIndex.add(all)
 })
 
-// Refresh on symlink/un‑symlink
+// --- Prevent double-calls on startup ---
+let _hasSkippedInitial = false
+let _isLoading = false
+
 mapsDirectory.subscribe((dir) => {
-  if (dir && dir.trim()) {
-    _localMaps
-      .refresh(dir)
-      .catch((e) => handleError(e, 'Auto‑refresh Local Maps on path change'))
+  if (!dir?.trim()) return
+
+  // The very first real path is bootstrapped from +layout, skip it here
+  if (!_hasSkippedInitial) {
+    _hasSkippedInitial = true
+    return
   }
+
+  // On any subsequent path change, refresh
+  refreshLocalMaps(dir)
 })
 
-// Refresh on every Rust‑emitted maps‑changed
+/**
+ * Refresh local maps once, ignoring overlapping requests
+ */
+export async function refreshLocalMaps(dir?: string): Promise<void> {
+  if (_isLoading) return
+  _isLoading = true
+  try {
+    await _localMaps.refresh(dir ?? get(mapsDirectory))
+  } catch (e: any) {
+    handleError(e, 'Refreshing Local Maps')
+  } finally {
+    _isLoading = false
+  }
+}
+
+// Also reload when Tauri emits a `maps-changed` event
 listen('maps-changed', () => {
   const dir = get(mapsDirectory)
-  if (dir && dir.trim()) {
-    _localMaps
-      .refresh(dir)
-      .catch((e) => handleError(e, 'Auto‑refresh Local Maps on maps-changed'))
+  if (dir?.trim()) {
+    refreshLocalMaps(dir)
   }
 })
 
-// Exports
+// Exports for in-app consumption
 export const localMaps = _localMaps.entries
 export const localMapsLoading = _localMaps.loading
 export const localMapsError = _localMaps.error
-export const refreshLocalMaps = _localMaps.refresh
 
 // 2) REMOTE MAPS (Mod.io)
 export const modioMaps = writable<Mod[]>([])

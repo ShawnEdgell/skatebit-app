@@ -1,4 +1,3 @@
-// src/lib/services/fileService.ts
 import { invoke } from '@tauri-apps/api/core'
 import type { DirectoryListingResult } from '$lib/types/fsTypes'
 import { normalizePath } from './pathService'

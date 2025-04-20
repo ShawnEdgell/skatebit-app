@@ -1,150 +1,55 @@
-<!-- src/lib/features/explorer/ExplorerLayout.svelte -->
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte'
-  import { getCurrentWebview } from '@tauri-apps/api/webview'
-  import { join } from '@tauri-apps/api/path'
-  import { revealItemInDir } from '@tauri-apps/plugin-opener'
+  import { onDestroy } from 'svelte'
+  import { get } from 'svelte/store'
+  import { browser } from '$app/environment'
   import { uploadFilesToCurrentPath } from '$lib/utils/useFileUpload'
-  import { handleDroppedPaths } from '$lib/services/dragDropService'
   import { explorerDirectory } from '$lib/stores/globalPathsStore'
   import {
     currentPath,
     entries,
     isLoading,
     refreshExplorer,
-    setPath,
-    folderMissing,
   } from '$lib/stores/explorerStore'
-  import TabSwitcher from '$lib/features/explorer/components/TabSwitcher.svelte'
-  import FileList from '$lib/features/explorer/components/FileList.svelte'
-  import PathHeader from '$lib/features/explorer/components/PathHeader.svelte'
-  import FileActions from '$lib/features/explorer/components/FileActions.svelte'
-  import DropOverlay from '$lib/components/DropOverlay.svelte'
-  import { explorerTabs as tabs } from './tabs'
-  import { normalizePath } from '$lib/services/pathService'
-  import { openModal } from '$lib/stores/uiStore'
-  import { toastStore } from '$lib/stores/uiStore'
-  import { handleError, handleSuccess } from '$lib/utils/errorHandler'
-  import { invoke } from '@tauri-apps/api/core'
+  import { handleError } from '$lib/utils/errorHandler'
+  import TabSwitcher from '$lib/components/TabSwitcher.svelte'
+  import FileList from '$lib/components/FileList.svelte'
+  import PathHeader from '$lib/components/PathHeader.svelte'
+  import FileActions from '$lib/components/FileActions.svelte'
 
-  let fileInput: HTMLInputElement
-  let isDraggingOverZone = false
-  let unlisten: (() => void) | null = null
+  import { activeDropTargetInfo } from '$lib/stores/dndStore'
 
-  $: missingPath = $folderMissing ? $currentPath : null
+  const tabs = [
+    { label: 'Maps', subfolder: 'Maps', icon: '🗺️' },
+    { label: 'Gear', subfolder: 'Gear', icon: '🧢' },
+    {
+      label: 'XLGM Assets',
+      subfolder: 'XLGearModifier/Asset Packs',
+      icon: '🎨',
+    },
+    { label: 'Stats', subfolder: 'XXLMod3/StatsCollections', icon: '📊' },
+    { label: 'Stance', subfolder: 'XXLMod3/StanceCollections', icon: '🧍' },
+    { label: 'Steeze', subfolder: 'XXLMod3/SteezeCollections', icon: '🛹' },
+    { label: 'BonedOllieMod', subfolder: 'BonedOllieMod', icon: '🦴' },
+    { label: 'Walking Mod', subfolder: 'walking-mod/animations', icon: '🚶' },
+  ]
 
-  async function handleOpenDirectory(folderName: string) {
-    try {
-      const newPath = await join($currentPath, folderName)
-      const newAbsolutePath = normalizePath(newPath)
-      await setPath(newAbsolutePath)
-    } catch (error) {
-      handleError(error, 'Opening directory')
-    }
+  $: if (browser && $currentPath && !$currentPath.startsWith('/error')) {
+    activeDropTargetInfo.set({ path: $currentPath, label: 'Current Folder' })
+  } else if (browser) {
+    activeDropTargetInfo.set({ path: null, label: null })
   }
-
-  async function handleGoBack() {
-    const curr = $currentPath
-    // Basic check if already at root or invalid
-    if (!curr || curr.split(/[\/\\]/).filter(Boolean).length <= 1) return
-    try {
-      // More robust parent path calculation needed for Windows/Unix roots
-      const pathParts = curr.split(/[\/\\]/).filter(Boolean)
-      const parentPath = pathParts.slice(0, -1).join('/') || '/' // Handle root case
-      await setPath(normalizePath(parentPath))
-    } catch (error) {
-      handleError(error, 'Going back')
-    }
-  }
-
-  async function handleCreateDirectory() {
-    // targetPath *is* the path that should be created when this is called
-    // due to the folder being missing. Use $currentPath which reflects that state.
-    const targetPath = $currentPath // Get the path that needs creating
-
-    if (!targetPath || targetPath.startsWith('/error')) {
-      // Basic validation
-      handleError(
-        'Cannot create directory: Target path is invalid.',
-        'Create Directory',
-      )
-      return
-    }
-
-    // Normalize the path we intend to create
-    const pathTocreate = normalizePath(targetPath)
-    console.log(`Attempting to create missing directory: ${pathTocreate}`) // Log for debugging
-
-    try {
-      // --- CORRECTED LOGIC ---
-      // Pass the path that *should* exist (the missing one) directly to the Rust command.
-      // 'create_directory_rust' will create this exact path.
-      await invoke('create_directory_rust', { absolutePath: pathTocreate })
-      // --- END CORRECTED LOGIC ---
-
-      // Extract the folder name from the path for the message
-      const createdFolderName = pathTocreate.split('/').pop() || pathTocreate
-      handleSuccess(`Folder "${createdFolderName}" created.`, 'File Operation')
-
-      // Reset the missing state in the store after successful creation
-      folderMissing.set(false) // Assuming 'folderMissing' is a writable store import
-
-      // Refresh the explorer to show the contents of the newly created (empty) folder
-      await refreshExplorer()
-    } catch (error) {
-      const folderName = pathTocreate.split('/').pop() || pathTocreate
-      handleError(error, `Creating directory "${folderName}"`)
-    }
-  }
-
-  onMount(async () => {
-    // Setup drag/drop listener
-    try {
-      unlisten = await getCurrentWebview().onDragDropEvent(async (event) => {
-        const payload = event.payload
-        if (payload.type === 'over') {
-          isDraggingOverZone = true
-        } else if (payload.type === 'drop') {
-          isDraggingOverZone = false // Reset on drop regardless of success
-          if (payload.paths && payload.paths.length > 0) {
-            try {
-              if (!$currentPath || $currentPath.startsWith('/error')) {
-                throw new Error('Current path is invalid for drop operation.')
-              }
-              await handleDroppedPaths(payload.paths, $currentPath)
-              await refreshExplorer()
-            } catch (error) {
-              handleError(error, 'Handling dropped files')
-            }
-          }
-        } else if (payload.type === 'leave') {
-          isDraggingOverZone = false
-        }
-      })
-    } catch (error) {
-      handleError(error, 'Initializing drag and drop listener')
-    }
-  })
 
   onDestroy(() => {
-    // Cleanup listener
-    unlisten?.()
+    if (browser) {
+      const targetInfo = get(activeDropTargetInfo)
+      const currentExplorerPathValue = get(currentPath)
+      if (targetInfo?.path === currentExplorerPathValue) {
+        activeDropTargetInfo.set({ path: null, label: null })
+      }
+    }
   })
 
-  async function handleSwitchTab(subfolder: string) {
-    if (!$explorerDirectory || $explorerDirectory.startsWith('/error')) {
-      handleError('Base path not initialized', 'Switch Tab')
-      return
-    }
-    try {
-      const newAbsolutePath = normalizePath(
-        await join($explorerDirectory, subfolder),
-      )
-      await setPath(newAbsolutePath)
-    } catch (error) {
-      handleError(error, 'Switching tab')
-    }
-  }
+  let fileInput: HTMLInputElement
 
   async function handleFileChange(event: Event) {
     const target = event.target as HTMLInputElement
@@ -155,283 +60,49 @@
     }
     await uploadFilesToCurrentPath(files, $currentPath, async () => {
       await refreshExplorer()
-      if (target) target.value = '' // Reset file input
+      if (target) target.value = ''
     })
   }
 
-  function onUpload() {
+  function triggerUpload() {
     fileInput?.click()
   }
-
-  async function onRename(name: string, itemPath: string) {
-    if (!$currentPath || $currentPath.startsWith('/error')) {
-      handleError('Cannot rename: Current path is invalid.', 'Rename Setup')
-      return
-    }
-    openModal({
-      title: `Rename "${name}"`,
-      placeholder: 'Enter new name',
-      initialValue: name,
-      confirmText: 'Rename',
-      cancelText: 'Cancel',
-      confirmClass: 'btn-primary',
-      onSave: async (newInputValue?: string) => {
-        const newName = newInputValue?.trim()
-        if (!newName) {
-          toastStore.addToast('New name cannot be empty.', 'alert-warning')
-          return
-        }
-        if (newName === name) {
-          // Optional: Do nothing or show info toast
-          // toastStore.addToast('Name unchanged.', 'alert-info');
-          return
-        }
-        // Check for existing entry (case-insensitive compare might be better)
-        const existingEntry = $entries.find(
-          (entry) => entry?.name?.toLowerCase() === newName.toLowerCase(),
-        )
-        if (existingEntry) {
-          const existingType = existingEntry.isDirectory ? 'folder' : 'file'
-          toastStore.addToast(
-            `A ${existingType} named "${newName}" already exists.`,
-            'alert-error',
-          )
-          return
-        }
-        const normItemPath = normalizePath(itemPath)
-        if (!normItemPath) {
-          handleError('Could not normalize original item path.', 'Rename')
-          return
-        }
-        // Derive parent directory
-        const parentDir =
-          normItemPath.substring(0, normItemPath.lastIndexOf('/')) || '/'
-
-        let newAbsolutePath = ''
-        try {
-          newAbsolutePath = normalizePath(await join(parentDir, newName))
-        } catch (joinError) {
-          handleError(joinError, 'Computing new path for rename')
-          return
-        }
-
-        if (!newAbsolutePath || newAbsolutePath === normItemPath) {
-          toastStore.addToast(
-            'Computed new path is invalid or identical to the original.',
-            'alert-error',
-          )
-          return
-        }
-
-        try {
-          await invoke('rename_fs_entry_rust', {
-            oldAbsolutePath: normItemPath,
-            newAbsolutePath: newAbsolutePath,
-          })
-          handleSuccess(`Renamed "${name}" to "${newName}"`, 'File Operation')
-          await refreshExplorer()
-        } catch (error) {
-          handleError(error, `Renaming ${name} to ${newName}`)
-        }
-      },
-    })
-  }
-
-  async function onDelete(name: string, itemPath: string) {
-    const normItemPath = normalizePath(itemPath)
-    const normBasePath = normalizePath($explorerDirectory)
-
-    if (!normItemPath || (normBasePath && normItemPath === normBasePath)) {
-      handleError(
-        'Invalid deletion target or attempting to delete base directory.',
-        'Deletion',
-      )
-      return
-    }
-
-    openModal({
-      title: 'Confirm Deletion',
-      message: `Move "${name}"? to Recycle Bin?`,
-      confirmOnly: false,
-      confirmText: 'Delete',
-      cancelText: 'Cancel',
-      confirmClass: 'btn-error',
-      onSave: async () => {
-        try {
-          await invoke('delete_fs_entry_rust', { absolutePath: normItemPath })
-          // Use handleSuccess for consistency, or keep toastStore if preferred
-          handleSuccess(`Deleted "${name}"`, 'File Operation')
-          // toastStore.addToast(`Deleted "${name}"`, 'alert-warning');
-          await refreshExplorer()
-        } catch (error) {
-          handleError(error, `Deleting ${name}`)
-        }
-      },
-    })
-  }
-
-  async function onNewFolder() {
-    if (!$currentPath || $currentPath.startsWith('/error')) {
-      handleError(
-        'Cannot create folder: Current path is invalid.',
-        'New Folder',
-      )
-      return
-    }
-    openModal({
-      title: 'Create New Folder',
-      placeholder: 'Enter folder name',
-      initialValue: '',
-      confirmOnly: false,
-      confirmText: 'Create',
-      cancelText: 'Cancel',
-      confirmClass: 'btn-primary',
-      onSave: async (folderName?: string) => {
-        const trimmedName = folderName?.trim()
-        if (!trimmedName) {
-          toastStore.addToast('Folder name cannot be empty.', 'alert-warning')
-          return
-        }
-        // Case-insensitive check for existing
-        const existingEntry = $entries.find(
-          (entry) => entry?.name?.toLowerCase() === trimmedName.toLowerCase(),
-        )
-        if (existingEntry) {
-          const existingType = existingEntry.isDirectory ? 'folder' : 'file'
-          toastStore.addToast(
-            `A ${existingType} named "${trimmedName}" already exists.`,
-            'alert-error',
-          )
-          return
-        }
-        let newPath = ''
-        try {
-          newPath = await join($currentPath, trimmedName)
-          await invoke('create_directory_rust', {
-            absolutePath: normalizePath(newPath),
-          })
-          handleSuccess(`Folder "${trimmedName}" created.`, 'File Operation')
-          await refreshExplorer()
-        } catch (error) {
-          handleError(error, `Creating folder ${trimmedName}`)
-        }
-      },
-    })
-  }
-
-  async function onNewFile() {
-    if (!$currentPath || $currentPath.startsWith('/error')) {
-      handleError('Cannot create file: Current path is invalid.', 'New File')
-      return
-    }
-    openModal({
-      title: 'Create New File',
-      placeholder: 'Enter file name',
-      initialValue: '',
-      confirmOnly: false,
-      confirmText: 'Create',
-      cancelText: 'Cancel',
-      confirmClass: 'btn-primary',
-      onSave: async (fileName?: string) => {
-        const trimmedName = fileName?.trim()
-        if (!trimmedName) {
-          toastStore.addToast('File name cannot be empty.', 'alert-warning')
-          return
-        }
-        const existingEntry = $entries.find(
-          (entry) => entry?.name?.toLowerCase() === trimmedName.toLowerCase(),
-        )
-        if (existingEntry) {
-          const existingType = existingEntry.isDirectory ? 'folder' : 'file'
-          toastStore.addToast(
-            `A ${existingType} named "${trimmedName}" already exists.`,
-            'alert-error',
-          )
-          return
-        }
-        let newPath = ''
-        try {
-          newPath = await join($currentPath, trimmedName)
-          await invoke('create_empty_file_rust', {
-            absolutePath: normalizePath(newPath),
-          })
-          handleSuccess(`File "${trimmedName}" created.`, 'File Operation')
-          await refreshExplorer()
-        } catch (error) {
-          handleError(error, `Creating file ${trimmedName}`)
-        }
-      },
-    })
-  }
-
-  async function openCurrentPathInExplorer() {
-    if (!$currentPath || $currentPath.startsWith('/error')) {
-      handleError('Current path is not available or invalid.', 'Open Explorer')
-      return
-    }
-    try {
-      // revealItemInDir usually expects a file or specific dir to highlight,
-      // opening just the directory itself might require a different approach
-      // or just passing the path might work on some OSes. Test this carefully.
-      await revealItemInDir($currentPath)
-    } catch (error) {
-      handleError(error, `Failed to reveal path: ${$currentPath}`)
-    }
-  }
-
-  // Removed unused reactive block for isBaseSkaterXlFolderMissing
 </script>
 
-<DropOverlay show={isDraggingOverZone} />
-
-<div class="flex h-full w-full bg-base-300">
-  <div class="flex flex-col flex-1 w-full overflow-hidden px-4 pb-4 gap-4">
+<div class="bg-base-300 flex h-full w-full">
+  <div class="flex w-full flex-1 flex-col gap-4 overflow-hidden px-4 pb-4">
     <div
-      class="flex justify-between items-center w-full flex-shrink-0 bg-base-100 p-2 rounded-box shadow-md"
+      class="bg-base-100 rounded-box flex w-full flex-shrink-0 items-center justify-between p-2 shadow-md"
     >
-      <div class="flex-grow overflow-hidden min-w-0 mr-4">
+      <div class="mr-4 min-w-0 flex-grow overflow-hidden">
         <PathHeader
           currentPath={$currentPath}
-          onGoBack={handleGoBack}
           absoluteBasePath={$explorerDirectory}
         />
       </div>
       <div class="flex-shrink-0">
-        <FileActions
-          {onNewFolder}
-          {onNewFile}
-          {onUpload}
-          onOpenExplorer={openCurrentPathInExplorer}
-        />
+        <FileActions on:upload={triggerUpload} />
       </div>
     </div>
-    <div class="flex h-full mb-16.5 w-full overflow-hidden gap-4">
+
+    <div class="mb-16.5 flex h-full w-full gap-4 overflow-hidden">
       <TabSwitcher
         {tabs}
         currentPath={$currentPath}
         baseFolder={$explorerDirectory}
-        onSwitchTab={handleSwitchTab}
       />
       <div
-        class="h-full w-full overflow-y-auto rounded-box bg-base-100 p-2 shadow relative min-h-0"
+        class="rounded-box bg-base-100 relative h-full min-h-0 w-full overflow-y-auto p-2 shadow-md"
       >
         {#if $isLoading && $entries.length === 0}
           <div
-            class="absolute inset-0 flex items-center justify-center text-center p-4 z-10 bg-base-100/50 rounded-box"
+            class="bg-base-100/50 rounded-box absolute inset-0 z-10 flex items-center justify-center p-4 text-center"
           >
             <span class="loading loading-spinner loading-lg"></span>
           </div>
         {:else}
           {#key $currentPath}
-            <FileList
-              entries={$entries}
-              loading={$isLoading && $entries.length > 0}
-              {missingPath}
-              onOpenDirectory={handleOpenDirectory}
-              {onRename}
-              {onDelete}
-              onCreate={handleCreateDirectory}
-            />
+            <FileList loading={$isLoading && $entries.length > 0} />
           {/key}
         {/if}
       </div>

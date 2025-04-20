@@ -1,8 +1,7 @@
-// src/lib/stores/localSearchStore.ts
 import type { FsEntry } from '$lib/types/fsTypes'
 import { localMaps } from './mapsStore'
-import { localMapsSearchIndex } from '$lib/utils/flexSearchUtils'
 import { createSearchStore } from './searchStore'
+import { localMapsSearchIndex } from '$lib/utils/flexSearchUtils'
 
 const localSearch = createSearchStore<FsEntry>(
   localMaps,

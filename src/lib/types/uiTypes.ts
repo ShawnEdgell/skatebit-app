@@ -1,5 +1,3 @@
-// src/lib/types/uiTypes.ts
-
 export interface ModalProps {
   open: boolean
   title: string

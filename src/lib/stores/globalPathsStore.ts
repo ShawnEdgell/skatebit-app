@@ -1,4 +1,3 @@
-// src/lib/stores/globalPathsStore.ts
 import { writable, derived } from 'svelte/store'
 import { resolveDocPath } from '$lib/services/pathService'
 
@@ -39,10 +38,8 @@ export async function initializeExplorerPaths() {
   explorerDirectory.set(base)
 }
 
-// 5. Persist custom folder whenever mapsDirectory changes _after_ default is known
 mapsDirectory.subscribe((val) => {
   if (!_defaultMapsPath) {
-    // still booting – don’t touch localStorage yet
     return
   }
   if (val.trim() !== '' && val !== _defaultMapsPath) {

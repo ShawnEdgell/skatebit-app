@@ -38,7 +38,6 @@ export function createFolderStore<E, R>(
     loading.set(true)
     error.set(null)
     try {
-      // Use truthy checks so empty string falls through to computePath()
       const dir =
         (path && path.trim()) ||
         (get(currentPath) && get(currentPath).trim()) ||
@@ -70,7 +69,6 @@ export function createFolderStore<E, R>(
     return () => unlisten()
   }
 
-  // whenever your base path flips, re‑load
   basePathStore.subscribe(() => {
     refresh()
   })

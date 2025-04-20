@@ -1,4 +1,3 @@
-<!-- src/lib/components/Navbar.svelte -->
 <script lang="ts">
   import { Window } from '@tauri-apps/api/window'
   import ThemeController from './ThemeController.svelte'
@@ -27,12 +26,12 @@
   role="banner"
   on:dblclick={toggleMaximize}
 >
-  <div class="flex justify-between w-full">
+  <div class="flex w-full justify-between">
     <!-- Left area: Draggable logo and navigation links -->
     <div class="flex items-center">
       <!-- The XLFM logo is draggable and has a default cursor -->
       <h1
-        class="text-2xl tracking-tight font-black mr-2"
+        class="mr-2 text-2xl font-black tracking-tight"
         style="cursor: default;"
       >
         XLFM
@@ -57,6 +56,15 @@
             Maps
           </a>
         </li>
+        <!-- <li>
+          <a
+            href="/stats"
+            class={`transition-colors ${$page.url.pathname.startsWith('/stats') ? 'text-base-content' : 'text-base-content/50'}`}
+            title="Stats"
+          >
+            Stats
+          </a>
+        </li> -->
       </ul>
     </div>
 
@@ -66,10 +74,10 @@
         <li><FolderSelector /></li>
         <li><ThemeController /></li>
       </ul>
-      <div class="flex-none flex space-x-2">
+      <div class="flex flex-none space-x-2">
         <button
           data-tip="Minimize"
-          class="tooltip tooltip-bottom btn btn-xs h-6 w-6 btn-circle btn-soft z-50"
+          class="tooltip tooltip-bottom btn btn-xs btn-circle btn-soft z-50 h-6 w-6"
           on:click={minimizeWindow}
         >
           <!-- Minimize Icon -->
@@ -91,7 +99,7 @@
 
         <button
           data-tip="Maximize"
-          class="tooltip tooltip-bottom btn btn-xs h-6 w-6 btn-circle btn-soft z-50"
+          class="tooltip tooltip-bottom btn btn-xs btn-circle btn-soft z-50 h-6 w-6"
           on:click={toggleMaximize}
         >
           <!-- Maximize Icon: a simple square outline -->
@@ -116,7 +124,7 @@
 
         <button
           data-tip="Close"
-          class="tooltip tooltip-bottom btn btn-xs h-6 w-6 btn-circle btn-soft z-50"
+          class="tooltip tooltip-bottom btn btn-xs btn-circle btn-soft z-50 h-6 w-6"
           on:click={closeWindow}
         >
           <!-- Close Icon -->

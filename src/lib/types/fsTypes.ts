@@ -1,4 +1,3 @@
-// src/lib/types/fsTypes.ts
 export enum ListingStatus {
   ExistsAndPopulated = 'existsAndPopulated',
   ExistsAndEmpty = 'existsAndEmpty',

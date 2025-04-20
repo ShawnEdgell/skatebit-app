@@ -1,4 +1,3 @@
-<!-- src/lib/components/Updater.svelte -->
 <script lang="ts">
   import { onMount } from 'svelte'
   import { check, Update } from '@tauri-apps/plugin-updater'
@@ -77,7 +76,7 @@
 {#if $updateAvailable}
   <div class="modal modal-open">
     <div class="modal-box">
-      <h3 class="font-bold text-lg">Update Available!</h3>
+      <h3 class="text-lg font-bold">Update Available!</h3>
       <p>
         A new update (v{$updateInfo.version}) is available!
         {#if $formattedDate}
@@ -103,7 +102,7 @@
 {/if}
 
 <footer
-  class="fixed inset-x-0 bottom-0 p-4 text-xs text-base-content/40 font-semibold"
+  class="text-base-content/40 fixed inset-x-0 bottom-0 p-4 text-xs font-semibold"
 >
   Current Version: {$currentVersion}
 </footer>

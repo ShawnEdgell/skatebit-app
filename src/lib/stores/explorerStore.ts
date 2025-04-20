@@ -1,4 +1,3 @@
-// src/lib/stores/explorerStore.ts
 import { writable, get } from 'svelte/store'
 import { listen } from '@tauri-apps/api/event'
 import { createFolderStore } from './folderStore'
@@ -7,8 +6,6 @@ import { loadDirectoryEntries } from '$lib/services/fileService'
 import { ListingStatus } from '$lib/types/fsTypes'
 import type { FsEntry, DirectoryListingResult } from '$lib/types/fsTypes'
 import { handleError } from '$lib/utils/errorHandler'
-
-// NEW: import localMaps & mapsDirectory to coordinate updates
 import { localMaps } from './mapsStore'
 import { mapsDirectory } from './globalPathsStore'
 
@@ -30,8 +27,6 @@ export const currentPath = _explorer.currentPath
 export const isLoading = _explorer.loading
 export const explorerError = _explorer.error
 export const refreshExplorer = _explorer.refresh
-
-// Auto‑refresh on custom Tauri events (maps‑changed, etc.)
 ;['explorer-changed', 'maps-changed', 'stats-changed', 'gear-changed'].forEach(
   (evt) => {
     listen(evt, () => {
@@ -45,7 +40,6 @@ export const refreshExplorer = _explorer.refresh
   },
 )
 
-// **NEW**: whenever localMaps changes, refresh if viewing the Maps folder
 localMaps.subscribe(() => {
   const view = get(currentPath)
   const maps = get(mapsDirectory)
@@ -57,8 +51,6 @@ localMaps.subscribe(() => {
 })
 
 export async function watchExplorer(): Promise<() => void> {
-  // we already set up module‑level listeners above,
-  // so watchExplorer can just return a no‑op or cleanup if desired
   return () => {}
 }
 

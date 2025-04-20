@@ -1,11 +1,9 @@
-// src/lib/stores/modioSearchStore.ts
 import type { Mod } from '$lib/types/modioTypes'
 import { modioMaps } from './mapsStore'
 import { modioMapsSearchIndex } from '$lib/utils/flexSearchUtils'
 import { createSearchStore } from './searchStore'
 import { writable } from 'svelte/store'
 
-// keep using your existing sort store
 export const modioSortOrder = writable<'recent' | 'popular' | 'downloads'>(
   'recent',
 )
@@ -31,7 +29,7 @@ const modioSearch = createSearchStore<
     }
   },
   idField: 'id',
-  hitToId: (hit) => String(hit.id), // map StoredModData → string ID
+  hitToId: (hit) => String(hit.id),
 })
 
 export const modioSearchQuery = modioSearch.query

@@ -1,4 +1,3 @@
-// src/lib/utils/flexSearchUtils.ts
 import FlexSearch from 'flexsearch'
 import type { FsEntry } from '$lib/types/fsTypes'
 import type { Mod } from '$lib/types/modioTypes'
@@ -32,7 +31,6 @@ export class LocalMapsSearchIndex {
           isDirectory: entry.isDirectory ?? undefined,
           size: entry.size ?? undefined,
           modified: entry.modified ?? undefined,
-          thumbnailPath: entry.thumbnailPath ?? undefined,
           thumbnailMimeType: entry.thumbnailMimeType ?? undefined,
         }
         try {

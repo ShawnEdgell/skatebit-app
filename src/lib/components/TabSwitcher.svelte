@@ -1,20 +1,33 @@
-<!-- src/lib/features/explorer/components/TabSwitcher.svelte -->
 <script lang="ts">
+  import { join } from '@tauri-apps/api/path'
   import { normalizePath } from '$lib/services/pathService'
   import { isMapsSymlinked } from '$lib/stores/globalPathsStore'
+  import { setPath } from '$lib/stores/explorerStore'
+  import { handleError } from '$lib/utils/errorHandler'
 
-  export let tabs: { label: string; subfolder: string; icon: string }[] = [],
-    currentPath: string = '',
-    baseFolder: string = '',
-    onSwitchTab: (subfolder: string) => void
+  export let tabs: { label: string; subfolder: string; icon: string }[] = []
+  export let currentPath: string = ''
+  export let baseFolder: string = ''
 
-  // normalize once per render
   $: normalizedCurrentPath = normalizePath(currentPath)
+
+  async function handleSwitchTab(subfolder: string) {
+    if (!baseFolder || baseFolder.startsWith('/error')) {
+      handleError('Base path not initialized', 'Switch Tab')
+      return
+    }
+    try {
+      const newAbsolutePath = normalizePath(await join(baseFolder, subfolder))
+      await setPath(newAbsolutePath)
+    } catch (error) {
+      handleError(error, 'Switching tab')
+    }
+  }
 </script>
 
 <section>
   <div
-    class="flex flex-col items-center space-y-1 p-2 bg-base-200 rounded-box shadow-md w-64 z-10"
+    class="bg-base-200 rounded-box z-10 flex w-64 flex-col items-center space-y-1 p-2 shadow-md"
   >
     {#each tabs as tab (tab.subfolder)}
       {@const expectedPath = normalizePath(`${baseFolder}/${tab.subfolder}`)}
@@ -22,11 +35,11 @@
 
       <button
         type="button"
-        class="btn btn-ghost w-full h-auto p-2 justify-between"
+        class="btn btn-ghost h-auto w-full justify-between p-2"
         class:btn-active={isActive}
         class:bg-primary={isActive}
         class:text-primary-content={isActive}
-        on:click={() => onSwitchTab(tab.subfolder)}
+        on:click={() => handleSwitchTab(tab.subfolder)}
         title={tab.label}
       >
         <span class="flex items-center gap-2 text-lg">
@@ -36,7 +49,7 @@
 
         {#if tab.subfolder === 'Maps' && $isMapsSymlinked}
           <svg
-            class="h-4 w-4 text-info"
+            class="text-info h-4 w-4"
             viewBox="0 0 16 16"
             fill="currentColor"
             xmlns="http://www.w3.org/2000/svg"

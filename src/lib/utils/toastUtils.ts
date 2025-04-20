@@ -1,4 +1,3 @@
-// src/lib/ts/toastUtils.ts
 import { toastStore } from '$lib/stores/uiStore'
 import type { ToastVariant } from '$lib/types/uiTypes'
 

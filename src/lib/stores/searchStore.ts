@@ -1,4 +1,3 @@
-// src/lib/stores/searchStore.ts
 import { writable, derived, type Readable, type Writable } from 'svelte/store'
 
 export interface SearchStore<Item, SortKey = unknown> {
@@ -19,7 +18,7 @@ export function createSearchStore<
     sortStore?: Writable<SortKey>
     sortFn?: (a: Item, b: Item, sortKey: SortKey) => number
     idField?: keyof Item
-    hitToId?: (hit: Hit) => string // only for “hit‐only” indexes
+    hitToId?: (hit: Hit) => string
   },
 ): SearchStore<Item, SortKey> {
   const query = opts?.queryStore ?? writable('')

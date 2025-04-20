@@ -1,4 +1,3 @@
-// src/lib/types/modioTypes.ts
 export interface ModioUser {
   id: number
   username: string

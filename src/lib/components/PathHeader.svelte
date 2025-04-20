@@ -1,11 +1,12 @@
-<!-- src/lib/features/explorer/components/PathHeader.svelte -->
 <script lang="ts">
   import { normalizePath } from '$lib/services/pathService'
-  import { setPath as navigateToPath } from '$lib/stores/explorerStore'
+  import {
+    setPath as navigateToPath,
+    currentPath as currentPathStore,
+  } from '$lib/stores/explorerStore'
+  import { handleError } from '$lib/utils/errorHandler'
 
-  // Props passed down from the parent (e.g., ExplorerLayout).
   export let currentPath: string | null | undefined = ''
-  export let onGoBack: () => void
   export let absoluteBasePath: string = ''
 
   interface PathSegment {
@@ -17,7 +18,6 @@
   let pathSegments: PathSegment[] = []
   let canGoBack = false
 
-  // Use fallback empty string when values are falsy.
   $: {
     const normCurrent = normalizePath(currentPath || '')
     const normBase = normalizePath(absoluteBasePath || '')
@@ -67,6 +67,18 @@
     !!normalizePath(absoluteBasePath || '') &&
     normalizePath(currentPath || '') !== normalizePath(absoluteBasePath || '')
 
+  async function handleGoBack() {
+    const curr = $currentPathStore
+    if (!curr || !canGoBack) return
+    try {
+      const pathParts = curr.split(/[\/\\]/).filter(Boolean)
+      const parentPath = pathParts.slice(0, -1).join('/') || '/'
+      await navigateToPath(normalizePath(parentPath))
+    } catch (error) {
+      handleError(error, 'Going back')
+    }
+  }
+
   function handleSegmentClick(segment: PathSegment) {
     if (
       segment.isNavigable &&
@@ -82,7 +94,7 @@
   <button
     class="btn btn-ghost btn-xs flex-shrink-0 px-2 disabled:opacity-50"
     data-tip="Go up one level"
-    on:click={onGoBack}
+    on:click={handleGoBack}
     disabled={!canGoBack}
     aria-label="Go up one level"
   >
@@ -92,7 +104,7 @@
       viewBox="0 0 24 24"
       stroke-width="1.5"
       stroke="currentColor"
-      class="w-4 h-4"
+      class="h-4 w-4"
     >
       <path
         stroke-linecap="round"
@@ -102,15 +114,15 @@
     </svg>
   </button>
 
-  <div class="flex items-center overflow-hidden z-10" aria-label="Breadcrumb">
+  <div class="z-10 flex items-center overflow-hidden" aria-label="Breadcrumb">
     {#each pathSegments as segment, index (segment.fullPath + index)}
       {#if index > 0}
-        <span class="mx-1 text-base-content/50 flex-shrink-0">/</span>
+        <span class="text-base-content/50 mx-1 flex-shrink-0">/</span>
       {/if}
 
       {#if segment.isNavigable && index < pathSegments.length - 1}
         <button
-          class="cursor-pointer text-base-content/60 hover:text-base-content"
+          class="text-base-content/60 hover:text-base-content cursor-pointer"
           on:click={() => handleSegmentClick(segment)}
         >
           {segment.name}

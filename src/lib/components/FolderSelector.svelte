@@ -1,14 +1,9 @@
-<!-- src/lib/features/explorer/FolderSelector.svelte -->
 <script lang="ts">
   import { open as openDialog } from '@tauri-apps/plugin-dialog'
   import { invoke } from '@tauri-apps/api/core'
-  import {
-    explorerDirectory,
-    mapsDirectory,
-  } from '$lib/stores/globalPathsStore'
+  import { mapsDirectory } from '$lib/stores/globalPathsStore'
   import { openModal } from '$lib/stores/uiStore'
   import { toastStore } from '$lib/stores/uiStore'
-  import { refreshLocalMaps } from '$lib/stores/mapsStore'
   import { documentDir, join } from '@tauri-apps/api/path'
   import { tick } from 'svelte'
   import { normalizePath } from '$lib/services/pathService'
@@ -17,7 +12,6 @@
   import { get } from 'svelte/store'
   import { isMapsSymlinked } from '$lib/stores/globalPathsStore'
 
-  // Reset the maps folder to its default: Documents/SkaterXL/Maps
   async function resetToDefault() {
     try {
       const docDirResult = await documentDir()
@@ -126,7 +120,6 @@
             }
 
             if (normalizedSelected && normalizedSelected !== normCurrentInner) {
-              // Update only mapsDirectory.
               mapsDirectory.set(normalizedSelected)
               handleSuccess('Maps folder updated', 'Installation')
 

@@ -1,12 +1,9 @@
-// src/lib/services/modioService.ts
-
 import { db } from '$lib/firebase/firebase'
 import { doc, getDoc } from 'firebase/firestore'
 import type { Mod } from '$lib/types/modioTypes'
 import { handleError } from '$lib/utils/errorHandler'
 import { FIRESTORE_PAGE_SIZE_ESTIMATE } from '$lib/api/modioConstants'
 
-// Any suffix here will be excluded when it appears after "Console_Selected_"
 const EXCLUDED_PLATFORMS = new Set([
   'PS4',
   'PS5',
@@ -15,20 +12,14 @@ const EXCLUDED_PLATFORMS = new Set([
   'NINTENDO',
 ])
 
-/**
- * Returns false (i.e. filters out) if any of the mod's tags is
- * "Console_Selected_<PLATFORM>" where PLATFORM is in EXCLUDED_PLATFORMS.
- * Keeps Console_Selected_PC (or anything else).
- */
 function filterByPlatform(mod: Mod): boolean {
   if (!Array.isArray(mod.tags)) return true
   return !mod.tags.some((tag) => {
-    // pick the localized name if it exists, otherwise the raw name
     const raw = tag.name ?? ''
-    const up = raw.toUpperCase() // normalize
+    const up = raw.toUpperCase()
     if (!up.startsWith('CONSOLE_SELECTED_')) return false
     const parts = up.split('_')
-    const suffix = parts[parts.length - 1] // PS4, PC, XBOX, etc.
+    const suffix = parts[parts.length - 1]
     return EXCLUDED_PLATFORMS.has(suffix)
   })
 }

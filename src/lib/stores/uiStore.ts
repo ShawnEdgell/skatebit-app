@@ -1,4 +1,3 @@
-// src/lib/stores/uiStore.ts
 import { writable } from 'svelte/store'
 import type { ModalProps, Toast, ToastVariant } from '$lib/types/uiTypes'
 
@@ -17,7 +16,6 @@ const defaultModal: ModalProps = {
 
 export const modalStore = writable<ModalProps>(defaultModal)
 
-// Update openModal to accept Partial<ModalProps> so the caller doesn’t have to include all properties.
 export function openModal(props: Partial<ModalProps>) {
   modalStore.set({ ...defaultModal, ...props, open: true })
 }

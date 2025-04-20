@@ -1,8 +1,7 @@
-<!-- toast.svelte -->
 <script lang="ts">
+  import { onDestroy } from 'svelte'
   import { toastStore } from '$lib/stores/uiStore'
   import type { Toast } from '$lib/types/uiTypes'
-  import { onDestroy } from 'svelte'
 
   let toasts: Toast[] = []
 

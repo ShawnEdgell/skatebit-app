@@ -153,16 +153,15 @@ pub fn unzip_file_internal(
 pub async fn handle_dropped_zip(
     app: AppHandle,
     zip_path: String,
-    target_base: String,
+    target_base_folder: String,
 ) -> CommandResult<InstallationResult> {
     let src_clone = zip_path.clone();
     let out_dir = tokio::task::spawn_blocking(move || {
-        unzip_file_internal(&zip_path, &target_base, true)
+        unzip_file_internal(&zip_path, &target_base_folder, true)
     })
     .await
     .map_err(|e| CommandError::TaskJoin(format!("{:?}", e)))??;
 
-    // let the UI know both lists need refreshing
     app.emit("maps-changed", ())
         .map_err(|e| CommandError::Io(format!("emit maps-changed: {}", e)))?;
     app.emit("explorer-changed", ())
@@ -175,6 +174,7 @@ pub async fn handle_dropped_zip(
         source: src_clone,
     })
 }
+
 
 #[command]
 pub fn save_file(absolute_path: String, contents: Vec<u8>) -> CommandResult<()> {

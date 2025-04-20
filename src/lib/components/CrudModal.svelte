@@ -1,11 +1,6 @@
-<!-- src/lib/components/CrudModal.svelte -->
 <script lang="ts">
   import { modalStore, closeModal } from '$lib/stores/uiStore'
 
-  $: currentProps = $modalStore
-
-  // When the modal opens, if inputValue is not yet set but we have an initialValue,
-  // update inputValue to match initialValue.
   $: if (
     $modalStore.open &&
     !$modalStore.inputValue &&
@@ -14,32 +9,32 @@
     modalStore.update((n) => ({ ...n, inputValue: n.initialValue }))
   }
 
-  // Confirmation mode is active if placeholder equals "free dawg"
-  $: isConfirmationMode = $modalStore.placeholder === 'free dawg'
-  // Disable confirm until input exactly matches "free dawg" in confirmation mode.
-  $: isConfirmDisabled = isConfirmationMode
-    ? $modalStore.inputValue !== 'free dawg'
-    : false
+  $: isConfirmDisabled =
+    $modalStore.placeholder === 'free dawg' &&
+    $modalStore.inputValue !== 'free dawg'
 
   function handleSave() {
-    if (isConfirmationMode && $modalStore.inputValue !== 'free dawg') {
+    if (isConfirmDisabled) {
       return
     }
-    currentProps.onSave?.(currentProps.inputValue ?? '')
+    $modalStore.onSave?.($modalStore.inputValue ?? '')
     closeModal()
   }
+
   function handleCancel() {
-    currentProps.onCancel?.()
+    $modalStore.onCancel?.()
     closeModal()
   }
+
   async function handleSecondary() {
-    if (currentProps.onSecondary) {
-      await currentProps.onSecondary()
+    if ($modalStore.onSecondary) {
+      await $modalStore.onSecondary()
       closeModal()
     }
   }
+
   function handleKeydown(event: KeyboardEvent) {
-    if (event.key === 'Enter') {
+    if (event.key === 'Enter' && !isConfirmDisabled) {
       event.preventDefault()
       handleSave()
     } else if (event.key === 'Escape') {
@@ -50,20 +45,20 @@
 
 {#if $modalStore.open}
   <dialog
-    class="modal modal-open h-full w-screen content-center justify-center p-0 z-100 fixed inset-0"
+    class="modal modal-open fixed inset-0 z-100 h-full w-screen content-center justify-center p-0"
     on:close={handleCancel}
     on:keydown={handleKeydown}
   >
-    <div class="modal-box min-w-md max-w-xl p-6">
+    <div class="modal-box max-w-xl min-w-md p-6">
       <button
         type="button"
         on:click={handleCancel}
-        class="btn btn-sm btn-circle absolute right-2 top-2"
+        class="btn btn-sm btn-circle absolute top-2 right-2"
         aria-label="Close modal">✕</button
       >
-      <h3 class="text-2xl font-bold mb-4 break-words">{$modalStore.title}</h3>
+      <h3 class="mb-4 text-2xl font-bold break-words">{$modalStore.title}</h3>
       {#if $modalStore.message}
-        <div class="mb-4 whitespace-pre-wrap break-words">
+        <div class="mb-4 break-words whitespace-pre-wrap">
           {@html $modalStore.message}
         </div>
       {/if}
@@ -76,7 +71,6 @@
         />
       {/if}
       <div class="modal-action flex items-center">
-        <!-- Left container: secondary action -->
         <div class="flex-grow">
           {#if $modalStore.secondaryText && $modalStore.onSecondary}
             <button
@@ -89,7 +83,6 @@
             </button>
           {/if}
         </div>
-        <!-- Right container: Cancel and Confirm buttons -->
         <div class="flex space-x-2">
           {#if !$modalStore.confirmOnly}
             <button type="button" class="btn btn-ghost" on:click={handleCancel}>
@@ -108,7 +101,7 @@
         </div>
       </div>
     </div>
-    <form method="dialog" class="modal-backdrop w-screen fixed inset-0">
+    <form method="dialog" class="modal-backdrop fixed inset-0 w-screen">
       <button type="button" on:click={handleCancel}>close</button>
     </form>
   </dialog>

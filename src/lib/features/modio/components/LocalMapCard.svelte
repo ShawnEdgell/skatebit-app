@@ -1,109 +1,93 @@
-<!-- src/lib/components/LocalMapCard.svelte -->
 <script lang="ts">
+  import { createEventDispatcher, onMount } from 'svelte'
   import type { FsEntry } from '$lib/types/fsTypes'
-  import GenericCard from './GenericCard.svelte'
+  import BaseCard from './BaseCard.svelte'
   import { revealItemInDir } from '@tauri-apps/plugin-opener'
-  import { createEventDispatcher, onMount, onDestroy } from 'svelte'
   import { formatFileSize } from '$lib/utils/formatter'
   import { normalizePath } from '$lib/services/pathService'
   import { convertFileSrc } from '@tauri-apps/api/core'
+  import { handleError } from '$lib/utils/errorHandler'
 
-  export let localMap: FsEntry
   const dispatch = createEventDispatcher()
+  export let localMap: FsEntry
 
-  let observer: IntersectionObserver
-  let cardElement: HTMLElement
-  let isVisible = false
   let assetUrl = ''
-
-  $: canPerformActions = !!localMap?.path
-
-  $: if (localMap?.thumbnailPath) {
-    try {
-      assetUrl = convertFileSrc(localMap.thumbnailPath)
-    } catch (e) {
-      console.error(
-        `[${localMap.name}] Failed to convert path to asset URL: ${localMap.thumbnailPath}`,
-        e,
-      )
-      assetUrl = ''
-    }
-  } else {
-    assetUrl = ''
-  }
+  let isVisible = false
+  let observer: IntersectionObserver
+  let el: HTMLElement
 
   onMount(() => {
     observer = new IntersectionObserver(
       (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
+        for (const e of entries) {
+          if (e.isIntersecting) {
             isVisible = true
-            // Optional: Unobserve once visible if you don't need it anymore
-            // observer.unobserve(cardElement);
-          } else {
-            // Optional: Set isVisible to false if you want to unload
-            // the card when it scrolls out of view (might cause flicker on fast scroll)
-            // isVisible = false;
+            observer.unobserve(el)
           }
-        })
+        }
       },
-      { threshold: 0.1 }, // Adjust threshold as needed
+      { threshold: 0.1 },
     )
-
-    if (cardElement) observer.observe(cardElement)
-
-    return () => {
-      observer?.disconnect()
-    }
+    observer.observe(el)
+    return () => observer.disconnect()
   })
 
-  async function openInExplorer() {
-    if (!localMap?.path) return
+  $: if (isVisible && localMap.thumbnailPath) {
     try {
-      const normalized = normalizePath(localMap.path)
-      if (normalized) {
-        await revealItemInDir(normalized)
-      } else {
-        console.error('Cannot open in explorer: Normalized path is null.')
-      }
+      assetUrl = convertFileSrc(localMap.thumbnailPath)
+    } catch {
+      assetUrl = '' // Reset if conversion fails
+    }
+  } else if (!localMap.thumbnailPath) {
+    assetUrl = '' // Ensure assetUrl is cleared if no thumbnailPath
+  }
+
+  async function openInExplorer() {
+    if (!localMap.path) return
+    try {
+      await revealItemInDir(normalizePath(localMap.path))
     } catch (error) {
-      console.error('Error using opener plugin:', error)
+      handleError(error, `Failed to open ${localMap.name} in explorer`)
     }
   }
 
-  function triggerDelete(e: MouseEvent) {
-    e.stopPropagation()
-    if (!localMap?.path) return
+  function deleteMap() {
     dispatch('requestDelete', { path: localMap.path, name: localMap.name })
   }
 </script>
 
-<div bind:this={cardElement} class="relative flex-shrink-0 w-80 aspect-video">
+<div bind:this={el} class="relative aspect-video w-80 flex-shrink-0">
   {#if isVisible}
-    <GenericCard
+    <BaseCard
       imageUrl={assetUrl}
-      fallbackIcon={localMap?.isDirectory ? '📁' : '📄'}
-      badgeText={localMap?.size != null ? formatFileSize(localMap.size) : ''}
-      title={localMap?.name ?? 'Unnamed Map'}
+      imageAlt={localMap.name ?? ''}
+      fallbackContent={localMap.isDirectory ? '📁' : '📄'}
+      fallbackClass="text-5xl"
+      badgeText={localMap.size != null ? formatFileSize(localMap.size) : ''}
+      title={localMap.name ??
+        (localMap.isDirectory ? 'Unnamed Folder' : 'Unnamed Map')}
+      cardTitleAttr={localMap.path ?? ''}
     >
-      <span slot="overlay">
+      <svelte:fragment slot="info" />
+
+      <svelte:fragment slot="actions">
         <button
           title="Open in Explorer"
           class="btn btn-secondary btn-sm pointer-events-auto"
-          on:click|preventDefault|stopPropagation={openInExplorer}
-          disabled={!canPerformActions}>Open</button
+          on:click|stopPropagation={openInExplorer}
         >
+          Open
+        </button>
         <button
           title="Delete"
           class="btn btn-error btn-sm pointer-events-auto"
-          on:click|preventDefault|stopPropagation={triggerDelete}
-          disabled={!canPerformActions}>Delete</button
+          on:click|stopPropagation={deleteMap}
         >
-      </span>
-    </GenericCard>
+          Delete
+        </button>
+      </svelte:fragment>
+    </BaseCard>
   {:else}
-    <!-- Placeholder to maintain layout before the card becomes visible -->
-    <div class="w-full h-full bg-base-300/20 rounded-lg animate-pulse"></div>
+    <div class="bg-base-300/20 h-full w-full animate-pulse rounded-lg"></div>
   {/if}
-  <!-- Removed the loading spinner overlay as asset loading is handled by the browser -->
 </div>
