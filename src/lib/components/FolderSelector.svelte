@@ -79,7 +79,7 @@
 
     const modalConfig: any = {
       title: 'Change Maps Folder?',
-      message: `This feature changes your Skater XL maps location using a system shortcut (Symbolic Link) at Documents/SkaterXL/Maps.<br><br><strong class="text-warning">Administrator Privileges Needed:</strong> Please restart this application as Administrator, otherwise the link won't be created and the game won't find your maps. You can skip this step if you've already set up your Symlink manually. <br><br>Your active map folder will be safely renamed as a backup and added to your Documents (e.g., Maps_backup).<br><br>Type "<strong>free dawg</strong>" to continue.`,
+      message: `This feature changes your Skater XL maps location using a system shortcut (Symbolic Link) at Documents/SkaterXL/Maps.<br><br>Your active map folder will be safely renamed as a backup and added to your Documents (e.g., Maps_backup).<br><br>Type "<strong>free dawg</strong>" to continue.`,
       confirmText: 'Select Folder',
       cancelText: 'Cancel',
       confirmOnly: false,

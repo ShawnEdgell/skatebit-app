@@ -3,7 +3,8 @@ import { listen } from '@tauri-apps/api/event'
 import { createFolderStore } from './folderStore'
 import { mapsDirectory } from './globalPathsStore'
 import { loadLocalMaps } from '$lib/services/fileService'
-import type { FsEntry } from '$lib/types/fsTypes'
+import type { FsEntry, DirectoryListingResult } from '$lib/types/fsTypes'
+import { ListingStatus } from '$lib/types/fsTypes'
 import { handleError } from '$lib/utils/errorHandler'
 import {
   localMapsSearchIndex,
@@ -11,76 +12,135 @@ import {
 } from '$lib/utils/flexSearchUtils'
 import { fetchAllMods } from '$lib/services/modioService'
 import type { Mod } from '$lib/types/modioTypes'
+import { browser } from '$app/environment'
 
-// 1) LOCAL MAPS store
-const _localMaps = createFolderStore<FsEntry, { entries: FsEntry[] }>(
+// Local Maps Store Setup
+const _localMaps = createFolderStore<FsEntry, DirectoryListingResult>(
   mapsDirectory,
-  '', // pass through raw path
-  async (dir) => {
-    console.log('[mapsStore] loading local maps from:', dir)
-    const { entries } = await loadLocalMaps(dir)
-    console.log(`[mapsStore] loaded ${entries.length} entries`)
-    return { entries }
+  '',
+  async (dir): Promise<DirectoryListingResult> => {
+    try {
+      const result = await loadLocalMaps(dir)
+      folderMissing.set(result.status === ListingStatus.DoesNotExist)
+      return result
+    } catch (error) {
+      handleError(error, `Loading maps from ${dir}`)
+      folderMissing.set(true)
+      // Return structure indicating failure/non-existence
+      // Ensure the 'path' matches the expected string type if DirectoryListingResult TS type uses string
+      return {
+        status: ListingStatus.DoesNotExist,
+        entries: [],
+        path: dir || '',
+      }
+    }
   },
-  (r) => r.entries,
+  (result: DirectoryListingResult): FsEntry[] => {
+    return result.status === ListingStatus.DoesNotExist ? [] : result.entries
+  },
 )
 
-// Keep a search index up to date
+// FlexSearch Indexing for Local Maps
 _localMaps.entries.subscribe((all) => {
-  localMapsSearchIndex.clear()
-  localMapsSearchIndex.add(all)
+  if (browser && all) {
+    try {
+      localMapsSearchIndex.clear()
+      localMapsSearchIndex.add(all)
+    } catch (indexError) {
+      console.error(
+        `[mapsStore] FlexSearch: Failed to update index:`,
+        indexError,
+      )
+      handleError(indexError, 'Updating local maps search index')
+      localMapsSearchIndex.clear()
+    }
+  }
 })
 
-// --- Prevent double-calls on startup ---
-let _hasSkippedInitial = false
+// Refresh Debouncing
 let _isLoading = false
 
+// React to Maps Directory Changes
+let _hasSkippedInitialMapDir = false
 mapsDirectory.subscribe((dir) => {
-  if (!dir?.trim()) return
+  if (!browser) return
+  const currentDir = dir ? dir.trim() : ''
+  if (!currentDir) return
 
-  // The very first real path is bootstrapped from +layout, skip it here
-  if (!_hasSkippedInitial) {
-    _hasSkippedInitial = true
+  if (!_hasSkippedInitialMapDir) {
+    _hasSkippedInitialMapDir = true
     return
   }
-
-  // On any subsequent path change, refresh
-  refreshLocalMaps(dir)
+  // Use void or catch to handle promise
+  void refreshLocalMaps(currentDir)
 })
 
 /**
- * Refresh local maps once, ignoring overlapping requests
+ * Refresh local maps list.
  */
 export async function refreshLocalMaps(dir?: string): Promise<void> {
   if (_isLoading) return
   _isLoading = true
+
+  let targetDir: string | null = null
+  const providedDir = dir ? dir.trim() : ''
+  const currentStoredDir = get(mapsDirectory)?.trim() ?? ''
+
+  if (providedDir) {
+    targetDir = providedDir
+  } else if (currentStoredDir) {
+    targetDir = currentStoredDir
+  }
+
+  if (!targetDir) {
+    _isLoading = false
+    return
+  }
+
   try {
-    await _localMaps.refresh(dir ?? get(mapsDirectory))
+    await _localMaps.refresh(targetDir)
   } catch (e: any) {
-    handleError(e, 'Refreshing Local Maps')
+    // Error should be handled within createFolderStore's loaderFn now
+    // handleError(e, `Refreshing Local Maps for ${targetDir}`); // Likely redundant
   } finally {
     _isLoading = false
   }
 }
 
-// Also reload when Tauri emits a `maps-changed` event
-listen('maps-changed', () => {
-  const dir = get(mapsDirectory)
-  if (dir?.trim()) {
-    refreshLocalMaps(dir)
-  }
-})
+// Listen for Backend Map Changes (but don't trigger redundant refresh)
+if (browser) {
+  listen('maps-changed', (event) => {
+    console.log(
+      '[mapsStore] Received "maps-changed" event (refresh handled by subscription):',
+      event,
+    )
+    // REMOVED: refreshLocalMaps(dir);
+    // Refresh is now handled by the mapsDirectory subscription when the path changes,
+    // or explicitly by frontend logic (like DnD handler) after operations.
+    // Keeping the listener might be useful for other future reactions or logging.
+  })
+    .then((unlisten) => {
+      // Optional cleanup if needed, though usually module-level listeners persist
+    })
+    .catch((e) => {
+      handleError(e, 'Attaching maps-changed listener')
+    })
+}
 
-// Exports for in-app consumption
+// Exported Stores for UI Consumption
 export const localMaps = _localMaps.entries
 export const localMapsLoading = _localMaps.loading
 export const localMapsError = _localMaps.error
+export const folderMissing = writable(false) // State for indicating if the folder is missing
 
-// 2) REMOTE MAPS (Mod.io)
+// Mod.io Maps Store Setup (Remote)
 export const modioMaps = writable<Mod[]>([])
 export const modioMapsLoading = writable<boolean>(false)
 export const modioMapsError = writable<string | null>(null)
 
+/**
+ * Refresh mod.io maps list.
+ */
 export async function refreshModioMaps(): Promise<void> {
   if (get(modioMapsLoading)) return
   modioMapsLoading.set(true)
@@ -89,13 +149,16 @@ export async function refreshModioMaps(): Promise<void> {
   try {
     const mods = await fetchAllMods()
     modioMaps.set(mods)
-    modioMapsSearchIndex.clear()
-    modioMapsSearchIndex.add(mods)
+    if (browser) {
+      // Indexing only in browser
+      modioMapsSearchIndex.clear()
+      modioMapsSearchIndex.add(mods)
+    }
   } catch (e: any) {
     handleError(e, 'Refreshing Mod.io Maps')
     modioMapsError.set(e.message ?? String(e))
     modioMaps.set([])
-    modioMapsSearchIndex.clear()
+    if (browser) modioMapsSearchIndex.clear()
   } finally {
     modioMapsLoading.set(false)
   }

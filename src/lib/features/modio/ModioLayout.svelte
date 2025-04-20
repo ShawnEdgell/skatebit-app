@@ -2,8 +2,10 @@
   import { onDestroy, tick } from 'svelte'
   import { browser } from '$app/environment'
   import { get } from 'svelte/store'
+
   import MapList from './components/MapList.svelte'
-  import LocalMapList from './components/LocalMapList.svelte' // Keep this import
+  import LocalMapList from './components/LocalMapList.svelte'
+
   import {
     modioSearchQuery,
     modioSearchResults,
@@ -13,40 +15,23 @@
     modioMapsLoading,
     localMaps,
     localMapsLoading,
-  } from '$lib/stores/mapsStore' // Import local maps stores
-  import { mapsDirectory } from '$lib/stores/globalPathsStore'
-  import { activeDropTargetInfo } from '$lib/stores/dndStore'
-  import { localSearchQuery } from '$lib/stores/localSearchStore' // Import local search query store
-  import type { FsEntry } from '$lib/types/fsTypes' // Import type
+  } from '$lib/stores/mapsStore'
+  import { localSearchQuery } from '$lib/stores/localSearchStore'
 
-  // --- DnD Context Logic ---
-  $: if (browser && $mapsDirectory) {
-    activeDropTargetInfo.set({ path: $mapsDirectory, label: 'Maps Folder' })
-  } else if (browser) {
-    activeDropTargetInfo.set({ path: null, label: null })
-  }
-  onDestroy(() => {
-    if (browser && get(activeDropTargetInfo).path === get(mapsDirectory)) {
-      activeDropTargetInfo.set({ path: null, label: null })
-    }
-  })
-  // --- End DnD Context Logic ---
-
-  // --- Modio Section Logic ---
-  let modioVisibleCount = 10 // Renamed for clarity
-  type ModioSortValue = 'recent' | 'popular' | 'downloads' // Renamed for clarity
+  // --- mod.io maps sorting & pagination ---
+  let modioVisibleCount = 10
+  type ModioSortValue = 'recent' | 'popular' | 'downloads'
   interface ModioSortOption {
     label: string
     value: ModioSortValue
-  } // Renamed for clarity
+  }
   const modioSortOptions: ModioSortOption[] = [
-    // Renamed for clarity
     { label: 'Most Recent', value: 'recent' },
     { label: 'Popular', value: 'popular' },
     { label: 'Downloads', value: 'downloads' },
   ]
+
   async function selectModioSort(value: ModioSortValue) {
-    // Renamed for clarity
     if (value !== $modioSortOrder) {
       modioSortOrder.set(value)
       modioVisibleCount = 10
@@ -56,16 +41,18 @@
         ?.scrollTo({ left: 0, behavior: 'smooth' })
     }
   }
+
   function handleModioLoadMore() {
-    // Renamed for clarity
-    if (modioVisibleCount < $modioSearchResults.length) modioVisibleCount += 10
+    if (modioVisibleCount < $modioSearchResults.length) {
+      modioVisibleCount += 10
+    }
   }
+
   if (browser && !$modioSortOrder) {
     modioSortOrder.set(modioSortOptions[0].value)
   }
-  // --- End Modio Section Logic ---
 
-  // +++ Local Maps Section Logic +++
+  // --- local maps sorting & filtering ---
   type LocalSortCriteria = 'recent' | 'alphabetical' | 'size'
   interface LocalSortOption {
     label: string
@@ -73,36 +60,33 @@
   }
   const localSortOptions: LocalSortOption[] = [
     { label: 'Most Recent', value: 'recent' },
-    { label: 'A-Z', value: 'alphabetical' },
+    { label: 'A‑Z', value: 'alphabetical' },
     { label: 'Size', value: 'size' },
   ]
+
   let localSortCriteria: LocalSortCriteria = 'recent'
-  let localScrollContainer: HTMLElement | undefined // Optional: if you need to scroll local list too
 
   async function selectLocalSort(criteria: LocalSortCriteria) {
     if (criteria !== localSortCriteria) {
       localSortCriteria = criteria
       await tick()
-      // Scroll local list if needed (requires bind:this on its scroll container)
-      // localScrollContainer?.scrollTo({ left: 0, behavior: 'smooth' });
+      // You could scroll local list container here if you bind it
     }
   }
 
-  // Reactive calculation for sorted local maps
   $: sortedLocalMaps = [...$localMaps].sort((a, b) => {
     if (localSortCriteria === 'alphabetical') {
       return (a.name ?? '').localeCompare(b.name ?? '', undefined, {
         sensitivity: 'base',
       })
-    } else if (localSortCriteria === 'recent') {
-      return (b.modified ?? 0) - (a.modified ?? 0)
-    } else {
-      // size
-      return (b.size ?? 0) - (a.size ?? 0)
     }
+    if (localSortCriteria === 'recent') {
+      return (b.modified ?? 0) - (a.modified ?? 0)
+    }
+    // size
+    return (b.size ?? 0) - (a.size ?? 0)
   })
 
-  // Reactive calculation for filtered local maps (uses localSearchQuery store)
   $: displayedLocalMaps = !$localSearchQuery.trim()
     ? sortedLocalMaps
     : sortedLocalMaps.filter((map) =>
@@ -110,20 +94,20 @@
           ?.toLowerCase()
           .includes($localSearchQuery.trim().toLowerCase()),
       )
-  // +++ End Local Maps Section Logic +++
 </script>
 
 <svelte:head>
-  <title>Maps - XL Web Manager</title>
+  <title>Maps – XL Web Manager</title>
 </svelte:head>
 
 <main class="bg-base-300 mx-auto flex h-full w-full flex-col gap-4 px-4">
-  <div class="bg-base-100 rounded-box z-10 p-4 shadow-md">
+  <!-- Mod.io Maps Section -->
+  <div class="bg-base-100 rounded-box p-4 shadow-md">
     <div
       class="flex flex-col items-start justify-between gap-2 md:flex-row md:items-center"
     >
       <div class="flex flex-wrap items-center gap-2">
-        <h2 class="mr-2 text-2xl font-bold">Mod.io Maps</h2>
+        <h2 class="mr-2 text-2xl font-bold">Mod.io Maps</h2>
         {#each modioSortOptions as opt}
           <button
             type="button"
@@ -156,7 +140,7 @@
         <div class="flex h-full items-center justify-center p-4">
           <p class="text-base-content/60 text-sm">
             {#if $modioSearchQuery.trim()}
-              No maps matching “{$modioSearchQuery}” found on mod.io.
+              No maps matching “{$modioSearchQuery}” found.
             {:else}
               No mod.io maps found.
             {/if}
@@ -173,16 +157,17 @@
     </div>
   </div>
 
-  <div class="bg-base-100 rounded-box z-10 p-4 shadow-md">
+  <!-- Local Maps Section -->
+  <div class="bg-base-100 rounded-box p-4 shadow-md">
     <div
-      class="mb-4 flex flex-col items-start justify-between gap-2 md:flex-row md:items-center"
+      class="flex flex-col items-start justify-between gap-2 md:flex-row md:items-center"
     >
-      <div class="flex flex-wrap items-center gap-2">
-        <h2 class="mr-2 text-2xl font-bold">Local Maps</h2>
-        {#each localSortOptions as opt (opt.value)}
+      <div class="mb-4 flex flex-wrap items-center gap-2">
+        <h2 class="mr-2 text-2xl font-bold">Local Maps</h2>
+        {#each localSortOptions as opt}
           <button
-            class="badge cursor-pointer transition-colors {localSortCriteria ===
-            opt.value
+            class="badge cursor-pointer transition-colors
+              {localSortCriteria === opt.value
               ? 'badge-primary'
               : 'badge-outline hover:bg-base-content hover:text-base-100 hover:border-base-content'}"
             on:click={() => selectLocalSort(opt.value)}
@@ -192,15 +177,15 @@
           </button>
         {/each}
       </div>
-
       <input
         type="text"
-        placeholder="Search local maps..."
+        placeholder="Search local maps…"
         bind:value={$localSearchQuery}
         class="input input-sm input-bordered w-64"
         disabled={$localMapsLoading || $localMaps.length === 0}
       />
     </div>
+
     <LocalMapList
       maps={displayedLocalMaps}
       loading={$localMapsLoading}

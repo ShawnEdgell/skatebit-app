@@ -4,7 +4,6 @@ use directories::UserDirs;
 use once_cell::sync::Lazy;
 use std::{
     collections::HashSet,
-    fs,
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -110,65 +109,3 @@ pub fn get_mime_type_from_extension(extension: &str) -> Option<String> {
     }
 }
 
-/// Removes a symlink in a platform-aware manner.
-/// Returns Ok(true) if removed, Ok(false) if not found or not a symlink, Err on OS error.
-pub fn platform_remove_symlink(link_path_str: &str) -> Result<bool, String> {
-    let link_path = Path::new(link_path_str);
-    println!("[platform_remove_symlink] Checking path: {}", link_path_str);
-
-    match fs::symlink_metadata(link_path) {
-        Ok(metadata) => {
-            if metadata.file_type().is_symlink() {
-                println!("[platform_remove_symlink] Path is a symlink. Attempting removal...");
-                #[cfg(windows)]
-                {
-                    // For directory symlinks (common case), remove_dir is often needed. Try it first.
-                    match fs::remove_dir(link_path) {
-                         Ok(_) => {
-                              println!("[platform_remove_symlink] Removed symlink using remove_dir: {}", link_path_str);
-                              Ok(true)
-                         }
-                         Err(e_dir) => {
-                              println!("[platform_remove_symlink] remove_dir failed ({}). Trying remove_file...", e_dir);
-                              // Fallback to remove_file for file symlinks or other cases
-                              match fs::remove_file(link_path) {
-                                   Ok(_) => {
-                                        println!("[platform_remove_symlink] Removed symlink using remove_file: {}", link_path_str);
-                                        Ok(true)
-                                   }
-                                   Err(e_file) => Err(format!("Failed to remove symlink '{}' with remove_dir ({}) and remove_file ({}). Check permissions.", link_path_str, e_dir, e_file)),
-                              }
-                         }
-                    }
-                }
-                #[cfg(unix)]
-                {
-                    // On Unix, remove_file usually works for all symlinks.
-                    fs::remove_file(link_path)
-                        .map(|_| {
-                            println!("[platform_remove_symlink] Removed symlink using remove_file: {}", link_path_str);
-                            true // Indicate removal happened
-                        })
-                        .map_err(|e| format!("Failed to remove unix symlink '{}': {}", link_path_str, e))
-                }
-                #[cfg(not(any(unix, windows)))]
-                {
-                     // Basic fallback
-                     println!("Symlink removal may not be fully supported on this platform. Attempting remove_file.");
-                     fs::remove_file(link_path)
-                          .map(|_| true)
-                          .map_err(|e| format!("Failed to remove symlink '{}': {}", link_path_str, e))
-
-                }
-            } else {
-                println!("[platform_remove_symlink] Path exists but is not a symlink. No removal needed: {}", link_path_str);
-                Ok(false) // Not a symlink, nothing removed
-            }
-        }
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            println!("[platform_remove_symlink] Path does not exist. No removal needed: {}", link_path_str);
-            Ok(false) // Not found, nothing removed
-        }
-        Err(e) => Err(format!("[platform_remove_symlink] Error checking metadata for '{}': {}", link_path_str, e)),
-    }
-}

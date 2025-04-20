@@ -1,6 +1,8 @@
+<!-- src/lib/components/MapCard.svelte -->
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
   import { documentDir } from '@tauri-apps/api/path'
+  import { open } from '@tauri-apps/plugin-shell'
   import { get } from 'svelte/store'
   import { formatFileSize, formatRelativeTime } from '$lib/utils/formatter'
   import { handleError, handleSuccess } from '$lib/utils/errorHandler'
@@ -37,15 +39,11 @@
       const normMapsRoot = normalizePath(mapsRootAbsolutePath)
 
       let destination: string
-      if (normMapsRoot && docDir && normMapsRoot.startsWith(docDir)) {
-        let relativeSubfolder = normMapsRoot
-          .substring(docDir.length)
-          .replace(/^[/|\\]+/, '') // Use regex for robustness
-        destination = relativeSubfolder || '.' // Use current dir if it's the root
-      } else if (normMapsRoot) {
-        destination = normMapsRoot
+      if (normMapsRoot.startsWith(docDir)) {
+        let rel = normMapsRoot.slice(docDir.length).replace(/^[/\\]+/, '')
+        destination = rel || '.'
       } else {
-        throw new Error(`Could not determine a valid destination folder.`)
+        destination = normMapsRoot
       }
 
       await invoke('download_and_install', {
@@ -64,6 +62,14 @@
       isInstalling = false
     }
   }
+
+  function handleViewDetails(event: MouseEvent) {
+    event.stopPropagation()
+    // open in user's default browser
+    open(mod.profile_url).catch((err) => {
+      handleError(err, 'Opening external browser')
+    })
+  }
 </script>
 
 <BaseCard
@@ -76,7 +82,7 @@
   cardTitleAttr={mod.profile_url}
 >
   <svelte:fragment slot="info">
-    {#if mod.submitted_by || mod.date_updated}
+    {#if mod.submitted_by?.username || mod.date_updated}
       <div class="mt-1 flex items-center gap-x-1.5 text-xs text-white">
         {#if mod.submitted_by?.username}
           <span>{mod.submitted_by.username}</span>
@@ -94,14 +100,15 @@
   </svelte:fragment>
 
   <svelte:fragment slot="actions">
-    <a
+    <!-- now opens default browser -->
+    <button
       title="View Details"
-      href={mod.profile_url}
-      target="_blank"
-      rel="noopener noreferrer"
       class="btn btn-secondary btn-sm pointer-events-auto"
-      on:click|stopPropagation>View Details</a
+      on:click={handleViewDetails}
     >
+      View Details
+    </button>
+
     {#if mod.modfile?.download?.binary_url}
       <button
         title="Install Map"

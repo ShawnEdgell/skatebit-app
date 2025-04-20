@@ -1,7 +1,4 @@
 <script lang="ts">
-  import { onDestroy } from 'svelte'
-  import { get } from 'svelte/store'
-  import { browser } from '$app/environment'
   import { uploadFilesToCurrentPath } from '$lib/utils/useFileUpload'
   import { explorerDirectory } from '$lib/stores/globalPathsStore'
   import {
@@ -11,13 +8,13 @@
     refreshExplorer,
   } from '$lib/stores/explorerStore'
   import { handleError } from '$lib/utils/errorHandler'
+
   import TabSwitcher from '$lib/components/TabSwitcher.svelte'
   import FileList from '$lib/components/FileList.svelte'
   import PathHeader from '$lib/components/PathHeader.svelte'
   import FileActions from '$lib/components/FileActions.svelte'
 
-  import { activeDropTargetInfo } from '$lib/stores/dndStore'
-
+  // static tab definitions
   const tabs = [
     { label: 'Maps', subfolder: 'Maps', icon: '🗺️' },
     { label: 'Gear', subfolder: 'Gear', icon: '🧢' },
@@ -32,22 +29,6 @@
     { label: 'BonedOllieMod', subfolder: 'BonedOllieMod', icon: '🦴' },
     { label: 'Walking Mod', subfolder: 'walking-mod/animations', icon: '🚶' },
   ]
-
-  $: if (browser && $currentPath && !$currentPath.startsWith('/error')) {
-    activeDropTargetInfo.set({ path: $currentPath, label: 'Current Folder' })
-  } else if (browser) {
-    activeDropTargetInfo.set({ path: null, label: null })
-  }
-
-  onDestroy(() => {
-    if (browser) {
-      const targetInfo = get(activeDropTargetInfo)
-      const currentExplorerPathValue = get(currentPath)
-      if (targetInfo?.path === currentExplorerPathValue) {
-        activeDropTargetInfo.set({ path: null, label: null })
-      }
-    }
-  })
 
   let fileInput: HTMLInputElement
 
@@ -71,8 +52,9 @@
 
 <div class="bg-base-300 flex h-full w-full">
   <div class="flex w-full flex-1 flex-col gap-4 overflow-hidden px-4 pb-4">
+    <!-- header row -->
     <div
-      class="bg-base-100 rounded-box flex w-full flex-shrink-0 items-center justify-between p-2 shadow-md"
+      class="bg-base-100 rounded-box flex w-full items-center justify-between p-2 shadow-md"
     >
       <div class="mr-4 min-w-0 flex-grow overflow-hidden">
         <PathHeader
@@ -85,18 +67,20 @@
       </div>
     </div>
 
+    <!-- body: tabs + file list -->
     <div class="mb-16.5 flex h-full w-full gap-4 overflow-hidden">
       <TabSwitcher
         {tabs}
         currentPath={$currentPath}
         baseFolder={$explorerDirectory}
       />
+
       <div
         class="rounded-box bg-base-100 relative h-full min-h-0 w-full overflow-y-auto p-2 shadow-md"
       >
         {#if $isLoading && $entries.length === 0}
           <div
-            class="bg-base-100/50 rounded-box absolute inset-0 z-10 flex items-center justify-center p-4 text-center"
+            class="bg-base-100/50 absolute inset-0 z-10 flex items-center justify-center p-4"
           >
             <span class="loading loading-spinner loading-lg"></span>
           </div>
@@ -108,6 +92,8 @@
       </div>
     </div>
   </div>
+
+  <!-- hidden file input for FileActions -->
   <input
     type="file"
     multiple
