@@ -1,11 +1,14 @@
 <script lang="ts">
   export let imageUrl: string = ''
   export let imageAlt: string = 'Card image'
-  export let fallbackContent: string = '📄' // Default is file, but consumers override
+  export let fallbackContent: string = '📄'
   export let fallbackClass: string = 'text-5xl'
   export let badgeText: string = ''
   export let title: string = ''
   export let cardTitleAttr: string = ''
+
+  // local flag to track if the <img> has errored
+  let imageFailed = false
 </script>
 
 <div
@@ -13,13 +16,17 @@
   class="card group bg-base-200 relative aspect-video w-80 flex-shrink-0 overflow-hidden shadow-md"
   title={cardTitleAttr || title}
 >
-  {#if imageUrl}
+  {#if imageUrl && !imageFailed}
     <img
       src={imageUrl}
       alt={imageAlt}
-      class="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
       loading="lazy"
       draggable="false"
+      class="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
+      on:error={() => {
+        // Chrome may still log its cache warning, but we won't try to render again
+        imageFailed = true
+      }}
     />
   {:else}
     <div
@@ -40,9 +47,7 @@
   <div
     class="pointer-events-none absolute bottom-0 z-10 w-full bg-gradient-to-t from-black/80 to-transparent p-3"
   >
-    <span
-      class="line-clamp-2 text-lg leading-tight font-semibold text-white shadow-md"
-    >
+    <span class="line-clamp-2 text-lg font-semibold text-white">
       {title}
     </span>
     <slot name="info" />

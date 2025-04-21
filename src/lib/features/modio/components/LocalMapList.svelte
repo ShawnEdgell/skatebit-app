@@ -6,6 +6,7 @@
   import { draggable } from '$lib/actions/draggable'
   import { handleError, handleSuccess } from '$lib/utils/errorHandler'
   import type { FsEntry } from '$lib/types/fsTypes'
+  import { refreshLocalMaps } from '$lib/stores/mapsStore'
 
   export let maps: FsEntry[] = []
   export let loading: boolean = false
@@ -32,6 +33,7 @@
         try {
           await deleteEntry(path)
           handleSuccess(`"${name ?? 'Item'}" deleted successfully.`, 'Deletion')
+          await refreshLocalMaps()
         } catch (err) {
           handleError(err, `Deleting ${name ?? 'item'}`)
         }
@@ -40,13 +42,13 @@
   }
 </script>
 
-<div class="relative min-h-[12rem]">
+<div class="relative h-52">
   {#if loading && maps.length === 0}
-    <div class="absolute inset-0 z-10 flex items-center justify-center p-4">
+    <div class="absolute inset-0 flex items-center justify-center">
       <span class="loading loading-spinner loading-lg"></span>
     </div>
   {:else if !loading && maps.length === 0}
-    <div class="flex h-full min-h-[10rem] items-center justify-center p-4">
+    <div class="absolute inset-0 flex items-center justify-center p-4">
       <p class="text-base-content/60 text-center text-sm">
         {#if searchQuery.trim()}
           No maps found matching '{searchQuery}'.
@@ -59,7 +61,7 @@
     <div
       bind:this={scrollContainer}
       use:draggable
-      class="scrollbar-thin flex touch-pan-x flex-row gap-4 overflow-x-auto pb-2 select-none"
+      class="scrollbar-thin flex h-full touch-pan-x flex-row gap-4 overflow-x-auto pb-2 select-none"
       role="list"
     >
       {#each maps as map, i (map.path ?? map.name ?? i)}

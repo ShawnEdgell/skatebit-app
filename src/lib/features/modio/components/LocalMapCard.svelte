@@ -36,10 +36,10 @@
     try {
       assetUrl = convertFileSrc(localMap.thumbnailPath)
     } catch {
-      assetUrl = '' // Reset if conversion fails
+      assetUrl = ''
     }
   } else if (!localMap.thumbnailPath) {
-    assetUrl = '' // Ensure assetUrl is cleared if no thumbnailPath
+    assetUrl = ''
   }
 
   async function openInExplorer() {

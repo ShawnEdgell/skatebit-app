@@ -1,12 +1,16 @@
 <script lang="ts">
-  import { uploadFilesToCurrentPath } from '$lib/utils/useFileUpload'
-  import { explorerDirectory } from '$lib/stores/globalPathsStore'
+  import { browser } from '$app/environment'
+  import { onDestroy } from 'svelte'
+  import { page } from '$app/stores'
   import {
     currentPath,
     entries,
     isLoading,
     refreshExplorer,
   } from '$lib/stores/explorerStore'
+  import { explorerDirectory } from '$lib/stores/globalPathsStore'
+  import { activeDropTargetInfo } from '$lib/stores/dndStore'
+  import { uploadFilesToCurrentPath } from '$lib/utils/useFileUpload'
   import { handleError } from '$lib/utils/errorHandler'
 
   import TabSwitcher from '$lib/components/TabSwitcher.svelte'
@@ -48,11 +52,21 @@
   function triggerUpload() {
     fileInput?.click()
   }
+
+  // ——— Drop‑Target Registration ———
+  // whenever this layout is active (we’re at the root “explorer” page),
+  // register the currentPath as the drop‐target.
+  $: if (browser && $page.url.pathname === '/') {
+    activeDropTargetInfo.set({ path: $currentPath, label: 'Current Folder' })
+  }
+
+  onDestroy(() => {
+    activeDropTargetInfo.set({ path: null, label: null })
+  })
 </script>
 
 <div class="bg-base-300 flex h-full w-full">
   <div class="flex w-full flex-1 flex-col gap-4 overflow-hidden px-4 pb-4">
-    <!-- header row -->
     <div
       class="bg-base-100 rounded-box flex w-full items-center justify-between p-2 shadow-md"
     >
@@ -67,7 +81,6 @@
       </div>
     </div>
 
-    <!-- body: tabs + file list -->
     <div class="mb-16.5 flex h-full w-full gap-4 overflow-hidden">
       <TabSwitcher
         {tabs}
@@ -93,7 +106,6 @@
     </div>
   </div>
 
-  <!-- hidden file input for FileActions -->
   <input
     type="file"
     multiple

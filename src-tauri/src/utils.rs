@@ -108,4 +108,3 @@ pub fn get_mime_type_from_extension(extension: &str) -> Option<String> {
         _ => None,
     }
 }
-

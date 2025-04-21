@@ -1,4 +1,3 @@
-<!-- src/lib/components/MapCard.svelte -->
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
   import { documentDir } from '@tauri-apps/api/path'
@@ -17,7 +16,8 @@
   let isInstalling = false
   let installingToastId: number | null = null
 
-  async function handleDownload() {
+  async function handleDownload(event: MouseEvent) {
+    event.stopPropagation()
     isInstalling = true
     installingToastId = toastStore.addToast(
       `<span class="loading loading-spinner loading-sm mr-2"></span> Installing "${mod.name}"…`,
@@ -26,8 +26,8 @@
     )
 
     try {
-      const mapsRootAbsolutePath = get(mapsDirectory)
-      if (!mapsRootAbsolutePath || mapsRootAbsolutePath.startsWith('/error')) {
+      const mapsRoot = get(mapsDirectory)
+      if (!mapsRoot || mapsRoot.startsWith('/error')) {
         throw new Error('Maps folder path is not set or invalid.')
       }
       if (!mod.modfile?.download?.binary_url) {
@@ -36,7 +36,7 @@
 
       const docDirResult = await documentDir()
       const docDir = normalizePath(docDirResult || '')
-      const normMapsRoot = normalizePath(mapsRootAbsolutePath)
+      const normMapsRoot = normalizePath(mapsRoot)
 
       let destination: string
       if (normMapsRoot.startsWith(docDir)) {
@@ -52,8 +52,8 @@
       })
 
       handleSuccess(`Map "${mod.name}" installed successfully`, 'Installation')
-    } catch (error) {
-      handleError(error, `Installation failed for ${mod.name}`)
+    } catch (err) {
+      handleError(err, `Installation failed for ${mod.name}`)
     } finally {
       if (installingToastId !== null) {
         toastStore.removeToast(installingToastId)
@@ -65,10 +65,11 @@
 
   function handleViewDetails(event: MouseEvent) {
     event.stopPropagation()
-    // open in user's default browser
-    open(mod.profile_url).catch((err) => {
-      handleError(err, 'Opening external browser')
-    })
+    if (mod.profile_url) {
+      open(mod.profile_url).catch((err) =>
+        handleError(err, 'Opening external browser'),
+      )
+    }
   }
 </script>
 
@@ -100,7 +101,6 @@
   </svelte:fragment>
 
   <svelte:fragment slot="actions">
-    <!-- now opens default browser -->
     <button
       title="View Details"
       class="btn btn-secondary btn-sm pointer-events-auto"
@@ -108,13 +108,12 @@
     >
       View Details
     </button>
-
     {#if mod.modfile?.download?.binary_url}
       <button
         title="Install Map"
-        on:click|stopPropagation={handleDownload}
-        disabled={isInstalling}
         class="btn btn-primary btn-sm pointer-events-auto"
+        on:click={handleDownload}
+        disabled={isInstalling}
       >
         {#if isInstalling}
           <span class="loading loading-spinner loading-sm"></span> Installing...

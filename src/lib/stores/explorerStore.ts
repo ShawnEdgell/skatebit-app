@@ -1,6 +1,6 @@
 import { writable, get } from 'svelte/store'
 import { listen } from '@tauri-apps/api/event'
-import { createFolderStore } from './folderStore' // Uses the updated folderStore
+import { createFolderStore } from './folderStore'
 import { explorerDirectory, mapsDirectory } from './globalPathsStore' // Import mapsDirectory
 import { loadDirectoryEntries } from '$lib/services/fileService'
 import { ListingStatus } from '$lib/types/fsTypes'
