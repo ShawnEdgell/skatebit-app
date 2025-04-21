@@ -2,10 +2,10 @@
 
 //! Contains shared data structures used across multiple command modules.
 
-use serde::{Serialize, Deserialize}; 
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)] 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum ListingStatus {
     ExistsAndPopulated,
@@ -13,27 +13,33 @@ pub enum ListingStatus {
     DoesNotExist,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)] 
+#[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct DirectoryListingResult {
     pub status: ListingStatus,
     pub entries: Vec<FsEntry>,
-    pub path: PathBuf, 
+    pub path: PathBuf,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)] 
+#[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct FsEntry {
     pub name: Option<String>,
-    #[serde(serialize_with = "serialize_pathbuf", deserialize_with = "deserialize_pathbuf")] // Serialize PathBuf as string
+    #[serde(
+        serialize_with = "serialize_pathbuf",
+        deserialize_with = "deserialize_pathbuf"
+    )] // Serialize PathBuf as string
     pub path: PathBuf,
     pub is_directory: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub size: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")] 
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub modified: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(serialize_with = "serialize_optional_pathbuf", deserialize_with = "deserialize_optional_pathbuf")] // Handle optional PathBuf
+    #[serde(
+        serialize_with = "serialize_optional_pathbuf",
+        deserialize_with = "deserialize_optional_pathbuf"
+    )] // Handle optional PathBuf
     pub thumbnail_path: Option<PathBuf>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub thumbnail_mime_type: Option<String>,
@@ -54,9 +60,12 @@ pub struct InstallationResult {
     pub success: bool,
     pub message: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(serialize_with = "serialize_optional_pathbuf", deserialize_with = "deserialize_optional_pathbuf")] // Handle optional PathBuf
+    #[serde(
+        serialize_with = "serialize_optional_pathbuf",
+        deserialize_with = "deserialize_optional_pathbuf"
+    )] // Handle optional PathBuf
     pub final_path: Option<PathBuf>,
-    pub source: String, 
+    pub source: String,
 }
 
 // --- Helper functions for PathBuf serialization ---
@@ -76,7 +85,10 @@ where
     Ok(PathBuf::from(s))
 }
 
-fn serialize_optional_pathbuf<S>(opt_path: &Option<PathBuf>, serializer: S) -> Result<S::Ok, S::Error>
+fn serialize_optional_pathbuf<S>(
+    opt_path: &Option<PathBuf>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
 {

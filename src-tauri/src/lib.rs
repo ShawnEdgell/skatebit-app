@@ -18,10 +18,7 @@ use state::{WatcherCommand, WatcherState};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    env_logger::Builder::from_env(
-        env_logger::Env::default().default_filter_or("info"),
-    )
-    .init();
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     log::info!("Starting application…");
 
     let (tx, rx) = channel::<WatcherCommand>(100);
@@ -32,6 +29,7 @@ pub fn run() {
     };
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_os::init())
@@ -39,9 +37,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
-        
         .manage(watcher_state)
-
         .invoke_handler(tauri::generate_handler![
             // FS commands
             fs_commands::handle_dropped_zip,
@@ -63,12 +59,10 @@ pub fn run() {
             watcher::remove_watched_path,
             watcher::update_maps_watched_path,
         ])
-
         .setup(move |app| {
             watcher::run_watcher(app.handle().clone(), rx);
             Ok(())
         })
-
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

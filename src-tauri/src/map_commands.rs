@@ -5,6 +5,7 @@
 use crate::error::{CommandError, CommandResult};
 use crate::models::*;
 use crate::utils::*;
+use junction;
 use std::{
     collections::{hash_map::DefaultHasher, HashMap, HashSet},
     ffi::OsStr,
@@ -13,7 +14,6 @@ use std::{
     path::{Path, PathBuf},
 };
 use tauri::{command, Manager};
-use junction;
 
 // --- Hash helper ---
 fn hash_path(path: &Path) -> String {
@@ -55,7 +55,10 @@ pub fn is_symlink(path: String) -> Result<bool, String> {
     match fs::symlink_metadata(p) {
         Ok(meta) => Ok(meta.file_type().is_symlink()),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(false),
-        Err(e) => Err(format!("Failed checking symlink metadata for {}: {}", path, e)),
+        Err(e) => Err(format!(
+            "Failed checking symlink metadata for {}: {}",
+            path, e
+        )),
     }
 }
 
@@ -78,10 +81,7 @@ fn platform_remove_symlink(link_path_str: &str) -> CommandResult<bool> {
 }
 
 #[command]
-pub fn create_maps_symlink(
-    new_folder: String,
-    target_link: String,
-) -> CommandResult<()> {
+pub fn create_maps_symlink(new_folder: String, target_link: String) -> CommandResult<()> {
     let source = Path::new(&new_folder);
     let target = Path::new(&target_link);
     if !source.is_dir() {
@@ -124,9 +124,7 @@ pub fn create_maps_symlink(
 }
 
 #[command]
-pub fn remove_maps_symlink(
-    link_path_str: String,
-) -> CommandResult<()> {
+pub fn remove_maps_symlink(link_path_str: String) -> CommandResult<()> {
     let _ = platform_remove_symlink(&link_path_str)?;
     Ok(())
 }
@@ -136,8 +134,8 @@ pub fn list_local_maps(
     app_handle: tauri::AppHandle,
     relative_maps_path: String,
 ) -> CommandResult<DirectoryListingResult> {
-    let maps_folder_path = resolve_document_path(&relative_maps_path)
-        .map_err(CommandError::DirectoryResolution)?;
+    let maps_folder_path =
+        resolve_document_path(&relative_maps_path).map_err(CommandError::DirectoryResolution)?;
 
     if !maps_folder_path.exists() {
         return Ok(DirectoryListingResult {
@@ -162,24 +160,28 @@ pub fn list_local_maps(
         Ok(reader) => reader.peekable(),
         Err(e) => {
             return Err(CommandError::Io(format!(
-                "Failed read dir (peek) {}: {}", maps_folder_path.display(), e
+                "Failed read dir (peek) {}: {}",
+                maps_folder_path.display(),
+                e
             )))
         }
     };
 
     if dir_reader_peek.peek().is_some() {
         is_empty = false;
-        log::info!("[map_commands::list_local_maps] Directory not empty. Scanning for thumbnails...");
+        log::info!(
+            "[map_commands::list_local_maps] Directory not empty. Scanning for thumbnails..."
+        );
         // (Keep your existing thumbnail discovery logic here)
-         let dir_reader_thumbs = fs::read_dir(&maps_folder_path).map_err(|e| {
+        let dir_reader_thumbs = fs::read_dir(&maps_folder_path).map_err(|e| {
             CommandError::Io(format!(
                 "Failed read dir (thumbs) {}: {}",
                 maps_folder_path.display(),
                 e
             ))
         })?;
-         for entry_result in dir_reader_thumbs {
-              match entry_result {
+        for entry_result in dir_reader_thumbs {
+            match entry_result {
                    Ok(entry) => {
                         let path = entry.path();
                         let file_name_os = entry.file_name();
@@ -233,7 +235,7 @@ pub fn list_local_maps(
                         "[map_commands::list_local_maps] Error reading directory entry during thumbnail scan: {}", e
                    ),
               }
-         }
+        }
     } else {
         log::info!("[map_commands::list_local_maps] Directory is empty.");
     }
@@ -334,17 +336,20 @@ pub fn list_local_maps(
 
     // --- Sort entries (remains the same) ---
     map_entries.sort_by(|a, b| {
-        a.name.as_deref().unwrap_or("").to_lowercase()
+        a.name
+            .as_deref()
+            .unwrap_or("")
+            .to_lowercase()
             .cmp(&b.name.as_deref().unwrap_or("").to_lowercase())
     });
-
 
     // --- NEW: Cache Pruning Logic ---
     log::info!("[map_commands::list_local_maps] Pruning thumbnail cache...");
     match app_handle.path().app_cache_dir() {
         Ok(cache_base_dir) => {
             let thumbnail_cache_dir = cache_base_dir.join("thumbnails");
-            if thumbnail_cache_dir.is_dir() { // Check if it IS a directory
+            if thumbnail_cache_dir.is_dir() {
+                // Check if it IS a directory
                 match fs::read_dir(&thumbnail_cache_dir) {
                     Ok(cache_entries) => {
                         for entry_res in cache_entries {
@@ -372,13 +377,15 @@ pub fn list_local_maps(
                     Err(e) => log::warn!("[map_commands::list_local_maps] Failed read cache directory for pruning: {}", e),
                 }
             } else {
-                 log::debug!("[map_commands::list_local_maps] Thumbnail cache directory not found or not a directory, skipping prune: {}", thumbnail_cache_dir.display());
+                log::debug!("[map_commands::list_local_maps] Thumbnail cache directory not found or not a directory, skipping prune: {}", thumbnail_cache_dir.display());
             }
         }
-        Err(e) => log::warn!("[map_commands::list_local_maps] Could not resolve app cache directory for pruning: {}", e),
+        Err(e) => log::warn!(
+            "[map_commands::list_local_maps] Could not resolve app cache directory for pruning: {}",
+            e
+        ),
     }
     // --- END Cache Pruning Logic ---
-
 
     let final_status = if is_empty {
         ListingStatus::ExistsAndEmpty
@@ -387,7 +394,8 @@ pub fn list_local_maps(
     };
     log::info!(
         "[map_commands::list_local_maps] END Status: {:?}, Count: {}",
-        final_status, map_entries.len()
+        final_status,
+        map_entries.len()
     );
     Ok(DirectoryListingResult {
         status: final_status,

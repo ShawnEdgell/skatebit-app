@@ -19,7 +19,11 @@
     "fs:allow-document-write-recursive",
     {
       "identifier": "fs:scope",
-      "allow": [{ "path": "$HOME/**" }]
+      "allow": [
+        {
+          "path": "$HOME/**"
+        }
+      ]
     },
     "core:path:default",
     "core:path:allow-resolve-directory",
@@ -28,24 +32,40 @@
     "os:default",
     {
       "identifier": "opener:allow-reveal-item-in-dir",
-      "allow": [{ "path": "$HOME/**" }]
+      "allow": [
+        {
+          "path": "$HOME/**"
+        }
+      ]
     },
     {
       "identifier": "opener:allow-open-path",
-      "allow": [{ "path": "$HOME/**" }]
+      "allow": [
+        {
+          "path": "$HOME/**"
+        }
+      ]
     },
     "core:window:allow-close",
+    "core:window:allow-show",
     "core:window:allow-maximize",
     "core:window:allow-minimize",
+    "core:window:allow-unminimize",
     "core:window:allow-toggle-maximize",
-
+    "core:window:allow-set-focus",
+    "core:window:allow-hide",
     "core:app:allow-version",
     "core:app:default",
+    "core:menu:default",
+    "core:app:allow-default-window-icon",
+    "core:tray:default",
+    "core:window:default",
     "dialog:default",
     "dialog:allow-open",
     "updater:default",
     "shell:default",
     "store:default",
-    "opener:default"
+    "opener:default",
+    "process:default"
   ]
 }

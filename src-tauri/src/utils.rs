@@ -4,15 +4,14 @@
 
 use directories::UserDirs;
 use once_cell::sync::Lazy;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
 use walkdir::WalkDir;
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
-
 
 /// Generates a simple hash string from a Path, useful for cache keys.
 pub fn hash_path(path: &Path) -> String {
@@ -35,23 +34,17 @@ pub static EXCLUDED_FILE_EXTS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
         // Image formats (often thumbnails themselves, not maps)
         "png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "ico",
         // Executables and system files
-        "dll", "exe", "bat", "msi",
-        // Configuration and metadata files
+        "dll", "exe", "bat", "msi", // Configuration and metadata files
         "json", "ini", "bak", "cfg", "tmp", "log", "txt", "rtf", "xml",
         // Archives and compressed files (handled separately by unzip)
-        "zip", "rar", "7z", "tar", "gz",
-        // Database and lock files
-        "db", "sqlite", "lock",
-        // Document files (if not relevant maps)
-        "md", "doc", "docx", "pdf",
-        // Media files (if not meant to be maps)
-        "mp3", "mp4", "avi", "mov", "mkv", "flv", "wav",
-        // Shortcut files
-        "lnk",
-        // Debug or symbol files
-        "pdb",
-        // Source code files (unlikely to be maps)
-        "rs", "js", "ts", "html", "css", "py", "java", "cpp", "c", "h",
+        "zip", "rar", "7z", "tar", "gz", // Database and lock files
+        "db", "sqlite", "lock", // Document files (if not relevant maps)
+        "md", "doc", "docx", "pdf", // Media files (if not meant to be maps)
+        "mp3", "mp4", "avi", "mov", "mkv", "flv", "wav", // Shortcut files
+        "lnk", // Debug or symbol files
+        "pdb", // Source code files (unlikely to be maps)
+        "rs", "js", "ts", "html", "css", "py", "java", "cpp", "c",
+        "h",
         // System / hidden files (often start with '.')
         // Note: WalkDir might handle hidden files differently based on OS,
         // this list is an explicit exclusion based on extension.
@@ -68,9 +61,9 @@ pub fn calculate_directory_size(path: &Path) -> u64 {
         .min_depth(1) // Only direct children
         .max_depth(1) // Only direct children
         .into_iter()
-        .filter_map(Result::ok) 
-        .filter(|e| e.file_type().is_file()) 
-        .filter_map(|e| e.metadata().ok()) 
+        .filter_map(Result::ok)
+        .filter(|e| e.file_type().is_file())
+        .filter_map(|e| e.metadata().ok())
         .map(|m| m.len())
         .sum()
 }
@@ -80,14 +73,14 @@ pub fn system_time_to_millis(time: Option<SystemTime>) -> Option<u64> {
     time.and_then(|t| {
         t.duration_since(UNIX_EPOCH)
             .ok()
-            .map(|d| d.as_millis() as u64) 
+            .map(|d| d.as_millis() as u64)
     })
 }
 
 /// Resolves a path relative to the user's Documents directory.
 pub fn resolve_document_path(relative_path: &str) -> Result<PathBuf, String> {
-    let user_dirs = UserDirs::new()
-        .ok_or_else(|| "Could not determine user directories".to_string())?;
+    let user_dirs =
+        UserDirs::new().ok_or_else(|| "Could not determine user directories".to_string())?;
     let documents = user_dirs
         .document_dir()
         .ok_or_else(|| "Could not determine documents directory".to_string())?;

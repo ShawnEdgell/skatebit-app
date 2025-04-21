@@ -1,27 +1,21 @@
 // src-tauri/src/installer_commands.rs
 
 use crate::error::{CommandError, CommandResult};
-use crate::models::{InstallationProgress, InstallationResult};
 use crate::fs_commands;
+use crate::models::{InstallationProgress, InstallationResult};
 use crate::utils::resolve_document_path;
 
+use log::{error, info, warn};
+use reqwest;
 use std::{
     fs::{self, File},
     io::{Read, Write},
 };
-use tauri::{command, AppHandle, Manager, Emitter};
+use tauri::{command, AppHandle, Emitter, Manager};
 use tokio::task;
 use uuid::Uuid;
-use log::{info, warn, error};
-use reqwest;
 
-fn emit_progress(
-    app: &AppHandle,
-    step: &str,
-    progress: f64,
-    message: String,
-    source: &str,
-) {
+fn emit_progress(app: &AppHandle, step: &str, progress: f64, message: String, source: &str) {
     if let Err(e) = app.emit(
         "installation_progress",
         InstallationProgress {
@@ -48,19 +42,16 @@ pub async fn download_and_install(
     );
     let start = std::time::Instant::now();
 
-    
-    let dest = resolve_document_path(&destination_subfolder)
-        .map_err(CommandError::DirectoryResolution)?;
+    let dest =
+        resolve_document_path(&destination_subfolder).map_err(CommandError::DirectoryResolution)?;
     if !dest.exists() {
-        fs::create_dir_all(&dest)
-            .map_err(|e| CommandError::Io(e.to_string()))?;
+        fs::create_dir_all(&dest).map_err(|e| CommandError::Io(e.to_string()))?;
     } else if !dest.is_dir() {
         return Err(CommandError::Input(format!(
             "Destination exists but is not a directory: {}",
             dest.display()
         )));
     }
-
 
     emit_progress(
         &app_handle,
@@ -85,7 +76,6 @@ pub async fn download_and_install(
         .await
         .map_err(|e| CommandError::Network(e.to_string()))?;
 
- 
     if !resp.status().is_success() {
         let code = resp.status().as_u16();
         let msg = format!("HTTP {}", resp.status());
@@ -97,7 +87,6 @@ pub async fn download_and_install(
             message: msg,
         });
     }
-
 
     let total = resp.content_length().unwrap_or(0);
     let mut file = File::create(&tmp_path).map_err(|e| CommandError::Io(e.to_string()))?;
@@ -169,7 +158,13 @@ pub async fn download_and_install(
         {
             Err(join_err) => Err(CommandError::TaskJoin(join_err.to_string())),
             Ok(Err(e)) => {
-                emit_progress(&app_handle, "error", 0.0_f64, format!("{:?}", e), &source_url);
+                emit_progress(
+                    &app_handle,
+                    "error",
+                    0.0_f64,
+                    format!("{:?}", e),
+                    &source_url,
+                );
                 Err(e)
             }
             Ok(Ok(final_path)) => {

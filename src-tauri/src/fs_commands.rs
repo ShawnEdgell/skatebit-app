@@ -1,9 +1,10 @@
 // src-tauri/src/fs_commands.rs
 
 use crate::error::{CommandError, CommandResult};
-use crate::models::{FsEntry, DirectoryListingResult, ListingStatus, InstallationResult};
-use crate::utils::{system_time_to_millis, THUMBNAIL_EXTS, hash_path};
+use crate::models::{DirectoryListingResult, FsEntry, InstallationResult, ListingStatus};
+use crate::utils::{hash_path, system_time_to_millis, THUMBNAIL_EXTS};
 
+use log::{debug, error, info};
 use std::{
     collections::HashSet,
     fs::{self, File},
@@ -13,7 +14,6 @@ use std::{
 use tauri::{command, AppHandle, Manager};
 use uuid::Uuid;
 use zip::ZipArchive;
-use log::{debug, info, error};
 
 fn map_io_error<S: AsRef<str>>(msg: S, path: &std::path::Path, e: std::io::Error) -> CommandError {
     CommandError::Io(format!("{}: {}: {}", msg.as_ref(), path.display(), e))
@@ -24,7 +24,10 @@ pub fn unzip_file_internal(
     target_base: &str,
     delete_source_on_success: bool,
 ) -> CommandResult<PathBuf> {
-    info!("unzip: {} → {} (delete? {})", source, target_base, delete_source_on_success);
+    info!(
+        "unzip: {} → {} (delete? {})",
+        source, target_base, delete_source_on_success
+    );
     let src = PathBuf::from(source);
     let base = PathBuf::from(target_base);
 
@@ -51,7 +54,9 @@ pub fn unzip_file_internal(
     let mut largest: Option<(u64, PathBuf)> = None;
 
     for i in 0..count {
-        let entry = meta.by_index(i).map_err(|e| CommandError::Zip(e.to_string()))?;
+        let entry = meta
+            .by_index(i)
+            .map_err(|e| CommandError::Zip(e.to_string()))?;
         let path = entry.mangled_name();
         if path.components().any(|c| c.as_os_str() == "..") {
             return Err(CommandError::Input(format!("unsafe path {:?}", path)));
@@ -87,13 +92,16 @@ pub fn unzip_file_internal(
     fs::create_dir_all(&out_base).map_err(|e| map_io_error("mkdir out_base", &out_base, e))?;
     info!("extracting into {:?}", out_base);
 
-    let extract_file = File::open(&src).map_err(|e| map_io_error("open zip for extract", &src, e))?;
+    let extract_file =
+        File::open(&src).map_err(|e| map_io_error("open zip for extract", &src, e))?;
     let mut archive = ZipArchive::new(extract_file)
         .map_err(|e| CommandError::Zip(format!("read zip extract: {}", e)))?;
 
     let mut extracted = 0;
     for i in 0..archive.len() {
-        let mut entry = archive.by_index(i).map_err(|e| CommandError::Zip(e.to_string()))?;
+        let mut entry = archive
+            .by_index(i)
+            .map_err(|e| CommandError::Zip(e.to_string()))?;
         let mut out_path = entry.mangled_name();
         if let Some(root) = &strip_root {
             if out_path.starts_with(root) {
@@ -149,13 +157,15 @@ pub async fn handle_dropped_zip(
 #[command]
 pub fn save_file(absolute_path: String, contents: Vec<u8>) -> CommandResult<()> {
     let file_path = PathBuf::from(&absolute_path);
-    debug!("[fs::save_file] Writing {} bytes to {}", contents.len(), file_path.display());
+    debug!(
+        "[fs::save_file] Writing {} bytes to {}",
+        contents.len(),
+        file_path.display()
+    );
     if let Some(parent) = file_path.parent() {
-        fs::create_dir_all(parent)
-            .map_err(|e| map_io_error("create parent dir", parent, e))?;
+        fs::create_dir_all(parent).map_err(|e| map_io_error("create parent dir", parent, e))?;
     }
-    fs::write(&file_path, &contents)
-        .map_err(|e| map_io_error("write file", &file_path, e))
+    fs::write(&file_path, &contents).map_err(|e| map_io_error("write file", &file_path, e))
 }
 
 #[command]
@@ -170,7 +180,10 @@ pub fn list_directory_entries(absolute_path: String) -> CommandResult<DirectoryL
         });
     }
     if !dir_path.is_dir() {
-        return Err(CommandError::Input(format!("Not a directory: {}", dir_path.display())));
+        return Err(CommandError::Input(format!(
+            "Not a directory: {}",
+            dir_path.display()
+        )));
     }
 
     let mut entries = Vec::new();
@@ -178,14 +191,20 @@ pub fn list_directory_entries(absolute_path: String) -> CommandResult<DirectoryL
         if let Ok(entry) = ent {
             if let Ok(meta) = entry.metadata() {
                 let name = entry.file_name().to_str().map(String::from);
-                if name.is_none() && !meta.is_dir() { continue; }
+                if name.is_none() && !meta.is_dir() {
+                    continue;
+                }
                 let modified = system_time_to_millis(meta.modified().ok())
                     .or_else(|| system_time_to_millis(meta.created().ok()));
                 entries.push(FsEntry {
                     name,
                     path: entry.path(),
                     is_directory: meta.is_dir(),
-                    size: if meta.is_dir() { None } else { Some(meta.len()) },
+                    size: if meta.is_dir() {
+                        None
+                    } else {
+                        Some(meta.len())
+                    },
                     modified,
                     thumbnail_path: None,
                     thumbnail_mime_type: None,
@@ -197,8 +216,12 @@ pub fn list_directory_entries(absolute_path: String) -> CommandResult<DirectoryL
     entries.sort_by(|a, b| match (a.is_directory, b.is_directory) {
         (true, false) => std::cmp::Ordering::Less,
         (false, true) => std::cmp::Ordering::Greater,
-        _ => a.name.as_deref().unwrap_or("").to_ascii_lowercase()
-               .cmp(&b.name.as_deref().unwrap_or("").to_ascii_lowercase()),
+        _ => a
+            .name
+            .as_deref()
+            .unwrap_or("")
+            .to_ascii_lowercase()
+            .cmp(&b.name.as_deref().unwrap_or("").to_ascii_lowercase()),
     });
 
     let status = if entries.is_empty() {
@@ -206,7 +229,11 @@ pub fn list_directory_entries(absolute_path: String) -> CommandResult<DirectoryL
     } else {
         ListingStatus::ExistsAndPopulated
     };
-    Ok(DirectoryListingResult { status, entries, path: dir_path })
+    Ok(DirectoryListingResult {
+        status,
+        entries,
+        path: dir_path,
+    })
 }
 
 #[command]
@@ -226,8 +253,7 @@ pub fn create_empty_file_rust(absolute_path: String) -> CommandResult<()> {
         fs::create_dir_all(parent)
             .map_err(|e| CommandError::Io(format!("Failed create parent: {}", e)))?;
     }
-    File::create(&path)
-        .map_err(|e| CommandError::Io(format!("Failed create file: {}", e)))?;
+    File::create(&path).map_err(|e| CommandError::Io(format!("Failed create file: {}", e)))?;
     Ok(())
 }
 
@@ -236,8 +262,7 @@ pub fn rename_fs_entry_rust(old_path: String, new_path: String) -> CommandResult
     let old = PathBuf::from(&old_path);
     let new = PathBuf::from(&new_path);
     info!("[fs::rename] {} -> {}", old.display(), new.display());
-    fs::rename(&old, &new)
-        .map_err(|e| CommandError::Io(format!("Failed rename: {}", e)))?;
+    fs::rename(&old, &new).map_err(|e| CommandError::Io(format!("Failed rename: {}", e)))?;
     Ok(())
 }
 
