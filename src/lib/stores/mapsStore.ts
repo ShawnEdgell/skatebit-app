@@ -5,17 +5,13 @@ import { listen } from '@tauri-apps/api/event'
 import { createFolderStore } from './folderStore'
 import { mapsDirectory } from './globalPathsStore'
 import { loadLocalMaps } from '$lib/services/fileService'
-import { fetchAllMods } from '$lib/services/modioService'
 import { normalizePath } from '$lib/services/pathService'
 import { handleError } from '$lib/utils/errorHandler'
-import {
-  localMapsSearchIndex,
-  modioMapsSearchIndex,
-} from '$lib/utils/flexSearchUtils'
+import { modioMapsSearchIndex } from '$lib/utils/flexSearchUtils'
+import { fetchAllMods } from '$lib/services/modioService'
 import type { FsEntry, DirectoryListingResult } from '$lib/types/fsTypes'
 import type { Mod } from '$lib/types/modioTypes'
 
-// ── Local disk maps ──────────────────────────────────────────────────────────
 const _localMaps = createFolderStore<FsEntry, DirectoryListingResult>(
   mapsDirectory,
   '',
@@ -28,57 +24,45 @@ export const localMapsLoading = _localMaps.loading
 export const localMapsError = _localMaps.error
 export const refreshLocalMaps = _localMaps.refresh
 
-// kick off an initial load if mapsDirectory was already set
 const initDir = get(mapsDirectory)?.trim()
 if (browser && initDir) {
   _localMaps
     .refresh(initDir, 'Initial load')
-    .catch((e) => handleError(e, '[mapsStore] Initial local maps load'))
+    .catch((e) => handleError(e, '[mapsStore] initial load'))
 }
 
-// reload when user changes mapsDirectory
 mapsDirectory.subscribe((dir) => {
-  const d = dir?.trim()
-  if (browser && d) {
+  if (browser && dir?.trim()) {
     _localMaps
-      .refresh(d, 'mapsDirectory change')
-      .catch((e) =>
-        handleError(e, '[mapsStore] Refresh on mapsDirectory change'),
-      )
+      .refresh(dir, 'mapsDirectory change')
+      .catch((e) => handleError(e, '[mapsStore] dir change'))
   }
 })
 
-// listen for our new Rust events
 if (browser) {
-  // manual “maps-changed” (you can remove this once you stop emitting it entirely)
   listen('maps-changed', () => {
-    const dir = get(mapsDirectory)
-    if (dir) {
+    const d = get(mapsDirectory)
+    if (d)
       _localMaps
-        .refresh(dir, 'maps-changed')
-        .catch((e) => handleError(e, '[mapsStore] Refresh on maps-changed'))
-    }
-  }).catch((e) => handleError(e, '[mapsStore] Attaching maps-changed listener'))
+        .refresh(d, 'maps-changed')
+        .catch((e) => handleError(e, '[mapsStore] on maps-changed'))
+  }).catch((e) => handleError(e, '[mapsStore] attach maps-changed'))
 
-  // low‑level FS watcher events
   listen<{ path: string; kind: string }>('rust-fs-change', (evt) => {
-    const dir = get(mapsDirectory)
-    if (dir && evt.payload.path.startsWith(normalizePath(dir))) {
+    const d = get(mapsDirectory)
+    if (d && evt.payload.path.startsWith(normalizePath(d))) {
       _localMaps
-        .refresh(dir, `FS change: ${evt.payload.kind}`)
-        .catch((e) => handleError(e, '[mapsStore] Refresh on FS change'))
+        .refresh(d, `FS change: ${evt.payload.kind}`)
+        .catch((e) => handleError(e, '[mapsStore] on FS change'))
     }
-  }).catch((e) =>
-    handleError(e, '[mapsStore] Attaching rust-fs-change listener'),
-  )
+  }).catch((e) => handleError(e, '[mapsStore] attach FS-change'))
 }
 
-// ── Remote Mod.io maps ───────────────────────────────────────────────────────
 export const modioMaps = writable<Mod[]>([])
-export const modioMapsLoading = writable<boolean>(false)
+export const modioMapsLoading = writable(false)
 export const modioMapsError = writable<string | null>(null)
 
-export async function refreshModioMaps(): Promise<void> {
+export async function refreshModioMaps() {
   if (get(modioMapsLoading)) return
   modioMapsLoading.set(true)
   modioMapsError.set(null)
@@ -90,7 +74,7 @@ export async function refreshModioMaps(): Promise<void> {
       modioMapsSearchIndex.add(mods)
     }
   } catch (e: any) {
-    handleError(e, '[mapsStore] Refreshing Mod.io Maps')
+    handleError(e, '[mapsStore] Mod.io refresh')
     modioMapsError.set(e.message ?? String(e))
     modioMaps.set([])
   } finally {

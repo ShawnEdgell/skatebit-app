@@ -15,7 +15,6 @@
     refreshExplorer,
   } from '$lib/stores/explorerStore'
   import { explorerDirectory } from '$lib/stores/globalPathsStore'
-  import { explorerDirectory as setDirectory } from '$lib/stores/globalPathsStore'
   import { activeDropTargetInfo } from '$lib/stores/dndStore'
 
   import TabSwitcher from '$lib/components/TabSwitcher.svelte'
@@ -103,12 +102,10 @@
       <div
         class="rounded-box bg-base-100 relative h-full min-h-0 w-full overflow-y-auto p-2 shadow-md"
       >
-        {#key $currentPath}
-          <FileList
-            loading={$isLoading && $entries.length > 0}
-            on:openDir={(e) => openDir(e.detail)}
-          />
-        {/key}
+        <FileList
+          loading={$isLoading && $entries.length > 0}
+          on:openDir={(e) => openDir(e.detail)}
+        />
       </div>
     </div>
   </div>

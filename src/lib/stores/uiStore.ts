@@ -30,26 +30,38 @@ function createToastStore() {
 
   return {
     subscribe,
+
     addToast(message: string, variant: ToastVariant, duration = 3000): number {
-      // Return the ID
       const id = ++toastId
       const newToast: Toast = { id, message, variant, duration }
       update((toasts) => [...toasts, newToast])
 
-      // Only set timeout if duration is greater than 0
       if (duration > 0) {
         setTimeout(() => {
-          // Use the id captured in this scope
           update((toasts) => toasts.filter((t) => t.id !== id))
         }, duration)
       }
-      // Return the ID so it can be used for manual removal
+
       return id
     },
+
     removeToast(id: number | null) {
-      // Allow null check
-      if (id === null) return // Do nothing if ID is null
+      if (id === null) return
       update((toasts) => toasts.filter((t) => t.id !== id))
+    },
+
+    updateToast(id: number, newMessage: string, newVariant?: ToastVariant) {
+      update((toasts) =>
+        toasts.map((toast) =>
+          toast.id === id
+            ? {
+                ...toast,
+                message: newMessage,
+                ...(newVariant ? { variant: newVariant } : {}),
+              }
+            : toast,
+        ),
+      )
     },
   }
 }

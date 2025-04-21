@@ -3,62 +3,58 @@
   import { documentDir } from '@tauri-apps/api/path'
   import { open } from '@tauri-apps/plugin-shell'
   import { get } from 'svelte/store'
+  import { downloadProgress } from '$lib/stores/downloadProgressStore'
   import { formatFileSize, formatRelativeTime } from '$lib/utils/formatter'
-  import { handleError, handleSuccess } from '$lib/utils/errorHandler'
+  import { handleError } from '$lib/utils/errorHandler'
   import { mapsDirectory } from '$lib/stores/globalPathsStore'
   import { normalizePath } from '$lib/services/pathService'
-  import { toastStore } from '$lib/stores/uiStore'
   import type { Mod } from '$lib/types/modioTypes'
   import BaseCard from './BaseCard.svelte'
 
   export let mod: Mod
 
   let isInstalling = false
-  let installingToastId: number | null = null
 
   async function handleDownload(event: MouseEvent) {
     event.stopPropagation()
     isInstalling = true
-    installingToastId = toastStore.addToast(
-      `<span class="loading loading-spinner loading-sm mr-2"></span> Installing "${mod.name}"…`,
-      'alert-info',
-      0,
-    )
 
     try {
       const mapsRoot = get(mapsDirectory)
       if (!mapsRoot || mapsRoot.startsWith('/error')) {
-        throw new Error('Maps folder path is not set or invalid.')
+        throw new Error('Maps folder path is invalid.')
       }
-      if (!mod.modfile?.download?.binary_url) {
-        throw new Error('Mod file download URL is missing.')
-      }
+
+      const url = mod.modfile?.download?.binary_url
+      if (!url) throw new Error('Download URL is missing.')
 
       const docDirResult = await documentDir()
       const docDir = normalizePath(docDirResult || '')
       const normMapsRoot = normalizePath(mapsRoot)
 
-      let destination: string
-      if (normMapsRoot.startsWith(docDir)) {
-        let rel = normMapsRoot.slice(docDir.length).replace(/^[/\\]+/, '')
-        destination = rel || '.'
-      } else {
-        destination = normMapsRoot
-      }
+      const destination = normMapsRoot.startsWith(docDir)
+        ? normMapsRoot.slice(docDir.length).replace(/^[/\\]+/, '') || '.'
+        : normMapsRoot
+
+      // ✅ Provide the mod name to the progress store for ToastManager
+      downloadProgress.update((prev) => ({
+        ...prev,
+        [url]: {
+          step: 'downloading',
+          progress: 0,
+          message: 'Starting...',
+          source: url,
+          label: mod.name,
+        },
+      }))
 
       await invoke('download_and_install', {
-        url: mod.modfile.download.binary_url,
+        url,
         destinationSubfolder: destination,
       })
-
-      handleSuccess(`Map "${mod.name}" installed successfully`, 'Installation')
     } catch (err) {
       handleError(err, `Installation failed for ${mod.name}`)
     } finally {
-      if (installingToastId !== null) {
-        toastStore.removeToast(installingToastId)
-        installingToastId = null
-      }
       isInstalling = false
     }
   }

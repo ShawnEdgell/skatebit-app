@@ -19,9 +19,10 @@ let unlistenWatcher: (() => void) | undefined
 async function refresh(dir?: string) {
   const path = dir ?? get(currentPath) ?? ''
   if (!path) return
+
   isLoading.set(true)
   try {
-    const res: DirectoryListingResult = await loadDirectoryEntries(path)
+    const res = await loadDirectoryEntries(path)
     folderMissing.set(res.status === ListingStatus.DoesNotExist)
     entries.set(res.status === ListingStatus.DoesNotExist ? [] : res.entries)
     explorerError.set(undefined)
@@ -64,7 +65,7 @@ async function stopWatcher(path: string) {
   try {
     await invoke('remove_watched_path', { path })
   } catch {
-    // ignore
+    /* ignore */
   }
 }
 
@@ -74,11 +75,13 @@ export async function setPath(dir: string) {
     await stopWatcher(prev)
   }
   if (!dir) return
+
   currentPath.set(dir)
   await refresh(dir)
   await startWatcher(dir)
 }
 
+// Whenever explorerDirectory changes, switch paths + watcher
 explorerDirectory.subscribe((dir) => {
   void setPath(dir)
 })
