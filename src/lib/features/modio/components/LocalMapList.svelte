@@ -10,7 +10,7 @@
 
   export let maps: FsEntry[] = []
   export let loading: boolean = false
-  export let searchQuery: string = ''
+  export let searchQuery = ''
 
   const dispatch = createEventDispatcher()
   let scrollContainer: HTMLElement
@@ -20,7 +20,7 @@
   ) {
     const { path, name } = event.detail
     if (!path) {
-      handleError('Cannot delete item: Path is missing.', 'Delete Operation')
+      handleError('Cannot delete item: Path is missing.', 'Delete')
       return
     }
     openModal({
@@ -32,7 +32,7 @@
       onSave: async () => {
         try {
           await deleteEntry(path)
-          handleSuccess(`"${name ?? 'Item'}" deleted successfully.`, 'Deletion')
+          handleSuccess(`"${name ?? 'Item'}" deleted.`, 'Deletion')
           await refreshLocalMaps()
         } catch (err) {
           handleError(err, `Deleting ${name ?? 'item'}`)
@@ -44,6 +44,7 @@
 
 <div class="relative h-51">
   {#if loading && maps.length === 0}
+    <!-- full‐container spinner on first load -->
     <div
       class="bg-base-100/50 absolute inset-0 z-10 flex items-center justify-center"
     >
@@ -52,33 +53,34 @@
   {/if}
 
   {#if !loading && maps.length === 0}
+    <!-- empty state -->
     <div class="absolute inset-0 flex items-center justify-center p-4">
       <p class="text-base-content/60 text-center text-sm">
         {#if searchQuery.trim()}
-          No maps found matching '{searchQuery}'.
+          No maps matching “{searchQuery}”.
         {:else}
-          No local maps found. Check settings or scan for maps.
+          No local maps found.
         {/if}
       </p>
     </div>
   {:else}
+    <!-- always render the strip, cards appear as soon as available -->
     <div
       bind:this={scrollContainer}
       use:draggable
       class="scrollbar-thin flex h-full touch-pan-x flex-row gap-4 overflow-x-auto pb-2 select-none"
       role="list"
     >
-      {#each maps as map, i (map.path ?? map.name ?? i)}
+      {#each maps as map (map.path)}
         <LocalMapCard localMap={map} on:requestDelete={handleRequestDelete} />
       {/each}
-    </div>
 
-    {#if loading && maps.length > 0}
-      <div
-        class="bg-base-200/50 absolute inset-0 z-10 flex items-center justify-center"
-      >
-        <span class="loading loading-spinner loading-md"></span>
-      </div>
-    {/if}
+      {#if loading}
+        <!-- inline spinner at the end during incremental loads -->
+        <div class="flex items-center px-4">
+          <span class="loading loading-spinner loading-md"></span>
+        </div>
+      {/if}
+    </div>
   {/if}
 </div>

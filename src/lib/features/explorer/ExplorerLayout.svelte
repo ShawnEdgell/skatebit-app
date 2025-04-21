@@ -88,7 +88,7 @@
       </div>
     </div>
 
-    <div class="mb-16.5 flex h-full w-full gap-4 overflow-hidden">
+    <div class="flex h-full w-full gap-4 overflow-hidden">
       <TabSwitcher
         {tabs}
         currentPath={$currentPath}

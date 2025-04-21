@@ -103,5 +103,10 @@
 <ToastManager />
 <GlobalDropOverlay show={$isDraggingOver} targetInfo={$activeDropTargetInfo} />
 <Updater />
-<NavBar />
-<slot />
+
+<div class="flex h-screen flex-col">
+  <NavBar />
+  <div class="flex-1">
+    <slot />
+  </div>
+</div>

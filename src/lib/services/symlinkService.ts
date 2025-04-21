@@ -1,6 +1,8 @@
 import { invoke } from '@tauri-apps/api/core'
 import { documentDir, join } from '@tauri-apps/api/path'
-import { mapsDirectory } from '$lib/stores/globalPathsStore'
+import { mapsDirectory, explorerDirectory } from '$lib/stores/globalPathsStore'
+import { setPath } from '$lib/stores/explorerStore'
+import { get } from 'svelte/store'
 
 export async function updateMapsSymlink(newFolder: string) {
   const docs = await documentDir()
@@ -12,6 +14,14 @@ export async function updateMapsSymlink(newFolder: string) {
     targetLink,
   })
 
+  // 1. Update the store
   mapsDirectory.set(newFolder)
-  console.log('Symbolic link updated successfully.')
+
+  // 2. Immediately tell explorer to re-watch the folder
+  const current = get(explorerDirectory)
+  if (current) {
+    await setPath(current)
+  }
+
+  console.log('Symbolic link updated and explorer path refreshed.')
 }
