@@ -5,6 +5,8 @@
   import { getVersion } from '@tauri-apps/api/app'
   import { writable, derived } from 'svelte/store'
 
+  export const ssr = false
+
   interface UpdaterInfo {
     version: string
     pub_date?: string

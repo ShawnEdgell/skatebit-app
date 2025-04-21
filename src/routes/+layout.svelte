@@ -24,41 +24,29 @@
     initializeExplorerPaths,
   } from '$lib/stores/globalPathsStore'
 
-  // Explorer (we *do* await this)
-  import { refreshExplorer, watchExplorer } from '$lib/stores/explorerStore'
+  // Explorer
+  import { refreshExplorer } from '$lib/stores/explorerStore'
 
-  // Mod.io maps (we defer this)
+  // Mod.io maps
   import { refreshModioMaps } from '$lib/stores/mapsStore'
-
-  let unlistenExplorer: (() => void) | null = null
 
   onMount(async () => {
     try {
-      console.log('[Layout] Bootstrapping paths…')
       await initializeGlobalPaths()
       await initializeExplorerPaths()
-
-      console.log('[Layout] Loading file‑explorer view…')
       await refreshExplorer()
-
-      console.log('[Layout] Attaching FS watchers…')
-      unlistenExplorer = await watchExplorer()
-
-      console.log('[Layout] Attaching drag & drop listener…')
       await attachGlobalDropListener()
-    } catch (err) {
+    } catch (err: any) {
       handleError(err, '[Layout] Initialization Error')
     }
 
-    // **NOW** fetch mod.io maps in the background
-    // (no await, so any failures don’t hold up the UI)
-    refreshModioMaps().catch((err) =>
+    // kick off remote‐maps load in background
+    refreshModioMaps().catch((err: any) =>
       handleError(err, '[Layout] Loading Mod.io Maps'),
     )
   })
 
   onDestroy(() => {
-    unlistenExplorer?.()
     detachGlobalDropListener()
   })
 </script>

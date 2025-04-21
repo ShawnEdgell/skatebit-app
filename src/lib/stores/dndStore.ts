@@ -3,8 +3,6 @@ import { writable, get } from 'svelte/store'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { handleDroppedPaths } from '$lib/services/dragDropService'
 import { handleError } from '$lib/utils/errorHandler'
-import { refreshExplorer } from '$lib/stores/explorerStore'
-import { refreshLocalMaps } from '$lib/stores/mapsStore'
 import { browser } from '$app/environment'
 
 // --- Drag Overlay State ---
@@ -19,75 +17,50 @@ export const activeDropTargetInfo = writable<{
   label: null,
 })
 
-let currentUnlistenFn: (() => void) | null = null
+let unlistenDragDrop: (() => void) | null = null
 
 async function dragDropEventHandler(event: any): Promise<void> {
   if (!browser) return
 
-  const payload = event.payload
-  isDraggingOver.set(payload.type === 'over')
+  const { type, paths } = event.payload
+  isDraggingOver.set(type === 'over')
 
-  if (payload.type === 'drop') {
-    const paths: string[] = payload.paths
-    const targetInfo = get(activeDropTargetInfo)
+  if (type === 'drop') {
+    const target = get(activeDropTargetInfo)
+    isDraggingOver.set(false)
 
-    if (!paths?.length || !targetInfo.path) {
+    if (!paths?.length || !target.path) {
       handleError('No files or target folder for drop.', 'File Drop')
-      isDraggingOver.set(false)
       return
     }
 
     try {
-      console.log(
-        `[DND] Dropping ${paths.length} items onto ${targetInfo.path}`,
-      )
-      const { success } = await handleDroppedPaths(paths, targetInfo.path)
-
-      if (success > 0) {
-        console.log('[DND] Refreshing after drop…')
-        if (targetInfo.label === 'Maps Folder') {
-          await refreshLocalMaps()
-          await refreshExplorer()
-        } else {
-          await refreshExplorer()
-        }
-      }
-    } catch (e) {
-      handleError(e, `Processing dropped files to ${targetInfo.path}`)
-    } finally {
-      isDraggingOver.set(false)
+      await handleDroppedPaths(paths, target.path)
+      // FS watcher will detect and refresh stores automatically
+    } catch (err) {
+      handleError(err, `Processing drop on ${target.path}`)
     }
-  } else if (payload.type === 'leave' || payload.type === 'cancel') {
-    isDraggingOver.set(false)
   }
 }
 
 export async function attachGlobalDropListener(): Promise<void> {
-  if (!browser || currentUnlistenFn) return
+  if (!browser || unlistenDragDrop) return
   try {
     const webview = getCurrentWebview()
-    currentUnlistenFn = await webview.onDragDropEvent(dragDropEventHandler)
-    console.log('[DND] Listener attached')
-  } catch (e) {
-    handleError(e, '[DND] Failed to attach drop listener')
-    currentUnlistenFn = null
+    unlistenDragDrop = await webview.onDragDropEvent(dragDropEventHandler)
+  } catch (err) {
+    handleError(err, '[DND] Failed to attach drop listener')
+    unlistenDragDrop = null
   }
 }
 
 export function detachGlobalDropListener(): void {
-  if (!browser || !currentUnlistenFn) return
+  if (!browser || !unlistenDragDrop) return
   try {
-    currentUnlistenFn()
-    console.log('[DND] Listener detached')
-  } catch (e) {
-    handleError(e, '[DND] Error detaching listener')
+    unlistenDragDrop()
+  } catch (err) {
+    handleError(err, '[DND] Error detaching listener')
   } finally {
-    currentUnlistenFn = null
+    unlistenDragDrop = null
   }
-}
-
-export async function reinitializeDropListener(): Promise<void> {
-  if (!browser) return
-  detachGlobalDropListener()
-  await attachGlobalDropListener()
 }

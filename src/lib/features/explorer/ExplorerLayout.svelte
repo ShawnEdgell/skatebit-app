@@ -1,7 +1,13 @@
+<!-- src/routes/+page.svelte -->
 <script lang="ts">
   import { browser } from '$app/environment'
   import { onDestroy } from 'svelte'
   import { page } from '$app/stores'
+  import { join } from '@tauri-apps/api/path'
+  import { normalizePath } from '$lib/services/pathService'
+  import { handleError } from '$lib/utils/errorHandler'
+  import { uploadFilesToCurrentPath } from '$lib/utils/useFileUpload'
+
   import {
     currentPath,
     entries,
@@ -9,9 +15,8 @@
     refreshExplorer,
   } from '$lib/stores/explorerStore'
   import { explorerDirectory } from '$lib/stores/globalPathsStore'
+  import { explorerDirectory as setDirectory } from '$lib/stores/globalPathsStore'
   import { activeDropTargetInfo } from '$lib/stores/dndStore'
-  import { uploadFilesToCurrentPath } from '$lib/utils/useFileUpload'
-  import { handleError } from '$lib/utils/errorHandler'
 
   import TabSwitcher from '$lib/components/TabSwitcher.svelte'
   import FileList from '$lib/components/FileList.svelte'
@@ -36,33 +41,40 @@
 
   let fileInput: HTMLInputElement
 
-  async function handleFileChange(event: Event) {
-    const target = event.target as HTMLInputElement
-    const files = target?.files
-    if (!$currentPath || $currentPath.startsWith('/error')) {
-      handleError('Cannot upload: Current path is invalid.', 'Upload')
+  async function handleFileChange(e: Event) {
+    const target = e.target as HTMLInputElement
+    if (!$currentPath) {
+      handleError('Cannot upload: Invalid path.', 'Upload')
       return
     }
-    await uploadFilesToCurrentPath(files, $currentPath, async () => {
+    await uploadFilesToCurrentPath(target.files, $currentPath, async () => {
+      target.value = ''
       await refreshExplorer()
-      if (target) target.value = ''
     })
   }
 
   function triggerUpload() {
-    fileInput?.click()
+    fileInput.click()
   }
 
-  // ——— Drop‑Target Registration ———
-  // whenever this layout is active (we’re at the root “explorer” page),
-  // register the currentPath as the drop‐target.
+  // register as drop target on the root explorer route
   $: if (browser && $page.url.pathname === '/') {
-    activeDropTargetInfo.set({ path: $currentPath, label: 'Current Folder' })
+    activeDropTargetInfo.set({
+      path: $currentPath,
+      label: 'Current Folder',
+    })
   }
 
   onDestroy(() => {
     activeDropTargetInfo.set({ path: null, label: null })
   })
+
+  // manual folder navigation (when clicking a folder)
+  async function openDir(folderName: string) {
+    if (!$currentPath) return
+    const newAbs = normalizePath(await join($currentPath, folderName))
+    explorerDirectory.set(newAbs)
+  }
 </script>
 
 <div class="bg-base-300 flex h-full w-full">
@@ -91,17 +103,12 @@
       <div
         class="rounded-box bg-base-100 relative h-full min-h-0 w-full overflow-y-auto p-2 shadow-md"
       >
-        {#if $isLoading && $entries.length === 0}
-          <div
-            class="bg-base-100/50 absolute inset-0 z-10 flex items-center justify-center p-4"
-          >
-            <span class="loading loading-spinner loading-lg"></span>
-          </div>
-        {:else}
-          {#key $currentPath}
-            <FileList loading={$isLoading && $entries.length > 0} />
-          {/key}
-        {/if}
+        {#key $currentPath}
+          <FileList
+            loading={$isLoading && $entries.length > 0}
+            on:openDir={(e) => openDir(e.detail)}
+          />
+        {/key}
       </div>
     </div>
   </div>

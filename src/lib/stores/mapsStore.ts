@@ -1,97 +1,79 @@
 // src/lib/stores/mapsStore.ts
-import {
-  writable,
-  get,
-  derived,
-  type Readable,
-  type Writable,
-} from 'svelte/store'
+import { writable, get } from 'svelte/store'
+import { browser } from '$app/environment'
 import { listen } from '@tauri-apps/api/event'
+import { createFolderStore } from './folderStore'
 import { mapsDirectory } from './globalPathsStore'
+import { loadLocalMaps } from '$lib/services/fileService'
+import { fetchAllMods } from '$lib/services/modioService'
 import { normalizePath } from '$lib/services/pathService'
-import type { FsEntry, DirectoryListingResult } from '$lib/types/fsTypes'
-import { ListingStatus } from '$lib/types/fsTypes'
 import { handleError } from '$lib/utils/errorHandler'
 import {
   localMapsSearchIndex,
   modioMapsSearchIndex,
 } from '$lib/utils/flexSearchUtils'
-import { fetchAllMods } from '$lib/services/modioService'
+import type { FsEntry, DirectoryListingResult } from '$lib/types/fsTypes'
 import type { Mod } from '$lib/types/modioTypes'
-import { browser } from '$app/environment'
-import { createFolderStore } from './folderStore'
-import { loadLocalMaps } from '$lib/services/fileService'
 
-// --- Local Maps (on‑disk) --------------------------------------------------
-
-// folderStore handles caching, loading, etc.
+// ── Local disk maps ──────────────────────────────────────────────────────────
 const _localMaps = createFolderStore<FsEntry, DirectoryListingResult>(
   mapsDirectory,
   '',
-  async (dir): Promise<DirectoryListingResult> => {
-    const result = await loadLocalMaps(dir)
-    return result
-  },
-  (result): FsEntry[] => result.entries,
+  loadLocalMaps,
+  (res) => res.entries,
 )
 
-// keep a debounced loading flag
+export const localMaps = _localMaps.entries
 export const localMapsLoading = _localMaps.loading
 export const localMapsError = _localMaps.error
-export const localMaps = _localMaps.entries
+export const refreshLocalMaps = _localMaps.refresh
 
-// Rebuild FlexSearch index whenever the entries array changes
-localMaps.subscribe((all) => {
-  if (browser) {
-    try {
-      localMapsSearchIndex.clear()
-      localMapsSearchIndex.add(all)
-    } catch (e) {
-      handleError(e, '[mapsStore] Indexing local maps')
-      localMapsSearchIndex.clear()
-    }
-  }
-})
-
-// Fire a fresh load of localMaps
-export async function refreshLocalMaps(): Promise<void> {
-  const dir = get(mapsDirectory)?.trim()
-  if (dir) {
-    try {
-      await _localMaps.refresh(dir)
-    } catch (e) {
-      // Already handled/logged in folderStore
-    }
-  }
+// kick off an initial load if mapsDirectory was already set
+const initDir = get(mapsDirectory)?.trim()
+if (browser && initDir) {
+  _localMaps
+    .refresh(initDir, 'Initial load')
+    .catch((e) => handleError(e, '[mapsStore] Initial local maps load'))
 }
 
-// Whenever the user changes the mapsDirectory in settings, reload
+// reload when user changes mapsDirectory
 mapsDirectory.subscribe((dir) => {
-  if (browser && dir?.trim()) {
-    void refreshLocalMaps()
+  const d = dir?.trim()
+  if (browser && d) {
+    _localMaps
+      .refresh(d, 'mapsDirectory change')
+      .catch((e) =>
+        handleError(e, '[mapsStore] Refresh on mapsDirectory change'),
+      )
   }
 })
 
-// ===== add these listeners! =====
+// listen for our new Rust events
 if (browser) {
-  // 1) whenever we manually emit `maps-changed` in Rust commands
+  // manual “maps-changed” (you can remove this once you stop emitting it entirely)
   listen('maps-changed', () => {
-    void refreshLocalMaps()
+    const dir = get(mapsDirectory)
+    if (dir) {
+      _localMaps
+        .refresh(dir, 'maps-changed')
+        .catch((e) => handleError(e, '[mapsStore] Refresh on maps-changed'))
+    }
   }).catch((e) => handleError(e, '[mapsStore] Attaching maps-changed listener'))
 
-  // 2) whenever the Rust watcher emits a fs‑change anywhere
-  listen<{ path: string; kind: string }>('rust-fs-change', (event) => {
+  // low‑level FS watcher events
+  listen<{ path: string; kind: string }>('rust-fs-change', (evt) => {
     const dir = get(mapsDirectory)
-    if (dir && event.payload.path.startsWith(normalizePath(dir))) {
-      void refreshLocalMaps()
+    if (dir && evt.payload.path.startsWith(normalizePath(dir))) {
+      _localMaps
+        .refresh(dir, `FS change: ${evt.payload.kind}`)
+        .catch((e) => handleError(e, '[mapsStore] Refresh on FS change'))
     }
   }).catch((e) =>
     handleError(e, '[mapsStore] Attaching rust-fs-change listener'),
   )
 }
 
-// --- Mod.io Maps (remote) --------------------------------------------------
-
+// ── Remote Mod.io maps ───────────────────────────────────────────────────────
 export const modioMaps = writable<Mod[]>([])
 export const modioMapsLoading = writable<boolean>(false)
 export const modioMapsError = writable<string | null>(null)

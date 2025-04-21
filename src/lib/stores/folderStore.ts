@@ -8,8 +8,17 @@ export interface FolderStore<E> {
   loading: Writable<boolean>
   error: Writable<string | null>
   currentPath: Writable<string>
-  // *** Update refresh signature ***
-  refresh: (path?: string, source?: string) => Promise<void>
+  /**
+   * Refresh listing.
+   * @param path optional explicit path override
+   * @param source for logs
+   * @param immediate bypass debounce (true = run instantly)
+   */
+  refresh: (
+    path?: string,
+    source?: string,
+    immediate?: boolean,
+  ) => Promise<void>
 }
 
 export function createFolderStore<E, R>(
@@ -23,86 +32,98 @@ export function createFolderStore<E, R>(
   const error = writable<string | null>(null)
   const currentPath = writable<string>('')
 
+  // Build default path = basePathStore + subfolder
   function computeFullPath(base: string | null): string {
-    const basePath = base ? base.trim() : ''
-    if (!basePath) return ''
-    return subfolder ? `${basePath}/${subfolder}` : basePath
+    const b = base?.trim() ?? ''
+    return b ? (subfolder ? `${b}/${subfolder}` : b) : ''
   }
 
-  // *** Update refresh signature and add source logging ***
-  async function refresh(
-    path?: string,
-    source: string = 'Unknown',
-  ): Promise<void> {
+  // Actually perform the load
+  async function _load(dir: string, src: string) {
+    if (get(loading)) {
+      if (browser)
+        console.log(
+          `[FolderStore ${subfolder || 'ROOT'}] skip "${src}" — already loading`,
+        )
+      return
+    }
     loading.set(true)
     error.set(null)
-    let didLoad = false
-    const triggerSource = source // Capture source
+    let success = false
 
     try {
-      const explicitPath = path ? path.trim() : ''
-      const currentStoredPath = browser ? (get(currentPath)?.trim() ?? '') : ''
-      const defaultComputedPath = browser
-        ? computeFullPath(get(basePathStore))
-        : ''
+      if (browser)
+        console.log(
+          `[FolderStore ${subfolder || 'ROOT'}] load "${src}" → '${dir}'`,
+        )
 
-      let dir = ''
-      if (explicitPath) {
-        dir = explicitPath
-      } else if (currentStoredPath) {
-        dir = currentStoredPath
-      } else {
-        dir = defaultComputedPath
-      }
-      dir = dir.trim()
+      const result = await loaderFn(dir)
+      const list = extractor(result)
+      entries.set(list)
+      currentPath.set(dir)
+      success = true
 
-      if (!dir) {
-        if (browser)
-          console.warn(
-            `[FolderStore ${subfolder || 'ROOT'}] Refresh triggered by "${triggerSource}" - called with no valid path.`,
-          )
-        entries.set([])
-        currentPath.set('')
-      } else {
-        if (browser)
-          console.log(
-            `[FolderStore ${subfolder || 'ROOT'}] Refresh triggered by "${triggerSource}" - Loading path '${dir}'`,
-          )
-        const result = await loaderFn(dir)
-        const list = extractor(result)
-        entries.set(list)
-        currentPath.set(dir)
-        didLoad = true
-        if (browser)
-          console.log(
-            `[FolderStore ${subfolder || 'ROOT'}] Refresh triggered by "${triggerSource}" - Successfully loaded ${list.length} entries for '${dir}'`,
-          )
-      }
+      if (browser)
+        console.log(
+          `[FolderStore ${subfolder || 'ROOT'}] loaded ${list.length} entries for '${dir}'`,
+        )
     } catch (e: any) {
-      // Log error with source context
-      handleError(
-        e,
-        `Refreshing ${subfolder || 'base path'} (Triggered by: ${triggerSource})`,
-      )
+      handleError(e, `FolderStore ${subfolder || 'ROOT'} load error (${src})`)
       error.set(e.message ?? String(e))
       entries.set([])
     } finally {
       loading.set(false)
-      if (!didLoad && browser) {
+      if (!success && browser)
         console.log(
-          `[FolderStore ${subfolder || 'ROOT'}] Refresh triggered by "${triggerSource}" - Finished without loading.`,
+          `[FolderStore ${subfolder || 'ROOT'}] finished "${src}" without data`,
         )
-      }
     }
   }
 
-  // Removed internal subscription and watch function
-
-  return {
-    entries,
-    loading,
-    error,
-    currentPath,
-    refresh,
+  // Tiny leading-edge only debounce: allow one call, then block for `wait`
+  function leadingDebounce<F extends (...args: any[]) => void>(
+    fn: F,
+    wait: number,
+  ): F {
+    let ready = true
+    return ((...args: any[]) => {
+      if (!ready) return
+      ready = false
+      fn(...args)
+      setTimeout(() => {
+        ready = true
+      }, wait)
+    }) as F
   }
+
+  const debouncedLoad = leadingDebounce(_load, 150)
+
+  async function refresh(
+    rawPath?: string,
+    source = 'manual',
+    immediate = false,
+  ): Promise<void> {
+    const explicit = rawPath?.trim() ?? ''
+    const stored = get(currentPath)?.trim() ?? ''
+    const fallback = computeFullPath(get(basePathStore))
+    const dir = (explicit || stored || fallback).trim()
+
+    if (!dir) {
+      if (browser)
+        console.warn(
+          `[FolderStore ${subfolder || 'ROOT'}] "${source}" with no valid path`,
+        )
+      entries.set([])
+      currentPath.set('')
+      return
+    }
+
+    if (immediate) {
+      await _load(dir, source)
+    } else {
+      debouncedLoad(dir, source)
+    }
+  }
+
+  return { entries, loading, error, currentPath, refresh }
 }

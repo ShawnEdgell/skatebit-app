@@ -27,15 +27,11 @@ pub enum CommandError {
     #[error("Invalid Input or State: {0}")]
     Input(String),
 
-     #[error("Trash Error: {0}")]
+    #[error("Trash Error: {0}")]
     TrashError(String),
-
-    // #[error("Operation Failed: {0}")]
-    // Operation(String),
 }
 
 pub type CommandResult<T> = Result<T, CommandError>;
-
 
 impl From<std::io::Error> for CommandError {
     fn from(e: std::io::Error) -> Self {
@@ -50,15 +46,15 @@ impl From<reqwest::Error> for CommandError {
 }
 
 impl From<zip::result::ZipError> for CommandError {
-     fn from(e: zip::result::ZipError) -> Self {
-         CommandError::Zip(e.to_string())
-     }
+    fn from(e: zip::result::ZipError) -> Self {
+        CommandError::Zip(e.to_string())
+    }
 }
 
 impl From<tokio::task::JoinError> for CommandError {
-     fn from(e: tokio::task::JoinError) -> Self {
-         CommandError::TaskJoin(e.to_string())
-     }
+    fn from(e: tokio::task::JoinError) -> Self {
+        CommandError::TaskJoin(e.to_string())
+    }
 }
 
 impl From<trash::Error> for CommandError {

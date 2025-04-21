@@ -38,13 +38,13 @@
       )
       return
     }
-    const pathTocreate = normalizePath(targetPath)
-    const folderName = pathTocreate.split('/').pop() || pathTocreate
+    const pathToCreate = normalizePath(targetPath)
+    const folderName = pathToCreate.split('/').pop() || pathToCreate
+
     try {
-      await invoke('create_directory_rust', { absolutePath: pathTocreate })
-      handleSuccess(`Folder "${folderName}" created.`, 'File Operation')
-      folderMissing.set(false)
+      await invoke('create_directory_rust', { absolutePath: pathToCreate })
       await refreshExplorer()
+      handleSuccess(`Folder "${folderName}" created.`, 'File Operation')
     } catch (error) {
       handleError(error, `Creating directory "${folderName}"`)
     }
@@ -64,43 +64,35 @@
       confirmClass: 'btn-primary',
       onSave: async (newInputValue?: string) => {
         const newName = newInputValue?.trim()
-        if (!newName) {
-          toastStore.addToast('New name cannot be empty.', 'alert-warning')
-          return
-        }
-        if (newName === name) {
-          return
-        }
+        if (!newName || newName === name) return
 
-        const existingEntry = $entries.find(
-          (entry) => entry?.name?.toLowerCase() === newName.toLowerCase(),
+        const exists = $entries.find(
+          (e) => e?.name?.toLowerCase() === newName.toLowerCase(),
         )
-        if (existingEntry) {
-          const existingType = existingEntry.isDirectory ? 'folder' : 'file'
+        if (exists) {
+          const t = exists.isDirectory ? 'folder' : 'file'
           toastStore.addToast(
-            `A ${existingType} named "${newName}" already exists.`,
+            `A ${t} named "${newName}" already exists.`,
             'alert-error',
           )
           return
         }
 
-        const normItemPath = normalizePath(itemPath)
-        if (!normItemPath) {
+        const normOld = normalizePath(itemPath)
+        if (!normOld) {
           handleError('Could not normalize original item path.', 'Rename')
           return
         }
 
-        const parentDir =
-          normItemPath.substring(0, normItemPath.lastIndexOf('/')) || '/'
-        let newAbsolutePath = ''
+        const parent = normOld.slice(0, normOld.lastIndexOf('/')) || '/'
+        let newAbsolute = ''
         try {
-          newAbsolutePath = normalizePath(await join(parentDir, newName))
-        } catch (joinError) {
-          handleError(joinError, 'Computing new path for rename')
+          newAbsolute = normalizePath(await join(parent, newName))
+        } catch (e) {
+          handleError(e, 'Computing new path for rename')
           return
         }
-
-        if (!newAbsolutePath || newAbsolutePath === normItemPath) {
+        if (!newAbsolute || newAbsolute === normOld) {
           toastStore.addToast(
             'Computed new path is invalid or identical to the original.',
             'alert-error',
@@ -109,12 +101,14 @@
         }
 
         try {
+          // 🚨 correct argument names:
           await invoke('rename_fs_entry_rust', {
-            oldAbsolutePath: normItemPath,
-            newAbsolutePath: newAbsolutePath,
+            oldPath: normOld,
+            newPath: newAbsolute,
           })
-          handleSuccess(`Renamed "${name}" to "${newName}"`, 'File Operation')
+          // 🔥 immediate refresh for snappiness:
           await refreshExplorer()
+          handleSuccess(`Renamed "${name}" to "${newName}"`, 'File Operation')
         } catch (error) {
           handleError(error, `Renaming ${name} to ${newName}`)
         }
@@ -123,10 +117,10 @@
   }
 
   async function onDelete(name: string, itemPath: string) {
-    const normItemPath = normalizePath(itemPath)
-    const normBasePath = normalizePath($explorerDirectory)
+    const normItem = normalizePath(itemPath)
+    const normBase = normalizePath($explorerDirectory)
 
-    if (!normItemPath || (normBasePath && normItemPath === normBasePath)) {
+    if (!normItem || (normBase && normItem === normBase)) {
       handleError(
         'Invalid deletion target or attempting to delete base directory.',
         'Deletion',
@@ -136,16 +130,16 @@
 
     openModal({
       title: 'Confirm Deletion',
-      message: `Move "${name}"? to Recycle Bin?`,
+      message: `Move "${name}" to Recycle Bin?`,
       confirmOnly: false,
       confirmText: 'Delete',
       cancelText: 'Cancel',
       confirmClass: 'btn-error',
       onSave: async () => {
         try {
-          await invoke('delete_fs_entry_rust', { absolutePath: normItemPath })
-          handleSuccess(`Deleted "${name}"`, 'File Operation')
+          await invoke('delete_fs_entry_rust', { absolutePath: normItem })
           await refreshExplorer()
+          handleSuccess(`Deleted "${name}"`, 'File Operation')
         } catch (error) {
           handleError(error, `Deleting ${name}`)
         }
@@ -156,7 +150,6 @@
   function safeName(entry: FsEntry | undefined | null): string {
     return entry?.name ?? ''
   }
-
   function isActionable(entry: FsEntry | undefined | null): boolean {
     return !!entry && entry.name !== null
   }
@@ -164,9 +157,7 @@
 
 <div class="h-full">
   {#if loading}
-    <div
-      class="bg-base-200/50 absolute inset-0 z-10 flex items-center justify-center"
-    >
+    <div class="absolute inset-0 z-10 flex items-center justify-center">
       <span class="loading loading-spinner loading-lg"></span>
     </div>
   {/if}
@@ -177,8 +168,7 @@
     >
       <h3 class="text-warning text-xl font-semibold">Folder Not Found</h3>
       <p class="text-base-content/60 w-md">
-        The folder doesn't seem to exist yet. Some mods require specific
-        folders. You can create it now if needed.
+        This folder doesn’t exist yet. You can create it now.
       </p>
       <button
         class="btn btn-primary btn-sm mt-2"
@@ -187,91 +177,76 @@
         Create Folder Now
       </button>
     </div>
-  {:else if !loading && $entries && $entries.length > 0}
+  {:else if !loading && $entries.length}
     <ul>
-      {#each $entries as entry (entry?.path ?? Math.random())}
-        {#if entry}
-          <li>
-            <div
-              class="hover:bg-base-300 flex w-full items-center justify-between gap-2 rounded-lg"
-            >
-              {#if entry.isDirectory}
-                <button
-                  class="group flex min-w-0 flex-1 cursor-pointer items-center gap-3 px-2 py-1 text-left disabled:cursor-not-allowed disabled:opacity-50"
-                  on:click={() => handleOpenDirectory(safeName(entry))}
-                  title={safeName(entry)}
-                  disabled={!isActionable(entry)}
-                >
-                  <span class="text-info group-hover:text-info-content text-xl"
-                    >📁</span
-                  >
-                  <span class="flex-1 truncate"
-                    >{safeName(entry) || 'Unnamed Folder'}</span
-                  >
-                  {#if entry.size != null}
-                    <span
-                      class="badge badge-xs badge-ghost mr-2 ml-auto flex-shrink-0"
-                    >
-                      {formatFileSize(entry.size)}
-                    </span>
-                  {/if}
-                </button>
-              {:else}
-                <div
-                  class="group flex min-w-0 flex-1 cursor-default items-center gap-3 px-2 py-1 text-left disabled:cursor-not-allowed disabled:opacity-50"
-                >
+      {#each $entries as entry (entry.path)}
+        <li>
+          <div
+            class="hover:bg-base-300 flex w-full items-center justify-between gap-2 rounded-lg"
+          >
+            {#if entry.isDirectory}
+              <button
+                class="group flex min-w-0 flex-1 cursor-pointer items-center gap-3 px-2 py-1 text-left disabled:cursor-not-allowed disabled:opacity-50"
+                on:click={() => handleOpenDirectory(safeName(entry))}
+                title={safeName(entry)}
+                disabled={!isActionable(entry)}
+              >
+                <span class="text-info text-xl">📁</span>
+                <span class="flex-1 truncate">{safeName(entry)}</span>
+                {#if entry.size != null}
                   <span
-                    class="text-base-content/80 group-hover:text-base-content text-xl"
-                    >📄</span
+                    class="badge badge-xs badge-ghost mr-2 ml-auto flex-shrink-0"
                   >
-                  <span class="flex-1 truncate"
-                    >{safeName(entry) || 'Unnamed File'}</span
+                    {formatFileSize(entry.size)}
+                  </span>
+                {/if}
+              </button>
+            {:else}
+              <div
+                class="group flex min-w-0 flex-1 cursor-default items-center gap-3 px-2 py-1 text-left"
+              >
+                <span class="text-base-content/80 text-xl">📄</span>
+                <span class="flex-1 truncate">{safeName(entry)}</span>
+                {#if entry.size != null}
+                  <span
+                    class="badge badge-xs badge-ghost mr-2 ml-auto flex-shrink-0"
                   >
-                  {#if entry.size != null}
-                    <span
-                      class="badge badge-xs badge-ghost mr-2 ml-auto flex-shrink-0"
-                    >
-                      {formatFileSize(entry.size)}
-                    </span>
-                  {/if}
-                </div>
-              {/if}
-
-              <div class="flex flex-shrink-0 gap-1">
-                {#if isActionable(entry)}
-                  <button
-                    title="Rename"
-                    class="btn btn-xs btn-ghost text-warning hover:bg-warning hover:text-warning-content"
-                    on:click|stopPropagation={() =>
-                      onRename(safeName(entry), entry.path)}>✏️</button
-                  >
-                  <button
-                    title="Delete"
-                    class="btn btn-xs btn-ghost text-error hover:bg-error hover:text-error-content"
-                    on:click|stopPropagation={() =>
-                      onDelete(safeName(entry), entry.path)}>🗑️</button
-                  >
-                {:else}
-                  <button
-                    class="btn btn-xs btn-ghost"
-                    disabled
-                    title="Cannot rename unnamed item">✏️</button
-                  >
-                  <button
-                    class="btn btn-xs btn-ghost"
-                    disabled
-                    title="Cannot delete unnamed item">🗑️</button
-                  >
+                    {formatFileSize(entry.size)}
+                  </span>
                 {/if}
               </div>
+            {/if}
+
+            <div class="flex flex-shrink-0 gap-1">
+              {#if isActionable(entry)}
+                <button
+                  title="Rename"
+                  class="btn btn-xs btn-ghost text-warning hover:bg-warning hover:text-warning-content"
+                  on:click|stopPropagation={() =>
+                    onRename(safeName(entry), entry.path)}
+                >
+                  ✏️
+                </button>
+                <button
+                  title="Delete"
+                  class="btn btn-xs btn-ghost text-error hover:bg-error hover:text-error-content"
+                  on:click|stopPropagation={() =>
+                    onDelete(safeName(entry), entry.path)}
+                >
+                  🗑️
+                </button>
+              {:else}
+                <button class="btn btn-xs btn-ghost" disabled>✏️</button>
+                <button class="btn btn-xs btn-ghost" disabled>🗑️</button>
+              {/if}
             </div>
-          </li>
-        {/if}
+          </div>
+        </li>
       {/each}
     </ul>
   {:else if !loading}
     <div class="flex h-full items-center justify-center p-4">
-      <p class="text-info mb-4">The folder is empty.</p>
+      <p class="text-info mb-4">This folder is empty.</p>
     </div>
   {/if}
 </div>

@@ -1,3 +1,4 @@
+<!-- src/lib/features/modio/ModioLayout.svelte -->
 <script lang="ts">
   import MapList from './components/MapList.svelte'
   import LocalMapList from './components/LocalMapList.svelte'
@@ -15,24 +16,27 @@
   import { mapsDirectory } from '$lib/stores/globalPathsStore'
   import { activeDropTargetInfo } from '$lib/stores/dndStore'
   import {
+    modioMaps,
     modioMapsLoading,
+    modioMapsError,
+    refreshModioMaps,
     localMaps,
     localMapsLoading,
   } from '$lib/stores/mapsStore'
   import { localSearchQuery } from '$lib/stores/localSearchStore'
 
-  // — Types for sort values
   type ModioSortValue = 'recent' | 'popular' | 'downloads'
   type LocalSortValue = 'recent' | 'alphabetical' | 'size'
 
-  // — Mod.io sort options
   const modioSortOptions: { label: string; value: ModioSortValue }[] = [
     { label: 'Most Recent', value: 'recent' },
     { label: 'Popular', value: 'popular' },
     { label: 'Downloads', value: 'downloads' },
   ]
+
   let modioVisibleCount = 10
-  function selectModioSort(v: ModioSortValue) {
+  function selectModioSort(detail: string) {
+    const v = detail as ModioSortValue
     if (v !== $modioSortOrder) {
       modioSortOrder.set(v)
       modioVisibleCount = 10
@@ -43,35 +47,34 @@
       })
     }
   }
+
   function handleModioLoadMore() {
     if (modioVisibleCount < $modioSearchResults.length) {
       modioVisibleCount += 10
     }
   }
 
-  // — Local‑maps sort options
   const localSortOptions: { label: string; value: LocalSortValue }[] = [
     { label: 'Most Recent', value: 'recent' },
     { label: 'A‑Z', value: 'alphabetical' },
     { label: 'Size', value: 'size' },
   ]
+
   let localSortOrder: LocalSortValue = 'recent'
-  function selectLocalSort(v: LocalSortValue) {
-    localSortOrder = v
+  function selectLocalSort(detail: string) {
+    localSortOrder = detail as LocalSortValue
   }
 
   $: filteredLocalMaps = !$localSearchQuery.trim()
     ? $localMaps
-    : $localMaps.filter((map) =>
-        map.name
-          ?.toLowerCase()
-          .includes($localSearchQuery.trim().toLowerCase()),
+    : $localMaps.filter((m) =>
+        m.name?.toLowerCase().includes($localSearchQuery.trim().toLowerCase()),
       )
 
-  // — register drop target on /modio
   $: if (browser && $page.url.pathname.startsWith('/modio')) {
     activeDropTargetInfo.set({ path: $mapsDirectory, label: 'Maps Folder' })
   }
+
   onDestroy(() => {
     activeDropTargetInfo.set({ path: null, label: null })
   })
@@ -82,16 +85,15 @@
 </svelte:head>
 
 <main class="bg-base-300 mx-auto flex h-full w-full flex-col gap-4 px-4">
-  <!-- Mod.io Maps Card -->
+  <!-- Mod.io Maps -->
   <div class="bg-base-100 rounded-box flex flex-col gap-4 p-4 shadow-md">
     <ListToolbar
       title="Mod.io Maps"
       searchQuery={$modioSearchQuery}
-      on:search={(e: CustomEvent<string>) => modioSearchQuery.set(e.detail)}
+      on:search={(e) => modioSearchQuery.set(e.detail)}
       sortOptions={modioSortOptions}
       sortOrder={$modioSortOrder}
-      on:sort={(e: CustomEvent<string>) =>
-        selectModioSort(e.detail as ModioSortValue)}
+      on:sort={(e) => selectModioSort(e.detail)}
       disabled={$modioMapsLoading}
     />
     <MapList
@@ -102,16 +104,15 @@
     />
   </div>
 
-  <!-- Local Maps Card -->
+  <!-- Local Maps -->
   <div class="bg-base-100 rounded-box flex flex-col gap-4 p-4 shadow-md">
     <ListToolbar
       title="Local Maps"
       searchQuery={$localSearchQuery}
-      on:search={(e: CustomEvent<string>) => localSearchQuery.set(e.detail)}
+      on:search={(e) => localSearchQuery.set(e.detail)}
       sortOptions={localSortOptions}
       sortOrder={localSortOrder}
-      on:sort={(e: CustomEvent<string>) =>
-        selectLocalSort(e.detail as LocalSortValue)}
+      on:sort={(e) => selectLocalSort(e.detail)}
       disabled={$localMapsLoading || $localMaps.length === 0}
     />
     <LocalMapList

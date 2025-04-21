@@ -41,8 +41,8 @@
       cancelText: 'Cancel',
       confirmClass: 'btn-primary',
       onSave: async (name?: string) => {
-        const trimmedName = name?.trim()
-        if (!trimmedName) {
+        const trimmed = name?.trim()
+        if (!trimmed) {
           toastStore.addToast(
             `${typeCapitalized} name cannot be empty.`,
             'alert-warning',
@@ -50,15 +50,13 @@
           return
         }
 
-        const existingEntry = $entries.find(
-          (entry: FsEntry) =>
-            entry?.name?.toLowerCase() === trimmedName.toLowerCase(),
+        const exists = $entries.find(
+          (e: FsEntry) => e?.name?.toLowerCase() === trimmed.toLowerCase(),
         )
-
-        if (existingEntry) {
-          const existingType = existingEntry.isDirectory ? 'folder' : 'file'
+        if (exists) {
+          const existingType = exists.isDirectory ? 'folder' : 'file'
           toastStore.addToast(
-            `A ${existingType} named "${trimmedName}" already exists.`,
+            `A ${existingType} named "${trimmed}" already exists.`,
             'alert-error',
           )
           return
@@ -66,18 +64,21 @@
 
         let newPath = ''
         try {
-          newPath = await join($currentPath, trimmedName)
-          const invokeCommand = isFolder
-            ? 'create_directory_rust'
-            : 'create_empty_file_rust'
-          await invoke(invokeCommand, { absolutePath: normalizePath(newPath) })
+          newPath = await join($currentPath, trimmed)
+          await invoke(
+            isFolder ? 'create_directory_rust' : 'create_empty_file_rust',
+            { absolutePath: normalizePath(newPath) },
+          )
+
+          // ⚡️ immediate UI update:
+          await refreshExplorer()
+
           handleSuccess(
-            `${typeCapitalized} "${trimmedName}" created.`,
+            `${typeCapitalized} "${trimmed}" created.`,
             'File Operation',
           )
-          await refreshExplorer()
         } catch (error) {
-          handleError(error, `Creating ${typeLower} ${trimmedName}`)
+          handleError(error, `Creating ${typeLower} "${trimmed}"`)
         }
       },
     })

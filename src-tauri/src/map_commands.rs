@@ -10,8 +10,8 @@ use std::{
     hash::{Hash, Hasher},
     path::{Path, PathBuf},
 };
-use tauri::{command, AppHandle, Manager, Emitter};
-use junction; // 1.x series in Cargo.toml: `junction = "1.2"`
+use tauri::{command, Manager};
+use junction;
 
 // --- Hash helper ---
 fn hash_path(path: &Path) -> String {
@@ -25,16 +25,14 @@ fn hash_path(path: &Path) -> String {
 fn cache_thumbnail_if_needed(
     original_thumbnail_path: &Path,
     original_map_path: &Path,
-    app_handle: &AppHandle,
+    app_handle: &tauri::AppHandle,
 ) -> Option<PathBuf> {
-    // Resolve the OS‑specific app cache dir
     let base_cache_dir = app_handle.path().app_cache_dir().ok()?;
     let cache_dir = base_cache_dir.join("thumbnails");
     if !cache_dir.exists() {
-        std::fs::create_dir_all(&cache_dir).ok()?;
+        fs::create_dir_all(&cache_dir).ok()?;
     }
 
-    // Build a unique filename
     let ext = original_thumbnail_path
         .extension()
         .and_then(|e| e.to_str())
@@ -42,9 +40,8 @@ fn cache_thumbnail_if_needed(
     let cache_filename = format!("{}.{}", hash_path(original_map_path), ext);
     let cached_thumb_path = cache_dir.join(&cache_filename);
 
-    // Copy if not already present
     if !cached_thumb_path.exists() {
-        std::fs::copy(original_thumbnail_path, &cached_thumb_path).ok()?;
+        fs::copy(original_thumbnail_path, &cached_thumb_path).ok()?;
     }
 
     Some(cached_thumb_path)
@@ -60,151 +57,87 @@ pub fn is_symlink(path: String) -> Result<bool, String> {
     }
 }
 
-// Ensure this helper returns CommandResult
+/// Removes a symlink or junction at the given path.
 fn platform_remove_symlink(link_path_str: &str) -> CommandResult<bool> {
-    let target_path = Path::new(link_path_str);
-    match fs::symlink_metadata(target_path) {
-        Ok(metadata) => {
-            if metadata.file_type().is_symlink() {
-                log::debug!("Attempting removal of symlink: {}", link_path_str);
-                #[cfg(unix)]
-                {
-                    fs::remove_file(target_path)?; // Implicitly uses From<io::Error> -> CommandError::Io
-                    Ok(true)
-                }
-                #[cfg(windows)]
-                {
-                    // Use junction::delete since junction::create was used
-                    junction::delete(target_path)
-                       .map_err(|e| CommandError::Symlink(format!("Failed to delete junction: {}", e)))?; // Use Symlink variant
-                    Ok(true)
-                }
-                 #[cfg(not(any(unix, windows)))]
-                {
-                     Err(CommandError::Operation("Symlink removal unsupported".to_string()))
-                }
-            } else {
-                log::warn!("Path exists but is not a symlink: {}", link_path_str);
-                Ok(false) // Not an error, just nothing to remove
-            }
+    let target = Path::new(link_path_str);
+    match fs::symlink_metadata(target) {
+        Ok(meta) if meta.file_type().is_symlink() => {
+            #[cfg(unix)]
+            fs::remove_file(target)?;
+            #[cfg(windows)]
+            junction::delete(target)
+                .map_err(|e| CommandError::Symlink(format!("Failed to delete junction: {}", e)))?;
+            Ok(true)
         }
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-             log::info!("Symlink path not found: {}", link_path_str);
-            Ok(false) // Not an error, just nothing to remove
-        }
-        // Use From<io::Error> for other IO errors
+        Ok(_) => Ok(false),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(false),
         Err(e) => Err(e.into()),
     }
 }
 
-
 #[command]
 pub fn create_maps_symlink(
-    app_handle: AppHandle,
     new_folder: String,
     target_link: String,
-) -> CommandResult<()> { // Changed return type
-    let source_path = Path::new(&new_folder);
-    let target_path = Path::new(&target_link);
-    log::info!("Creating link/junction: '{}' -> '{}'", target_link, new_folder);
-
-    if !source_path.is_dir() {
-        return Err(CommandError::Input(format!("Source not a directory: {}", new_folder)));
+) -> CommandResult<()> {
+    let source = Path::new(&new_folder);
+    let target = Path::new(&target_link);
+    if !source.is_dir() {
+        return Err(CommandError::Input(format!(
+            "Source not a directory: {}",
+            new_folder
+        )));
     }
 
-    // Remove or backup existing target
-    match fs::symlink_metadata(target_path) {
-        Ok(meta) if meta.file_type().is_symlink() => {
-            log::info!("Removing existing link at '{}'", target_link);
-            platform_remove_symlink(&target_link)?; // Propagate CommandError using ?
+    match fs::symlink_metadata(target) {
+        Ok(m) if m.file_type().is_symlink() => {
+            let _ = platform_remove_symlink(&target_link)?;
         }
-        Ok(meta) if meta.is_dir() => {
-            log::info!("Backing up existing directory '{}'", target_link);
+        Ok(m) if m.is_dir() => {
             let mut backup = format!("{}_backup", &target_link);
             let mut i = 1;
             while Path::new(&backup).exists() {
                 backup = format!("{}_backup_{}", &target_link, i);
                 i += 1;
             }
-            fs::rename(target_path, &backup)?; // Propagate io::Error -> CommandError::Io
-             log::info!("Backed up to '{}'", backup);
+            fs::rename(target, &backup)?;
         }
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-             log::info!("No existing target found at '{}'.", target_link);
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) => return Err(e.into()),
+        Ok(_) => {
+            return Err(CommandError::Input(format!(
+                "Target '{}' exists but is not a symlink or dir. Remove it manually.",
+                target_link
+            )))
         }
-        Err(e) => return Err(e.into()), // Propagate io::Error -> CommandError::Io
-        Ok(_) => return Err(CommandError::Input(format!( // It exists but isn't link or dir
-            "Target '{}' exists but is not a symlink or dir. Remove it manually.",
-             target_link
-        ))),
     }
 
-    // Create link / junction
-    log::info!("Attempting to create link/junction...");
     #[cfg(unix)]
-    {
-        std::os::unix::fs::symlink(source_path, target_path)
-            .map_err(|e| CommandError::Symlink(format!("Unix symlink failed: {}", e)))?; // Use Symlink variant
-    }
+    std::os::unix::fs::symlink(source, target)?;
     #[cfg(windows)]
-    {
-        junction::create(source_path, target_path)
-            .map_err(|e| CommandError::Symlink(format!("Windows junction failed: {}", e)))?; // Use Symlink variant
-    }
-    #[cfg(not(any(unix, windows)))]
-    {
-        return Err(CommandError::Operation("Symlinks unsupported on this platform.".into()));
-    }
-    log::info!("Link/junction created successfully.");
-
-
-    // Notify frontend
-    log::info!("Emitting maps-changed event...");
-    app_handle
-        .emit("maps-changed", ()) // Use emit
-        .map_err(|e| CommandError::Io(format!("Failed to emit maps-changed: {}", e)))?;
-    log::info!("Event emitted.");
+    junction::create(source, target)
+        .map_err(|e| CommandError::Symlink(format!("Windows junction failed: {}", e)))?;
 
     Ok(())
 }
 
 #[command]
 pub fn remove_maps_symlink(
-    app_handle: AppHandle,
     link_path_str: String,
-) -> CommandResult<()> { // Changed return type
-    log::info!("Removing symlink at '{}'", link_path_str);
-
-    let removed = platform_remove_symlink(&link_path_str)?; // Propagate CommandError using ?
-
-    if removed {
-        log::info!("Symlink removed. Emitting maps-changed event...");
-        // Notify front‑end
-        app_handle
-            .emit("maps-changed", ()) // Use emit
-            .map_err(|e| CommandError::Io(format!("Failed to emit maps-changed: {}", e)))?;
-        log::info!("Event emitted.");
-    } else {
-        log::info!("No symlink found at '{}'", link_path_str);
-    }
-
+) -> CommandResult<()> {
+    let _ = platform_remove_symlink(&link_path_str)?;
     Ok(())
 }
 
 #[command]
 pub fn list_local_maps(
-    app_handle: AppHandle,
+    app_handle: tauri::AppHandle,
     relative_maps_path: String,
 ) -> CommandResult<DirectoryListingResult> {
     let maps_folder_path = resolve_document_path(&relative_maps_path)
         .map_err(CommandError::DirectoryResolution)?;
 
-    log::info!(
-        "[map_commands::list_local_maps] Checking {}", maps_folder_path.display()
-    );
-
     if !maps_folder_path.exists() {
-        log::warn!("[map_commands::list_local_maps] Path does not exist.");
         return Ok(DirectoryListingResult {
             status: ListingStatus::DoesNotExist,
             entries: Vec::new(),
@@ -213,7 +146,8 @@ pub fn list_local_maps(
     }
     if !maps_folder_path.is_dir() {
         return Err(CommandError::Input(format!(
-            "Path exists but is not a directory: {}", maps_folder_path.display()
+            "Path exists but is not a directory: {}",
+            maps_folder_path.display()
         )));
     }
 
