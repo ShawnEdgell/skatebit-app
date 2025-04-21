@@ -21,11 +21,11 @@
   const updateLog = writable<string>('')
   const currentVersion = writable<string>('')
 
-  // nicely formatted date (e.g. "April 18, 2025")
   const formattedDate = derived(updateInfo, ($info) => {
     if (!$info.pub_date) return ''
     const d = new Date($info.pub_date)
-    return d.toLocaleDateString(undefined, {
+    // force US English so you get "April 20, 2025"
+    return d.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',

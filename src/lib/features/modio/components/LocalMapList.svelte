@@ -42,12 +42,16 @@
   }
 </script>
 
-<div class="relative h-52">
+<div class="relative h-51">
   {#if loading && maps.length === 0}
-    <div class="absolute inset-0 flex items-center justify-center">
+    <div
+      class="bg-base-100/50 absolute inset-0 z-10 flex items-center justify-center"
+    >
       <span class="loading loading-spinner loading-lg"></span>
     </div>
-  {:else if !loading && maps.length === 0}
+  {/if}
+
+  {#if !loading && maps.length === 0}
     <div class="absolute inset-0 flex items-center justify-center p-4">
       <p class="text-base-content/60 text-center text-sm">
         {#if searchQuery.trim()}
@@ -71,7 +75,7 @@
 
     {#if loading && maps.length > 0}
       <div
-        class="bg-base-200/50 rounded-box absolute inset-0 z-10 flex items-center justify-center p-4"
+        class="bg-base-200/50 absolute inset-0 z-10 flex items-center justify-center"
       >
         <span class="loading loading-spinner loading-md"></span>
       </div>

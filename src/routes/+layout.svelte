@@ -1,8 +1,8 @@
+<!-- src/routes/+layout.svelte -->
 <script lang="ts">
   import '../app.css'
   import { onMount, onDestroy } from 'svelte'
-  // No longer need 'get', 'getCurrentWebview', 'handleDroppedPaths' here for DnD
-  import { handleError } from '$lib/utils/errorHandler' // Keep error handler
+  import { handleError } from '$lib/utils/errorHandler'
 
   import NavBar from '$lib/components/NavBar.svelte'
   import CrudModal from '$lib/components/CrudModal.svelte'
@@ -10,12 +10,12 @@
   import Updater from '$lib/components/Updater.svelte'
   import GlobalDropOverlay from '$lib/components/GlobalDropOverlay.svelte'
 
-  // DnD Store - Import store values AND listener management functions
+  // DnD
   import {
     isDraggingOver,
     activeDropTargetInfo,
-    attachGlobalDropListener, // Import function to attach
-    detachGlobalDropListener, // Import function to detach
+    attachGlobalDropListener,
+    detachGlobalDropListener,
   } from '$lib/stores/dndStore'
 
   // Path setup
@@ -24,45 +24,42 @@
     initializeExplorerPaths,
   } from '$lib/stores/globalPathsStore'
 
-  // Maps: remote + local
-  import { refreshModioMaps } from '$lib/stores/mapsStore' // Keep refresh if needed on mount
+  // Explorer (we *do* await this)
+  import { refreshExplorer, watchExplorer } from '$lib/stores/explorerStore'
 
-  // Explorer
-  import { refreshExplorer, watchExplorer } from '$lib/stores/explorerStore' // Keep refresh/watch
+  // Mod.io maps (we defer this)
+  import { refreshModioMaps } from '$lib/stores/mapsStore'
 
   let unlistenExplorer: (() => void) | null = null
-  // Listener state (unlistenDragDrop) is now managed within dndStore
 
   onMount(async () => {
-    console.log('[Layout] onMount executed')
-    // Bootstrap paths
-    await initializeGlobalPaths()
-    await initializeExplorerPaths()
-
-    // One‑time fetches
-    await refreshModioMaps()
-    await refreshExplorer()
-
-    // Fire up watchers
     try {
+      console.log('[Layout] Bootstrapping paths…')
+      await initializeGlobalPaths()
+      await initializeExplorerPaths()
+
+      console.log('[Layout] Loading file‑explorer view…')
+      await refreshExplorer()
+
+      console.log('[Layout] Attaching FS watchers…')
       unlistenExplorer = await watchExplorer()
-      console.log('[Layout] Explorer watcher attached.')
-    } catch (error) {
-      handleError(error, '[Layout] Initializing Explorer Watcher')
+
+      console.log('[Layout] Attaching drag & drop listener…')
+      await attachGlobalDropListener()
+    } catch (err) {
+      handleError(err, '[Layout] Initialization Error')
     }
 
-    // --- Attach global drop listener via store ---
-    // Remove the old listener setup block entirely
-    console.log('[Layout] Requesting listener attach from dndStore...')
-    await attachGlobalDropListener() // Initial attach managed by the store
+    // **NOW** fetch mod.io maps in the background
+    // (no await, so any failures don’t hold up the UI)
+    refreshModioMaps().catch((err) =>
+      handleError(err, '[Layout] Loading Mod.io Maps'),
+    )
   })
 
   onDestroy(() => {
     unlistenExplorer?.()
-    // --- Detach global drop listener via store on layout destroy ---
-    console.log('[Layout] Requesting listener detach from dndStore...')
-    detachGlobalDropListener() // Cleanup managed by the store
-    console.log('[Layout] Cleaned up listeners.')
+    detachGlobalDropListener()
   })
 </script>
 

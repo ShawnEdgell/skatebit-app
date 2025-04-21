@@ -1,7 +1,7 @@
 <script lang="ts">
-  import ListToolbar from './components/ListToolbar.svelte'
   import MapList from './components/MapList.svelte'
   import LocalMapList from './components/LocalMapList.svelte'
+  import ListToolbar from './components/ListToolBar.svelte'
 
   import { page } from '$app/stores'
   import { browser } from '$app/environment'
@@ -94,15 +94,12 @@
         selectModioSort(e.detail as ModioSortValue)}
       disabled={$modioMapsLoading}
     />
-
-    <div class="h-51 overflow-hidden" id="modio-map-list-container">
-      <MapList
-        mods={$modioSearchResults}
-        loading={$modioMapsLoading}
-        visibleCount={modioVisibleCount}
-        on:loadMore={handleModioLoadMore}
-      />
-    </div>
+    <MapList
+      mods={$modioSearchResults}
+      loading={$modioMapsLoading}
+      visibleCount={modioVisibleCount}
+      on:loadMore={handleModioLoadMore}
+    />
   </div>
 
   <!-- Local Maps Card -->
@@ -117,13 +114,10 @@
         selectLocalSort(e.detail as LocalSortValue)}
       disabled={$localMapsLoading || $localMaps.length === 0}
     />
-
-    <div class="h-51 overflow-hidden">
-      <LocalMapList
-        maps={filteredLocalMaps}
-        loading={$localMapsLoading}
-        searchQuery={$localSearchQuery}
-      />
-    </div>
+    <LocalMapList
+      maps={filteredLocalMaps}
+      loading={$localMapsLoading}
+      searchQuery={$localSearchQuery}
+    />
   </div>
 </main>
