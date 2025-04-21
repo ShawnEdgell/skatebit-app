@@ -26,11 +26,12 @@
   const formattedDate = derived(updateInfo, ($info) => {
     if (!$info.pub_date) return ''
     const d = new Date($info.pub_date)
-    // force US English so you get "April 20, 2025"
+    if (isNaN(d.getTime())) return '' // invalid date fallback
     return d.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
+      timeZone: 'UTC', // force UTC if needed
     })
   })
 
