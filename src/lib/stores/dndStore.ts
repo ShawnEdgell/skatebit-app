@@ -1,14 +1,12 @@
-// src/lib/stores/dndStore.ts
 import { writable, get } from 'svelte/store'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { handleDroppedPaths } from '$lib/services/dragDropService'
 import { handleError } from '$lib/utils/errorHandler'
 import { browser } from '$app/environment'
+import { mapsDirectory } from '$lib/stores/globalPathsStore'
+import { refreshLocalMaps } from '$lib/stores/mapsStore'
 
-// --- Drag Overlay State ---
 export const isDraggingOver = writable(false)
-
-// Active drop target (folder path + label)
 export const activeDropTargetInfo = writable<{
   path: string | null
   label: string | null
@@ -36,7 +34,10 @@ async function dragDropEventHandler(event: any): Promise<void> {
 
     try {
       await handleDroppedPaths(paths, target.path)
-      // FS watcher will detect and refresh stores automatically
+
+      if (target.path === get(mapsDirectory)) {
+        await refreshLocalMaps(target.path, 'drop')
+      }
     } catch (err) {
       handleError(err, `Processing drop on ${target.path}`)
     }
@@ -56,11 +57,6 @@ export async function attachGlobalDropListener(): Promise<void> {
 
 export function detachGlobalDropListener(): void {
   if (!browser || !unlistenDragDrop) return
-  try {
-    unlistenDragDrop()
-  } catch (err) {
-    handleError(err, '[DND] Error detaching listener')
-  } finally {
-    unlistenDragDrop = null
-  }
+  unlistenDragDrop()
+  unlistenDragDrop = null
 }

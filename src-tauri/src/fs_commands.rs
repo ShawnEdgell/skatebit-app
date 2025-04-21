@@ -46,7 +46,6 @@ pub fn unzip_file_internal(
         return Ok(out);
     }
 
-    // Gather top-level roots and track largest file
     let mut roots = HashSet::new();
     let mut has_root_file = false;
     let mut largest: Option<(u64, PathBuf)> = None;
@@ -256,7 +255,6 @@ pub fn delete_fs_entry_rust(app_handle: AppHandle, absolute_path: String) -> Com
         CommandError::TrashError(e.to_string())
     })?;
 
-    // purge thumbnail cache
     if let Ok(cache_dir) = app_handle.path().app_cache_dir() {
         let thumb_dir = cache_dir.join("thumbnails");
         if thumb_dir.is_dir() {

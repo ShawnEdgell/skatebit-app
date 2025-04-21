@@ -1,3 +1,5 @@
+// src-tauri/src/map_commands.rs
+
 //! Contains Tauri commands specifically for map‑related operations (symlinks, listing with thumbnails).
 
 use crate::error::{CommandError, CommandResult};

@@ -1,8 +1,6 @@
-// src/lib/stores/mapsStore.ts
 import { writable, get } from 'svelte/store'
 import { browser } from '$app/environment'
 import { listen } from '@tauri-apps/api/event'
-import { createFolderStore } from './folderStore'
 import { mapsDirectory } from './globalPathsStore'
 import { loadLocalMaps } from '$lib/services/fileService'
 import { normalizePath } from '$lib/services/pathService'
@@ -12,52 +10,81 @@ import { fetchAllMods } from '$lib/services/modioService'
 import type { FsEntry, DirectoryListingResult } from '$lib/types/fsTypes'
 import type { Mod } from '$lib/types/modioTypes'
 
-const _localMaps = createFolderStore<FsEntry, DirectoryListingResult>(
-  mapsDirectory,
-  '',
-  loadLocalMaps,
-  (res) => res.entries,
-)
+// local maps
+export const localMaps = writable<FsEntry[]>([])
+export const localMapsLoading = writable(false)
+export const localMapsError = writable<string | null>(null)
 
-export const localMaps = _localMaps.entries
-export const localMapsLoading = _localMaps.loading
-export const localMapsError = _localMaps.error
-export const refreshLocalMaps = _localMaps.refresh
-
-const initDir = get(mapsDirectory)?.trim()
-if (browser && initDir) {
-  _localMaps
-    .refresh(initDir, 'Initial load')
-    .catch((e) => handleError(e, '[mapsStore] initial load'))
+let manualUpdateInProgress = false
+function markManualUpdate() {
+  manualUpdateInProgress = true
 }
 
-mapsDirectory.subscribe((dir) => {
-  if (browser && dir?.trim()) {
-    _localMaps
-      .refresh(dir, 'mapsDirectory change')
-      .catch((e) => handleError(e, '[mapsStore] dir change'))
+/** Centralized load logic */
+async function _loadLocal(dir: string) {
+  localMapsLoading.set(true)
+  localMapsError.set(null)
+  try {
+    const res = (await loadLocalMaps(
+      normalizePath(dir),
+    )) as DirectoryListingResult
+    localMaps.set(res.entries)
+  } catch (e: any) {
+    handleError(e, '[mapsStore] refreshLocalMaps')
+    localMapsError.set(e.message ?? String(e))
+    localMaps.set([])
+  } finally {
+    localMapsLoading.set(false)
   }
-})
-
-if (browser) {
-  listen('maps-changed', () => {
-    const d = get(mapsDirectory)
-    if (d)
-      _localMaps
-        .refresh(d, 'maps-changed')
-        .catch((e) => handleError(e, '[mapsStore] on maps-changed'))
-  }).catch((e) => handleError(e, '[mapsStore] attach maps-changed'))
-
-  listen<{ path: string; kind: string }>('rust-fs-change', (evt) => {
-    const d = get(mapsDirectory)
-    if (d && evt.payload.path.startsWith(normalizePath(d))) {
-      _localMaps
-        .refresh(d, `FS change: ${evt.payload.kind}`)
-        .catch((e) => handleError(e, '[mapsStore] on FS change'))
-    }
-  }).catch((e) => handleError(e, '[mapsStore] attach FS-change'))
 }
 
+/** Public refresh (manual) */
+export async function refreshLocalMaps() {
+  const dir = get(mapsDirectory).trim()
+  if (!dir) return
+  markManualUpdate()
+  await _loadLocal(dir)
+}
+
+// initial load + watch mapsDirectory changes
+if (browser) {
+  const init = get(mapsDirectory).trim()
+  if (init) {
+    markManualUpdate()
+    _loadLocal(init).catch(console.error)
+  }
+
+  mapsDirectory.subscribe((d) => {
+    const dir = d.trim()
+    if (dir) {
+      markManualUpdate()
+      _loadLocal(dir).catch(console.error)
+    }
+  })
+
+  // other explicit triggers
+  listen('maps-changed', () => {
+    const dir = get(mapsDirectory)
+    if (dir) {
+      markManualUpdate()
+      _loadLocal(dir).catch(console.error)
+    }
+  }).catch(console.error)
+
+  // watcher events
+  listen<{ path: string; kind: string }>('rust-fs-change', (evt) => {
+    const dir = get(mapsDirectory)
+    if (!dir || !evt.payload.path.startsWith(normalizePath(dir))) return
+
+    if (manualUpdateInProgress) {
+      manualUpdateInProgress = false
+      return
+    }
+    _loadLocal(dir).catch(console.error)
+  }).catch(console.error)
+}
+
+// mod.io maps
 export const modioMaps = writable<Mod[]>([])
 export const modioMapsLoading = writable(false)
 export const modioMapsError = writable<string | null>(null)
@@ -74,7 +101,7 @@ export async function refreshModioMaps() {
       modioMapsSearchIndex.add(mods)
     }
   } catch (e: any) {
-    handleError(e, '[mapsStore] Mod.io refresh')
+    handleError(e, '[mapsStore] refreshModioMaps')
     modioMapsError.set(e.message ?? String(e))
     modioMaps.set([])
   } finally {

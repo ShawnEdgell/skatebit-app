@@ -4,11 +4,7 @@
   import { join } from '@tauri-apps/api/path'
   import { revealItemInDir } from '@tauri-apps/plugin-opener'
   import type { FsEntry } from '$lib/types/fsTypes'
-  import {
-    currentPath,
-    entries,
-    refreshExplorer,
-  } from '$lib/stores/explorerStore'
+  import { currentPath, entries, refresh } from '$lib/stores/explorerStore'
   import { openModal, toastStore } from '$lib/stores/uiStore'
   import { normalizePath } from '$lib/services/pathService'
   import { handleError, handleSuccess } from '$lib/utils/errorHandler'
@@ -71,7 +67,7 @@
           )
 
           // ⚡️ immediate UI update:
-          await refreshExplorer()
+          await refresh()
 
           handleSuccess(
             `${typeCapitalized} "${trimmed}" created.`,

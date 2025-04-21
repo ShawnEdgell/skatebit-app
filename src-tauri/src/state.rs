@@ -1,3 +1,5 @@
+// src-tauri/src/state.rs
+
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -20,8 +22,6 @@ pub struct WatcherState {
 
 impl Drop for WatcherState {
     fn drop(&mut self) {
-        // We'll fire-and-forget the shutdown command;
-        // the watcher loop will see it and break out.
         let _ = self.update_tx.clone().try_send(WatcherCommand::Shutdown);
     }
 }

@@ -2,11 +2,10 @@
 
 //! Contains shared data structures used across multiple command modules.
 
-use serde::{Serialize, Deserialize}; // Add Deserialize if needed by frontend or internal use
+use serde::{Serialize, Deserialize}; 
 use std::path::PathBuf;
 
-/// Represents the status of a directory listing operation.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)] // Added Deserialize, PartialEq
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)] 
 #[serde(rename_all = "camelCase")]
 pub enum ListingStatus {
     ExistsAndPopulated,
@@ -14,47 +13,41 @@ pub enum ListingStatus {
     DoesNotExist,
 }
 
-/// Holds the result of a directory listing operation.
-#[derive(Serialize, Deserialize, Clone, Debug)] // Added Deserialize
+#[derive(Serialize, Deserialize, Clone, Debug)] 
 #[serde(rename_all = "camelCase")]
 pub struct DirectoryListingResult {
     pub status: ListingStatus,
     pub entries: Vec<FsEntry>,
-    pub path: PathBuf, // Keep PathBuf for Rust internal use
+    pub path: PathBuf, 
 }
 
-/// Represents a single file system entry (file or directory).
-#[derive(Serialize, Deserialize, Clone, Debug)] // Added Deserialize
+#[derive(Serialize, Deserialize, Clone, Debug)] 
 #[serde(rename_all = "camelCase")]
 pub struct FsEntry {
     pub name: Option<String>,
     #[serde(serialize_with = "serialize_pathbuf", deserialize_with = "deserialize_pathbuf")] // Serialize PathBuf as string
     pub path: PathBuf,
     pub is_directory: bool,
-    #[serde(skip_serializing_if = "Option::is_none")] // Don't include size if None
-    pub size: Option<u64>, // Calculated for directories, actual for files
-    #[serde(skip_serializing_if = "Option::is_none")] // Don't include modified if None
-    pub modified: Option<u64>, // Milliseconds since UNIX_EPOCH
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub size: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")] 
+    pub modified: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(serialize_with = "serialize_optional_pathbuf", deserialize_with = "deserialize_optional_pathbuf")] // Handle optional PathBuf
-    pub thumbnail_path: Option<PathBuf>, // Populated specifically in list_local_maps
+    pub thumbnail_path: Option<PathBuf>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub thumbnail_mime_type: Option<String>, // Populated specifically in list_local_maps
+    pub thumbnail_mime_type: Option<String>,
 }
 
-// --- Add these NEW Structs and Enum below ---
-
-/// Represents the progress of an installation operation.
 #[derive(Clone, Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")] // Match JS/TS conventions if preferred
+#[serde(rename_all = "camelCase")]
 pub struct InstallationProgress {
-    pub step: String, // e.g., "downloading", "extracting", "complete", "error"
-    pub progress: f64, // 0.0 to 1.0 (0.0 for indeterminate steps like 'starting')
+    pub step: String,
+    pub progress: f64,
     pub message: String,
-    pub source: String, // The original URL or path being processed
+    pub source: String,
 }
 
-/// Represents the final result of an installation or processing operation.
 #[derive(Clone, Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct InstallationResult {
@@ -62,8 +55,8 @@ pub struct InstallationResult {
     pub message: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(serialize_with = "serialize_optional_pathbuf", deserialize_with = "deserialize_optional_pathbuf")] // Handle optional PathBuf
-    pub final_path: Option<PathBuf>, // Where it was extracted/saved to
-    pub source: String, // Original source URL or path
+    pub final_path: Option<PathBuf>,
+    pub source: String, 
 }
 
 // --- Helper functions for PathBuf serialization ---

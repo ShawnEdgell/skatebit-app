@@ -10,44 +10,27 @@
   import {
     currentPath,
     entries,
+    explorerError,
     setPath,
-    refreshExplorer,
-    folderMissing,
+    refresh,
   } from '$lib/stores/explorerStore'
 
+  /** parent passes `loading={$isLoading && $entries.length === 0}` */
   export let loading: boolean = false
 
-  $: missingPath = $folderMissing ? $currentPath : null
-
   async function handleOpenDirectory(folderName: string) {
-    try {
-      if (!$currentPath) throw new Error('Current path is not set')
-      const newPath = await join($currentPath, folderName)
-      await setPath(normalizePath(newPath))
-    } catch (error) {
-      handleError(error, 'Opening directory')
-    }
+    if (!$currentPath) return handleError('Current path is not set', 'Open')
+    const newPath = await join($currentPath, folderName)
+    await setPath(normalizePath(newPath))
   }
 
   async function handleCreateDirectory() {
-    const targetPath = $currentPath
-    if (!targetPath || targetPath.startsWith('/error')) {
-      handleError(
-        'Cannot create directory: Target path is invalid.',
-        'Create Directory',
-      )
-      return
-    }
-    const pathToCreate = normalizePath(targetPath)
-    const folderName = pathToCreate.split('/').pop() || pathToCreate
-
-    try {
-      await invoke('create_directory_rust', { absolutePath: pathToCreate })
-      await refreshExplorer()
-      handleSuccess(`Folder "${folderName}" created.`, 'File Operation')
-    } catch (error) {
-      handleError(error, `Creating directory "${folderName}"`)
-    }
+    if (!$currentPath) return handleError('Invalid target path', 'Create Dir')
+    await invoke('create_directory_rust', {
+      absolutePath: normalizePath($currentPath),
+    })
+    // we rely on our watcher to re-load; no need to call `await refresh()`
+    handleSuccess(`Folder created`, 'File Operation')
   }
 
   async function onRename(name: string, itemPath: string) {
@@ -101,13 +84,11 @@
         }
 
         try {
-          // 🚨 correct argument names:
           await invoke('rename_fs_entry_rust', {
             oldPath: normOld,
             newPath: newAbsolute,
           })
-          // 🔥 immediate refresh for snappiness:
-          await refreshExplorer()
+          await refresh()
           handleSuccess(`Renamed "${name}" to "${newName}"`, 'File Operation')
         } catch (error) {
           handleError(error, `Renaming ${name} to ${newName}`)
@@ -138,7 +119,7 @@
       onSave: async () => {
         try {
           await invoke('delete_fs_entry_rust', { absolutePath: normItem })
-          await refreshExplorer()
+          await refresh()
           handleSuccess(`Deleted "${name}"`, 'File Operation')
         } catch (error) {
           handleError(error, `Deleting ${name}`)
@@ -155,75 +136,71 @@
   }
 </script>
 
-<div class="h-full">
-  {#if loading}
-    <div class="absolute inset-0 z-10 flex items-center justify-center">
-      <span class="loading loading-spinner loading-lg"></span>
-    </div>
-  {/if}
-
-  {#if missingPath}
+<div class="relative h-full">
+  {#if $explorerError}
     <div
       class="flex h-full flex-col items-center justify-center gap-4 p-4 text-center"
     >
       <h3 class="text-warning text-xl font-semibold">Folder Not Found</h3>
-      <p class="text-base-content/60 w-md">
-        This folder doesn’t exist yet. You can create it now.
-      </p>
-      <button
-        class="btn btn-primary btn-sm mt-2"
-        on:click={handleCreateDirectory}
-      >
+      <p class="text-base-content/60 w-md">{$explorerError}</p>
+      <button class="btn btn-primary btn-sm" on:click={handleCreateDirectory}>
         Create Folder Now
       </button>
     </div>
-  {:else if !loading && $entries.length}
-    <ul>
-      {#each $entries as entry (entry.path)}
-        <li>
-          <div
-            class="hover:bg-base-300 flex w-full items-center justify-between gap-2 rounded-lg"
-          >
-            {#if entry.isDirectory}
-              <button
-                class="group flex min-w-0 flex-1 cursor-pointer items-center gap-3 px-2 py-1 text-left disabled:cursor-not-allowed disabled:opacity-50"
-                on:click={() => handleOpenDirectory(safeName(entry))}
-                title={safeName(entry)}
-                disabled={!isActionable(entry)}
-              >
-                <span class="text-info text-xl">📁</span>
-                <span class="flex-1 truncate">{safeName(entry)}</span>
-                {#if entry.size != null}
-                  <span
-                    class="badge badge-xs badge-ghost mr-2 ml-auto flex-shrink-0"
-                  >
-                    {formatFileSize(entry.size)}
-                  </span>
-                {/if}
-              </button>
-            {:else}
-              <div
-                class="group flex min-w-0 flex-1 cursor-default items-center gap-3 px-2 py-1 text-left"
-              >
-                <span class="text-base-content/80 text-xl">📄</span>
-                <span class="flex-1 truncate">{safeName(entry)}</span>
-                {#if entry.size != null}
-                  <span
-                    class="badge badge-xs badge-ghost mr-2 ml-auto flex-shrink-0"
-                  >
-                    {formatFileSize(entry.size)}
-                  </span>
-                {/if}
-              </div>
-            {/if}
+  {:else}
+    {#if loading && $entries.length === 0}
+      <div
+        class="bg-base-100/75 absolute inset-0 z-10 flex items-center justify-center"
+      >
+        <span class="loading loading-spinner loading-lg"></span>
+      </div>
+    {/if}
+    {#if $entries.length === 0}
+      <div class="flex h-full items-center justify-center p-4">
+        <p class="text-info mb-4">This folder is empty.</p>
+      </div>
+    {:else}
+      <ul>
+        {#each $entries as entry (entry.path)}
+          <li>
+            <div
+              class="hover:bg-base-300 flex w-full items-center justify-between gap-2 rounded-lg"
+            >
+              {#if entry.isDirectory}
+                <button
+                  class="group flex min-w-0 flex-1 cursor-pointer items-center gap-3 px-2 py-1 text-left"
+                  on:click={() => handleOpenDirectory(entry.name!)}
+                  title={entry.name}
+                >
+                  <span class="text-info text-xl">📁</span>
+                  <span class="flex-1 truncate">{entry.name}</span>
+                  {#if entry.size != null}
+                    <span class="badge badge-xs badge-ghost ml-auto">
+                      {formatFileSize(entry.size)}
+                    </span>
+                  {/if}
+                </button>
+              {:else}
+                <div
+                  class="group flex min-w-0 flex-1 cursor-pointer items-center gap-3 px-2 py-1"
+                >
+                  <span class="text-base-content/80 text-xl">📄</span>
+                  <span class="flex-1 truncate">{entry.name}</span>
+                  {#if entry.size != null}
+                    <span class="badge badge-xs badge-ghost ml-auto">
+                      {formatFileSize(entry.size)}
+                    </span>
+                  {/if}
+                </div>
+              {/if}
 
-            <div class="flex flex-shrink-0 gap-1">
-              {#if isActionable(entry)}
+              <div class="flex gap-1">
                 <button
                   title="Rename"
                   class="btn btn-xs btn-ghost text-warning hover:bg-warning hover:text-warning-content"
                   on:click|stopPropagation={() =>
-                    onRename(safeName(entry), entry.path)}
+                    onRename(entry.name!, entry.path)}
+                  disabled={!entry.name}
                 >
                   ✏️
                 </button>
@@ -231,22 +208,16 @@
                   title="Delete"
                   class="btn btn-xs btn-ghost text-error hover:bg-error hover:text-error-content"
                   on:click|stopPropagation={() =>
-                    onDelete(safeName(entry), entry.path)}
+                    onDelete(entry.name!, entry.path)}
+                  disabled={!entry.name}
                 >
                   🗑️
                 </button>
-              {:else}
-                <button class="btn btn-xs btn-ghost" disabled>✏️</button>
-                <button class="btn btn-xs btn-ghost" disabled>🗑️</button>
-              {/if}
+              </div>
             </div>
-          </div>
-        </li>
-      {/each}
-    </ul>
-  {:else if !loading}
-    <div class="flex h-full items-center justify-center p-4">
-      <p class="text-info mb-4">This folder is empty.</p>
-    </div>
+          </li>
+        {/each}
+      </ul>
+    {/if}
   {/if}
 </div>

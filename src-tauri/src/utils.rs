@@ -1,3 +1,5 @@
+// src-tauri/src/utils.rs
+
 //! Contains shared utility functions, constants, and helper logic.
 
 use directories::UserDirs;
@@ -18,8 +20,6 @@ pub fn hash_path(path: &Path) -> String {
     path.to_string_lossy().hash(&mut hasher);
     format!("{:x}", hasher.finish())
 }
-
-// --- Constants / Static Data ---
 
 /// Set of file extensions considered for generating thumbnails in list_local_maps.
 pub static THUMBNAIL_EXTS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
@@ -61,9 +61,6 @@ pub static EXCLUDED_FILE_EXTS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     .collect()
 });
 
-
-// --- Helper Functions ---
-
 /// Calculates the total size of immediate child files within a directory.
 /// Note: Does not recurse into subdirectories for size calculation.
 pub fn calculate_directory_size(path: &Path) -> u64 {
@@ -71,11 +68,11 @@ pub fn calculate_directory_size(path: &Path) -> u64 {
         .min_depth(1) // Only direct children
         .max_depth(1) // Only direct children
         .into_iter()
-        .filter_map(Result::ok) // Ignore potential errors reading entries
-        .filter(|e| e.file_type().is_file()) // Only count files
-        .filter_map(|e| e.metadata().ok()) // Get metadata, ignore errors
-        .map(|m| m.len()) // Get file size
-        .sum() // Sum all sizes
+        .filter_map(Result::ok) 
+        .filter(|e| e.file_type().is_file()) 
+        .filter_map(|e| e.metadata().ok()) 
+        .map(|m| m.len())
+        .sum()
 }
 
 /// Converts an Option<SystemTime> to milliseconds since UNIX_EPOCH.
@@ -83,7 +80,7 @@ pub fn system_time_to_millis(time: Option<SystemTime>) -> Option<u64> {
     time.and_then(|t| {
         t.duration_since(UNIX_EPOCH)
             .ok()
-            .map(|d| d.as_millis() as u64) // Note: Cast to u64 might truncate on far future dates
+            .map(|d| d.as_millis() as u64) 
     })
 }
 

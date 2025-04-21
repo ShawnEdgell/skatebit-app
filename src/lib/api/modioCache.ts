@@ -1,4 +1,3 @@
-// src/lib/api/modioCache.ts
 import { db } from '$lib/firebase/firebase'
 import { doc, setDoc } from 'firebase/firestore'
 import { fetchMapMods } from './modioFetch'

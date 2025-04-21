@@ -36,7 +36,6 @@
         ? normMapsRoot.slice(docDir.length).replace(/^[/\\]+/, '') || '.'
         : normMapsRoot
 
-      // ✅ Provide the mod name to the progress store for ToastManager
       downloadProgress.update((prev) => ({
         ...prev,
         [url]: {

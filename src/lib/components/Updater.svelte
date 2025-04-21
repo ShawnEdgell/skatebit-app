@@ -13,7 +13,6 @@
     notes: string
   }
 
-  // --- Stores ---
   const updateAvailable = writable(false)
   const updateInfo = writable<UpdaterInfo>({
     version: '',
@@ -21,17 +20,18 @@
     notes: '',
   })
   const updateLog = writable<string>('')
+
   const currentVersion = writable<string>('')
 
   const formattedDate = derived(updateInfo, ($info) => {
     if (!$info.pub_date) return ''
     const d = new Date($info.pub_date)
-    if (isNaN(d.getTime())) return '' // invalid date fallback
+    if (isNaN(d.getTime())) return ''
     return d.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
-      timeZone: 'UTC', // force UTC if needed
+      timeZone: 'UTC',
     })
   })
 
@@ -47,11 +47,10 @@
 
       if (upd?.available) {
         currentUpdate = upd
-        // plugin-updater will expose pub_date & notes
         updateInfo.set({
           version: upd.version,
-          pub_date: (upd as any).pub_date,
-          notes: (upd as any).notes,
+          pub_date: (upd as any).pub_date ?? '',
+          notes: String((upd as any).notes ?? ''),
         })
         updateAvailable.set(true)
         updateLog.set(`Update available: v${upd.version}`)

@@ -1,7 +1,7 @@
 import FlexSearch from 'flexsearch'
 import type { FsEntry } from '$lib/types/fsTypes'
 import type { Mod } from '$lib/types/modioTypes'
-import type { StoredModData, StoredFsEntryData } from '$lib/types/searchTypes'
+import type { StoredFsEntryData, StoredModData } from '$lib/types/searchTypes'
 
 export class LocalMapsSearchIndex {
   private index = new FlexSearch.Document({
@@ -11,8 +11,8 @@ export class LocalMapsSearchIndex {
       id: 'path',
       index: ['name'],
       store: [
-        'name',
         'path',
+        'name',
         'isDirectory',
         'size',
         'modified',
@@ -23,89 +23,54 @@ export class LocalMapsSearchIndex {
   })
 
   add(entries: FsEntry[]): void {
-    entries.forEach((entry) => {
-      if (entry && entry.path) {
-        const docToAdd: StoredFsEntryData = {
-          path: entry.path,
-          name: entry.name ?? '',
-          isDirectory: entry.isDirectory ?? undefined,
-          size: entry.size ?? undefined,
-          modified: entry.modified ?? undefined,
-          thumbnailMimeType: entry.thumbnailMimeType ?? undefined,
-        }
-        try {
-          this.index.add(entry.path, docToAdd as any)
-        } catch (error) {
-          // Keep error log for debugging potential add issues
-          console.error(
-            `[LocalMapsSearchIndex.add] Error adding entry path ${entry.path} to index:`,
-            error,
-            docToAdd,
-          )
-        }
+    for (const e of entries) {
+      if (!e.path) continue
+      const doc: StoredFsEntryData = {
+        path: e.path,
+        name: e.name ?? '',
+        isDirectory: Boolean(e.isDirectory),
+        size: e.size ?? null,
+        modified: e.modified ?? null,
+        thumbnailPath: e.thumbnailPath ?? null,
+        thumbnailMimeType: e.thumbnailMimeType ?? null,
       }
-    })
+      try {
+        ;(this.index as any).add(e.path, doc)
+      } catch (err) {
+        console.error('[LocalMapsSearchIndex] add failed', e.path, err, doc)
+      }
+    }
   }
 
   clear(): void {
-    this.index.clear()
+    ;(this.index as any).clear()
   }
 
   async search(query: string, limit = 100): Promise<FsEntry[]> {
-    const searchResults: unknown = await this.index.searchAsync(query, limit, {
+    const hits = (await (this.index as any).searchAsync(query, limit, {
       enrich: true,
-      index: ['name'],
-    })
+    })) as Array<{ result: Array<{ id: string; doc: StoredFsEntryData }> }>
 
-    const finalResults: FsEntry[] = []
-    const seenPaths = new Set<string>()
+    const seen = new Set<string>()
+    const out: FsEntry[] = []
 
-    if (Array.isArray(searchResults)) {
-      searchResults.forEach((fieldResultSet: any) => {
-        if (fieldResultSet && Array.isArray(fieldResultSet.result)) {
-          fieldResultSet.result.forEach(
-            (resultItem: { id: string; doc: any }) => {
-              const pathId = resultItem.id
-              const storedDoc = resultItem.doc
-
-              if (
-                pathId &&
-                typeof pathId === 'string' &&
-                storedDoc &&
-                !seenPaths.has(pathId)
-              ) {
-                const entry: FsEntry = {
-                  path: pathId,
-                  name:
-                    typeof storedDoc.name === 'string' ? storedDoc.name : null,
-                  isDirectory:
-                    typeof storedDoc.isDirectory === 'boolean'
-                      ? storedDoc.isDirectory
-                      : false,
-                  size:
-                    typeof storedDoc.size === 'number' ? storedDoc.size : null,
-                  modified:
-                    typeof storedDoc.modified === 'number'
-                      ? storedDoc.modified
-                      : null,
-                  thumbnailPath:
-                    typeof storedDoc.thumbnailPath === 'string'
-                      ? storedDoc.thumbnailPath
-                      : null,
-                  thumbnailMimeType:
-                    typeof storedDoc.thumbnailMimeType === 'string'
-                      ? storedDoc.thumbnailMimeType
-                      : null,
-                }
-                finalResults.push(entry)
-                seenPaths.add(pathId)
-              }
-            },
-          )
-        }
-      })
+    for (const block of hits) {
+      if (!Array.isArray(block.result)) continue
+      for (const { id, doc } of block.result) {
+        if (seen.has(id)) continue
+        seen.add(id)
+        out.push({
+          path: id,
+          name: doc.name || null,
+          isDirectory: Boolean(doc.isDirectory),
+          size: doc.size,
+          modified: doc.modified,
+          thumbnailPath: doc.thumbnailPath,
+          thumbnailMimeType: doc.thumbnailMimeType,
+        })
+      }
     }
-    return finalResults
+    return out
   }
 }
 
@@ -129,72 +94,46 @@ export class ModSearchIndex {
   })
 
   add(mods: Mod[]): void {
-    mods.forEach((mod) => {
-      if (!mod || typeof mod.id !== 'number' || !mod.name) {
-        // Keep warning for bad data
-        console.warn(
-          `[ModSearchIndex.add] Skipping mod with missing id/name:`,
-          mod,
-        )
-        return
-      }
-      const docToAdd: StoredModData = {
-        id: mod.id,
-        name: mod.name,
-        summary: mod.summary ?? '',
-        profile_url: mod.profile_url ?? '',
-        date_updated: mod.date_updated ?? 0,
-        tagNames: mod.tags?.map((tag) => tag.name).join(' ') ?? '',
-        imageUrl: mod.logo?.thumb_320x180 ?? undefined,
+    for (const m of mods) {
+      if (typeof m.id !== 'number' || !m.name) continue
+      const doc: StoredModData = {
+        id: m.id,
+        name: m.name,
+        summary: m.summary ?? '',
+        profile_url: m.profile_url,
+        date_updated: m.date_updated,
+        tagNames: m.tags?.map((t) => t.name).join(' ') ?? '',
+        imageUrl: m.logo?.thumb_320x180 ?? null,
       }
       try {
-        this.index.add(mod.id, docToAdd as any)
-      } catch (error) {
-        // Keep error log for debugging potential add issues
-        console.error(
-          `[ModSearchIndex.add] Error adding mod ID ${mod.id} to index:`,
-          error,
-          docToAdd,
-        )
+        ;(this.index as any).add(m.id, doc)
+      } catch (err) {
+        console.error('[ModSearchIndex] add failed', m.id, err, doc)
       }
-    })
+    }
   }
 
   clear(): void {
-    this.index.clear()
+    ;(this.index as any).clear()
   }
 
   async search(query: string, limit = 100): Promise<StoredModData[]> {
-    const searchResults: unknown = await this.index.searchAsync(query, limit, {
+    const hits = (await (this.index as any).searchAsync(query, limit, {
       enrich: true,
-      index: ['name', 'summary', 'tagNames'],
-    })
+    })) as Array<{ result: Array<{ id: number; doc: StoredModData }> }>
 
-    const finalResults: StoredModData[] = []
-    const seenIds = new Set<number>()
+    const seen = new Set<number>()
+    const out: StoredModData[] = []
 
-    if (Array.isArray(searchResults)) {
-      searchResults.forEach((fieldResultSet: any) => {
-        if (fieldResultSet && Array.isArray(fieldResultSet.result)) {
-          fieldResultSet.result.forEach(
-            (resultItem: { id: number; doc: StoredModData }) => {
-              const modId = resultItem.id
-              const storedDoc = resultItem.doc
-              if (
-                modId &&
-                typeof modId === 'number' &&
-                storedDoc &&
-                !seenIds.has(modId)
-              ) {
-                finalResults.push(storedDoc)
-                seenIds.add(modId)
-              }
-            },
-          )
-        }
-      })
+    for (const block of hits) {
+      if (!Array.isArray(block.result)) continue
+      for (const { id, doc } of block.result) {
+        if (seen.has(id)) continue
+        seen.add(id)
+        out.push(doc)
+      }
     }
-    return finalResults
+    return out
   }
 }
 

@@ -19,7 +19,6 @@ interface InstallationResult {
   source: string
 }
 
-// Modified return type
 export async function handleDroppedPaths(
   paths: string[],
   currentDestAbsolutePath: string,
@@ -40,7 +39,7 @@ export async function handleDroppedPaths(
       'handleDroppedPaths: Invalid drop destination:',
       currentDestAbsolutePath,
     )
-    // Return early with 0 successes, 0 errors (or maybe 1 error?)
+
     return { success: 0, errors: paths.length || 1 }
   }
 
@@ -100,7 +99,7 @@ export async function handleDroppedPaths(
         if (result.success) {
           console.log(`-> ZIP OK: ${result.message}`)
           toastStore.addToast(`✅ Processed "${itemName}"`, 'alert-success')
-          successCount++ // Increment success
+          successCount++
         } else {
           console.error(`-> ZIP FAIL: ${result.message}`)
           throw new Error(result.message || `Processing failed for ${itemName}`)
@@ -132,7 +131,7 @@ export async function handleDroppedPaths(
             'alert-success',
           )
           console.log(`-> Dir copy OK: "${itemName}"`)
-          successCount++ // Increment success
+          successCount++
         } else if (info.isFile) {
           console.log(`-> Handling File: ${itemName}`)
           const loadingSpinner = `<span class="loading loading-spinner loading-sm mr-2"></span>`
@@ -150,21 +149,19 @@ export async function handleDroppedPaths(
           progressToastId = null
           toastStore.addToast(`✅ Copied file "${itemName}"`, 'alert-success')
           console.log(`-> File copy OK: "${itemName}"`)
-          successCount++ // Increment success
+          successCount++
         } else {
           console.warn(`-> Skipping unknown type: ${normSourcePath}`)
           toastStore.addToast(
             `Skipped unknown type: "${itemName}"`,
             'alert-warning',
           )
-          // Optionally increment errorCount here if skipping is considered an error
-          // errorCount++;
         }
       }
     } catch (error: any) {
       toastStore.removeToast(progressToastId)
       progressToastId = null
-      errorCount++ // Increment error
+      errorCount++
       console.error(`-> FAIL item "${itemName}":`, error)
       handleError(error, `processing dropped item: ${itemName}`)
     }
@@ -173,7 +170,6 @@ export async function handleDroppedPaths(
   console.log(
     `Finished processing. Success: ${successCount}, Errors: ${errorCount}`,
   )
-  // Log summary messages (optional)
   if (errorCount > 0 && successCount > 0) {
     console.log(`Summary: ${successCount} successful, ${errorCount} failed.`)
   } else if (errorCount > 0 && successCount === 0) {
@@ -184,7 +180,6 @@ export async function handleDroppedPaths(
     console.log(`Summary: No items processed or completed.`)
   }
 
-  // Return final counts
   return { success: successCount, errors: errorCount }
 }
 
@@ -199,9 +194,8 @@ async function copySingleFile(
     console.log(
       `copySingleFile: parent directory for target "${targetPath}" is "${parentDir}"`,
     )
-    // Check if parentDir is valid before attempting mkdir
+
     if (parentDir && parentDir !== sourcePath) {
-      // Avoid creating dir if target is same as source parent
       console.log(
         `copySingleFile: Creating parent directory (if needed): "${parentDir}"`,
       )
@@ -217,7 +211,7 @@ async function copySingleFile(
       ` -> Error copying file "${fileName}" to "${targetPath}":`,
       error,
     )
-    throw error // Re-throw error to be caught by handleDroppedPaths
+    throw error
   }
 }
 
@@ -256,13 +250,11 @@ async function copyFolderRecursive(
         `copyFolderRecursive: Processing item "${itemName}". Is directory: ${item.isDirectory}, Is file: ${item.isFile}`,
       )
 
-      // Prioritize provided flags if available
       if (item.isDirectory) {
         await copyFolderRecursive(itemSourcePath, itemTargetPath)
       } else if (item.isFile) {
         await copySingleFile(itemSourcePath, itemTargetPath)
       } else {
-        // Fallback to stat if flags are missing/unreliable (optional robustness)
         try {
           console.log(
             `copyFolderRecursive: Item "${itemName}" type unknown/null flags, using stat fallback.`,
@@ -282,7 +274,7 @@ async function copyFolderRecursive(
             `copyFolderRecursive: Failed to stat item "${itemName}":`,
             statError,
           )
-          // Decide how to handle stat errors, maybe re-throw or just log
+
           handleError(statError, `processing item in folder copy: ${itemName}`)
         }
       }
@@ -295,6 +287,6 @@ async function copyFolderRecursive(
       ` -> Error copying folder "${folderName}" to "${targetPath}":`,
       error,
     )
-    throw error // Re-throw error to be caught by handleDroppedPaths
+    throw error
   }
 }

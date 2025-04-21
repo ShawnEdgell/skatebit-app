@@ -24,14 +24,11 @@
     { label: 'nord', value: 'nord' },
   ]
 
-  // Default to the first theme
   let selectedTheme: string = themes[0].value
 
   onMount(() => {
-    // Initialize theme-change; false parameter is required for Svelte
     themeChange(false)
 
-    // Sync the component's state with the theme already applied in app.html (if any)
     const currentTheme = document.documentElement.getAttribute('data-theme')
     if (currentTheme) {
       selectedTheme = currentTheme
@@ -39,14 +36,12 @@
   })
 
   function handleChange() {
-    // Save the current theme to localStorage whenever it changes
     localStorage.setItem('theme', selectedTheme)
     console.log('Theme saved:', selectedTheme)
   }
 </script>
 
 <div title="Theme" class="dropdown dropdown-end">
-  <!-- Static trigger with constant text "Theme" -->
   <div tabindex="0" role="button" class="flex items-center gap-2">
     <span>Theme</span>
     <svg
@@ -60,7 +55,6 @@
       ></path>
     </svg>
   </div>
-  <!-- Dropdown content with a radio list -->
   <ul
     tabindex="0"
     class="dropdown-content bg-base-200 rounded-box top-12 mt-6 w-52 p-2 shadow-md"

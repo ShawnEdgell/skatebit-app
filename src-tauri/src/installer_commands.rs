@@ -15,7 +15,6 @@ use uuid::Uuid;
 use log::{info, warn, error};
 use reqwest;
 
-/// Helper to emit installation‐progress events back to the frontend.
 fn emit_progress(
     app: &AppHandle,
     step: &str,
@@ -49,7 +48,7 @@ pub async fn download_and_install(
     );
     let start = std::time::Instant::now();
 
-    // Resolve and create destination
+    
     let dest = resolve_document_path(&destination_subfolder)
         .map_err(CommandError::DirectoryResolution)?;
     if !dest.exists() {
@@ -62,7 +61,7 @@ pub async fn download_and_install(
         )));
     }
 
-    // Begin download
+
     emit_progress(
         &app_handle,
         "downloading",
@@ -86,7 +85,7 @@ pub async fn download_and_install(
         .await
         .map_err(|e| CommandError::Network(e.to_string()))?;
 
-    // Check status
+ 
     if !resp.status().is_success() {
         let code = resp.status().as_u16();
         let msg = format!("HTTP {}", resp.status());
@@ -99,7 +98,7 @@ pub async fn download_and_install(
         });
     }
 
-    // Stream to disk with progress
+
     let total = resp.content_length().unwrap_or(0);
     let mut file = File::create(&tmp_path).map_err(|e| CommandError::Io(e.to_string()))?;
     let mut downloaded = 0u64;
@@ -145,7 +144,6 @@ pub async fn download_and_install(
         &source_url,
     );
 
-    // Sniff for ZIP magic
     let is_zip = {
         let mut buf = [0u8; 4];
         File::open(&tmp_path)
@@ -154,7 +152,6 @@ pub async fn download_and_install(
             .unwrap_or(false)
     };
 
-    // Extraction vs direct save
     let result = if is_zip {
         emit_progress(
             &app_handle,

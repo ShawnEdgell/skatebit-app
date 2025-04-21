@@ -13,7 +13,7 @@
 
       const percent = Math.round(progress * 100)
         .toString()
-        .padStart(3, ' ') // ← padded to 3 chars
+        .padStart(3, ' ')
 
       const status =
         step === 'downloading'
@@ -37,7 +37,7 @@
 
       const id = toastMap.get(source)
       if (id != null) {
-        toastStore.updateToast(id, status, variant) // pass the new variant
+        toastStore.updateToast(id, status, variant)
       } else {
         const newId = toastStore.addToast(status, variant, 0)
         toastMap.set(source, newId)

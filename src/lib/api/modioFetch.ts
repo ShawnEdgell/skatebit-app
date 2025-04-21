@@ -1,4 +1,3 @@
-// src/lib/api/modioFetch.ts
 import { MODIO_API_KEY, MODIO_DOMAIN } from './modioConfig'
 import { API_PAGE_SIZE } from './modioConstants'
 

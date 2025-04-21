@@ -1,11 +1,13 @@
 <script lang="ts">
   import '../app.css'
+  import { get } from 'svelte/store'
   import { onMount, onDestroy } from 'svelte'
   import { handleError } from '$lib/utils/errorHandler'
   import { listen } from '@tauri-apps/api/event'
+  import { invoke } from '@tauri-apps/api/core'
   import { downloadProgress } from '$lib/stores/downloadProgressStore'
+  import { mapsDirectory } from '$lib/stores/globalPathsStore'
   import type { InstallationProgress } from '$lib/types/downloadTypes'
-
   import NavBar from '$lib/components/NavBar.svelte'
   import CrudModal from '$lib/components/CrudModal.svelte'
   import Toast from '$lib/components/Toast.svelte'
@@ -23,30 +25,45 @@
   import {
     initializeGlobalPaths,
     initializeExplorerPaths,
+    explorerDirectory,
   } from '$lib/stores/globalPathsStore'
 
-  import { refreshExplorer } from '$lib/stores/explorerStore'
+  // ← import setPath instead of nonexistent refreshExplorer
+  import { setPath } from '$lib/stores/explorerStore'
   import { refreshModioMaps } from '$lib/stores/mapsStore'
 
   let unlistenInstallation: () => void
+  let unsubscribeWatch: () => void
 
   onMount(async () => {
     try {
       await initializeGlobalPaths()
       await initializeExplorerPaths()
-      await refreshExplorer()
-      await attachGlobalDropListener()
 
-      refreshModioMaps().catch((err) =>
-        handleError(err, '[Layout] Loading Mod.io Maps'),
+      // grab the base folder and call setPath to load & watch it
+      const base = get(explorerDirectory)
+      if (base) {
+        await setPath(base)
+      }
+
+      await attachGlobalDropListener()
+      refreshModioMaps().catch((e) =>
+        handleError(e, '[Layout] Loading Mod.io Maps'),
       )
+
+      // ensure Tauri also watches the mapsDirectory
+      unsubscribeWatch = mapsDirectory.subscribe((dir) => {
+        if (dir && !dir.startsWith('/error')) {
+          invoke('add_watched_path', { path: dir }).catch((e) =>
+            handleError(e, '[Layout] add_watched_path'),
+          )
+        }
+      })
 
       unlistenInstallation = await listen<InstallationProgress>(
         'installation_progress',
         (event) => {
           const { source, step, progress, message } = event.payload
-
-          // ✅ Preserve label (mod name) if it was already added earlier
           downloadProgress.update((prev) => ({
             ...prev,
             [source]: {
@@ -57,8 +74,6 @@
               source,
             },
           }))
-
-          // Auto-cleanup after done
           if (step === 'complete' || step === 'error') {
             setTimeout(() => {
               downloadProgress.update((prev) => {
@@ -70,14 +85,15 @@
           }
         },
       )
-    } catch (err: any) {
-      handleError(err, '[Layout] Initialization Error')
+    } catch (e: any) {
+      handleError(e, '[Layout] Initialization Error')
     }
   })
 
   onDestroy(() => {
     detachGlobalDropListener()
     if (unlistenInstallation) unlistenInstallation()
+    if (unsubscribeWatch) unsubscribeWatch()
     downloadProgress.set({})
   })
 </script>

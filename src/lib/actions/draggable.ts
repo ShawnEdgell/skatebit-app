@@ -1,11 +1,9 @@
-// src/lib/actions/draggable.ts
 export function draggable(node: HTMLElement) {
   let isDragging = false
   let startX = 0
   let scrollLeft = 0
 
   function pointerDown(e: PointerEvent) {
-    // Prevent dragging if the target is a button or link
     if ((e.target as HTMLElement).closest('button, a')) return
 
     e.preventDefault()
@@ -32,7 +30,6 @@ export function draggable(node: HTMLElement) {
     node.releasePointerCapture(e.pointerId)
   }
 
-  // Set initial cursor style
   node.style.cursor = 'grab'
 
   node.addEventListener('pointerdown', pointerDown)

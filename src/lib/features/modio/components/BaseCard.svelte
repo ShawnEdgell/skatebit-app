@@ -7,7 +7,6 @@
   export let title: string = ''
   export let cardTitleAttr: string = ''
 
-  // local flag to track if the <img> has errored
   let imageFailed = false
 </script>
 
@@ -24,7 +23,6 @@
       draggable="false"
       class="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
       on:error={() => {
-        // Chrome may still log its cache warning, but we won't try to render again
         imageFailed = true
       }}
     />

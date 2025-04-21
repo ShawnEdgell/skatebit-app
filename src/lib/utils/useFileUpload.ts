@@ -1,5 +1,3 @@
-// src/lib/utils/useFileUpload.ts
-
 import { invoke } from '@tauri-apps/api/core'
 import { join } from '@tauri-apps/api/path'
 import { normalizePath } from '$lib/services/pathService'
@@ -21,17 +19,14 @@ export async function uploadFilesToCurrentPath(
     onComplete?.()
     return
   }
-
   console.log(
     `Attempting to upload ${files.length} file(s) to: ${destinationAbsolutePath}`,
   )
   let errorOccurred = false
 
-  // Process files sequentially to avoid overwhelming backend or getting mixed error messages
   for (const file of Array.from(files)) {
     let targetAbsolutePath: string | null = null
     try {
-      // Construct the absolute path for the file within the destination folder
       targetAbsolutePath = normalizePath(
         await join(destinationAbsolutePath, file.name),
       )
@@ -40,7 +35,6 @@ export async function uploadFilesToCurrentPath(
 
       const buffer = await file.arrayBuffer()
       const fileContents = Array.from(new Uint8Array(buffer))
-
       console.log(`Invoking save_file for: ${targetAbsolutePath}`)
       await invoke('save_file', {
         absolutePath: targetAbsolutePath,
@@ -49,7 +43,6 @@ export async function uploadFilesToCurrentPath(
       console.log(`Successfully saved: ${targetAbsolutePath}`)
     } catch (err) {
       errorOccurred = true
-      // Use targetAbsolutePath if available, otherwise just file name
       const errorContext = targetAbsolutePath ? targetAbsolutePath : file.name
       console.error(`Error saving file "${errorContext}":`, err)
       handleError(err, `Saving file "${file.name}"`)

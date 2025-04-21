@@ -1,4 +1,3 @@
-<!-- src/routes/+page.svelte -->
 <script lang="ts">
   import { browser } from '$app/environment'
   import { onDestroy } from 'svelte'
@@ -12,7 +11,7 @@
     currentPath,
     entries,
     isLoading,
-    refreshExplorer,
+    refresh,
   } from '$lib/stores/explorerStore'
   import { explorerDirectory } from '$lib/stores/globalPathsStore'
   import { activeDropTargetInfo } from '$lib/stores/dndStore'
@@ -22,7 +21,6 @@
   import PathHeader from '$lib/components/PathHeader.svelte'
   import FileActions from '$lib/components/FileActions.svelte'
 
-  // static tab definitions
   const tabs = [
     { label: 'Maps', subfolder: 'Maps', icon: '🗺️' },
     { label: 'Gear', subfolder: 'Gear', icon: '🧢' },
@@ -48,7 +46,7 @@
     }
     await uploadFilesToCurrentPath(target.files, $currentPath, async () => {
       target.value = ''
-      await refreshExplorer()
+      await refresh()
     })
   }
 
@@ -56,7 +54,6 @@
     fileInput.click()
   }
 
-  // register as drop target on the root explorer route
   $: if (browser && $page.url.pathname === '/') {
     activeDropTargetInfo.set({
       path: $currentPath,
@@ -68,7 +65,6 @@
     activeDropTargetInfo.set({ path: null, label: null })
   })
 
-  // manual folder navigation (when clicking a folder)
   async function openDir(folderName: string) {
     if (!$currentPath) return
     const newAbs = normalizePath(await join($currentPath, folderName))
