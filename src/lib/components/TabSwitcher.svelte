@@ -5,11 +5,25 @@
   import { setPath } from '$lib/stores/explorerStore'
   import { handleError } from '$lib/utils/errorHandler'
 
-  export let tabs: { label: string; subfolder: string; icon: string }[] = []
   export let currentPath: string = ''
   export let baseFolder: string = ''
 
   $: normalizedCurrentPath = normalizePath(currentPath)
+
+  const tabs = [
+    { label: 'Maps', subfolder: 'Maps', icon: '🗺️' },
+    { label: 'Gear', subfolder: 'Gear', icon: '🧢' },
+    {
+      label: 'XLGM Assets',
+      subfolder: 'XLGearModifier/Asset Packs',
+      icon: '🎨',
+    },
+    { label: 'Stats', subfolder: 'XXLMod3/StatsCollections', icon: '📊' },
+    { label: 'Stance', subfolder: 'XXLMod3/StanceCollections', icon: '🧍' },
+    { label: 'Steeze', subfolder: 'XXLMod3/SteezeCollections', icon: '🛹' },
+    { label: 'BonedOllieMod', subfolder: 'BonedOllieMod', icon: '🦴' },
+    { label: 'Walking Mod', subfolder: 'walking-mod/animations', icon: '🚶' },
+  ]
 
   async function handleSwitchTab(subfolder: string) {
     if (!baseFolder || baseFolder.startsWith('/error')) {

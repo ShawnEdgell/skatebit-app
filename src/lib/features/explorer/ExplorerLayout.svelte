@@ -21,21 +21,6 @@
   import PathHeader from '$lib/components/PathHeader.svelte'
   import FileActions from '$lib/components/FileActions.svelte'
 
-  const tabs = [
-    { label: 'Maps', subfolder: 'Maps', icon: '🗺️' },
-    { label: 'Gear', subfolder: 'Gear', icon: '🧢' },
-    {
-      label: 'XLGM Assets',
-      subfolder: 'XLGearModifier/Asset Packs',
-      icon: '🎨',
-    },
-    { label: 'Stats', subfolder: 'XXLMod3/StatsCollections', icon: '📊' },
-    { label: 'Stance', subfolder: 'XXLMod3/StanceCollections', icon: '🧍' },
-    { label: 'Steeze', subfolder: 'XXLMod3/SteezeCollections', icon: '🛹' },
-    { label: 'BonedOllieMod', subfolder: 'BonedOllieMod', icon: '🦴' },
-    { label: 'Walking Mod', subfolder: 'walking-mod/animations', icon: '🚶' },
-  ]
-
   let fileInput: HTMLInputElement
 
   async function handleFileChange(e: Event) {
@@ -89,11 +74,7 @@
     </div>
 
     <div class="flex h-full w-full gap-4 overflow-hidden">
-      <TabSwitcher
-        {tabs}
-        currentPath={$currentPath}
-        baseFolder={$explorerDirectory}
-      />
+      <TabSwitcher currentPath={$currentPath} baseFolder={$explorerDirectory} />
 
       <div
         class="rounded-box bg-base-100 relative h-full min-h-0 w-full overflow-y-auto p-2 shadow-md"

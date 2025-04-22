@@ -1,6 +1,6 @@
 [package]
 name = "XLFM"
-version = "1.1.5"
+version = "0.1.6"
 description = "Skater XL File Manager"
 authors = ["Milky"]
 edition = "2021"
@@ -39,4 +39,5 @@ junction = "1.2"
 tauri-plugin-process = "2"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-single-instance = "2"
 tauri-plugin-updater = "2"
