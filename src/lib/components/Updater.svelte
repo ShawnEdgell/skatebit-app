@@ -23,18 +23,6 @@
 
   const currentVersion = writable<string>('')
 
-  const formattedDate = derived(updateInfo, ($info) => {
-    if (!$info.pub_date) return ''
-    const d = new Date($info.pub_date)
-    if (isNaN(d.getTime())) return ''
-    return d.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      timeZone: 'UTC',
-    })
-  })
-
   let currentUpdate: Update | null = null
 
   onMount(async () => {
@@ -81,9 +69,6 @@
       <h3 class="text-lg font-bold">Update Available!</h3>
       <p>
         A new update (v{$updateInfo.version}) is available!
-        <!-- {#if $formattedDate}
-          <br />Released on: {$formattedDate}
-        {/if} -->
       </p>
       <p class="mt-2 text-sm whitespace-pre-wrap">
         {$updateInfo.notes}
