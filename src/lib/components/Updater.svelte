@@ -81,9 +81,9 @@
       <h3 class="text-lg font-bold">Update Available!</h3>
       <p>
         A new update (v{$updateInfo.version}) is available!
-        {#if $formattedDate}
+        <!-- {#if $formattedDate}
           <br />Released on: {$formattedDate}
-        {/if}
+        {/if} -->
       </p>
       <p class="mt-2 text-sm whitespace-pre-wrap">
         {$updateInfo.notes}
