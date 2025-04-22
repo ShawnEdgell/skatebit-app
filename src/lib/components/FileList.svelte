@@ -12,28 +12,35 @@
     entries,
     explorerError,
     setPath,
-    refresh,
+    refresh, // <-- IMPORT refresh
   } from '$lib/stores/explorerStore'
+  import { get } from 'svelte/store' // <-- IMPORT get
 
-  /** parent passes `loading={$isLoading && $entries.length === 0}` */
   export let loading: boolean = false
 
   async function handleOpenDirectory(folderName: string) {
+    // ... unchanged ...
     if (!$currentPath) return handleError('Current path is not set', 'Open')
     const newPath = await join($currentPath, folderName)
     await setPath(normalizePath(newPath))
   }
 
   async function handleCreateDirectory() {
-    if (!$currentPath) return handleError('Invalid target path', 'Create Dir')
-    await invoke('create_directory_rust', {
-      absolutePath: normalizePath($currentPath),
-    })
-    // we rely on our watcher to re-load; no need to call `await refresh()`
-    handleSuccess(`Folder created`, 'File Operation')
+    const path = get(currentPath) // Get current value to avoid reactivity issues in async ops
+    if (!path) return handleError('Invalid target path', 'Create Dir')
+    const normPath = normalizePath(path)
+    try {
+      await invoke('create_directory_rust', { absolutePath: normPath })
+      handleSuccess(`Folder created at ${normPath}`, 'File Operation')
+      // --- EXPLICITLY REFRESH after creation ---
+      await refresh(normPath) // Refresh the path that was just created
+    } catch (err) {
+      handleError(err, `Failed to create folder at ${normPath}`)
+    }
   }
 
   async function onRename(name: string, itemPath: string) {
+    // ... unchanged ...
     if (!$currentPath || $currentPath.startsWith('/error')) {
       handleError('Cannot rename: Current path is invalid.', 'Rename Setup')
       return
@@ -48,7 +55,6 @@
       onSave: async (newInputValue?: string) => {
         const newName = newInputValue?.trim()
         if (!newName || newName === name) return
-
         const exists = $entries.find(
           (e) => e?.name?.toLowerCase() === newName.toLowerCase(),
         )
@@ -60,13 +66,11 @@
           )
           return
         }
-
         const normOld = normalizePath(itemPath)
         if (!normOld) {
           handleError('Could not normalize original item path.', 'Rename')
           return
         }
-
         const parent = normOld.slice(0, normOld.lastIndexOf('/')) || '/'
         let newAbsolute = ''
         try {
@@ -82,7 +86,6 @@
           )
           return
         }
-
         try {
           await invoke('rename_fs_entry_rust', {
             oldPath: normOld,
@@ -98,9 +101,9 @@
   }
 
   async function onDelete(name: string, itemPath: string) {
+    // ... unchanged ...
     const normItem = normalizePath(itemPath)
     const normBase = normalizePath($explorerDirectory)
-
     if (!normItem || (normBase && normItem === normBase)) {
       handleError(
         'Invalid deletion target or attempting to delete base directory.',
@@ -108,7 +111,6 @@
       )
       return
     }
-
     openModal({
       title: 'Confirm Deletion',
       message: `Move "${name}" to Recycle Bin?`,
@@ -155,11 +157,11 @@
         <span class="loading loading-spinner loading-lg"></span>
       </div>
     {/if}
-    {#if $entries.length === 0}
+    {#if !loading && $entries.length === 0}
       <div class="flex h-full items-center justify-center p-4">
         <p class="text-info mb-4">This folder is empty.</p>
       </div>
-    {:else}
+    {:else if $entries.length > 0}
       <ul>
         {#each $entries as entry (entry.path)}
           <li>
@@ -218,6 +220,11 @@
           </li>
         {/each}
       </ul>
+    {/if}
+    {#if loading && $entries.length > 0}
+      <div class="flex items-center justify-center px-4 py-2">
+        <span class="loading loading-spinner loading-md"></span>
+      </div>
     {/if}
   {/if}
 </div>
