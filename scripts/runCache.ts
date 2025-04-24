@@ -1,67 +1,69 @@
 // scripts/runCache.ts
-
 import * as admin from 'firebase-admin'
-// Adjust the import path based on your project structure
-console.log('DEBUG: Imported firebase-admin object:', admin)
-import { cacheAllMapModsToFirestore } from '../src/lib/api/modioCache'
+// Import specific functions we need from the admin SDK's sub-packages
+import { initializeApp, cert, getApp, App } from 'firebase-admin/app'
+import { getFirestore } from 'firebase-admin/firestore' // Import getFirestore
+
+import { cacheAllMapModsToFirestore } from '../src/lib/api/modioCache' // Adjust path
 
 async function main() {
   console.log('🚀 Starting Firestore cache update script...')
 
-  // 1. Load Configuration from Environment Variables (set by GitHub Actions)
   const serviceAccountJsonString = process.env.FIREBASE_SERVICE_ACCOUNT_JSON
   const modioApiKey = process.env.MODIO_API_KEY
   const modioDomain = process.env.MODIO_DOMAIN
 
-  // Validate required environment variables
-  if (!serviceAccountJsonString) {
+  if (!serviceAccountJsonString || !modioApiKey || !modioDomain) {
     console.error(
-      '❌ Error: FIREBASE_SERVICE_ACCOUNT_JSON environment variable is not set.',
+      '❌ Error: Missing one or more required environment variables (FIREBASE_SERVICE_ACCOUNT_JSON, MODIO_API_KEY, MODIO_DOMAIN).',
     )
-    process.exit(1) // Exit with failure code
-  }
-  if (!modioApiKey) {
-    console.error('❌ Error: MODIO_API_KEY environment variable is not set.')
-    process.exit(1) // Exit with failure code
-  }
-  if (!modioDomain) {
-    console.error('❌ Error: MODIO_DOMAIN environment variable is not set.')
-    process.exit(1) // Exit with failure code
+    process.exit(1)
   }
 
   try {
-    // 2. Initialize Firebase Admin SDK
-    console.log('Initializing Firebase Admin SDK...')
+    console.log('Parsing service account JSON...')
     const serviceAccount = JSON.parse(serviceAccountJsonString)
 
-    // Prevent re-initialization error if somehow run multiple times in same process
-    if (admin.apps.length === 0) {
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-        // Optional: Specify database URL if needed, usually inferred from projectId
-        // databaseURL: `https://${serviceAccount.project_id}.firebaseio.com`
-      })
-      console.log('Firebase Admin SDK initialized successfully.')
-    } else {
+    console.log(
+      'Initializing Firebase Admin SDK (using getApp/initializeApp)...',
+    )
+
+    let adminApp: App // Define variable to hold the App instance
+
+    try {
+      // Try to get the existing default app instance
+      adminApp = getApp()
       console.log('Firebase Admin SDK already initialized.')
-      // Use the existing default app if already initialized
-      // admin.app();
+    } catch (error: any) {
+      // If getApp() throws, no default app exists, so initialize it
+      if (error.code === 'app/no-app') {
+        console.log('No existing Firebase app found, initializing new one...')
+        adminApp = initializeApp({
+          credential: cert(serviceAccount), // Use cert() from firebase-admin/app
+          // databaseURL: `https://${serviceAccount.project_id}.firebaseio.com` // Optional
+        })
+        console.log('Firebase Admin SDK initialized successfully.')
+      } else {
+        // Rethrow unexpected errors from getApp()
+        throw error
+      }
     }
 
-    const db = admin.firestore() // Get Firestore instance from Admin SDK
+    // Get the Firestore instance from the initialized app
+    const db = getFirestore(adminApp)
+    console.log('Firestore Admin instance obtained.')
 
     // 3. Run the Caching Logic
     console.log('Calling cacheAllMapModsToFirestore function...')
     // Pass the Admin DB instance and API credentials
-    await cacheAllMapModsToFirestore(db, modioApiKey, modioDomain)
+    await cacheAllMapModsToFirestore(db, modioApiKey, modioDomain) // Pass db directly
 
     console.log('✅ Script finished successfully.')
-    process.exit(0) // Explicitly exit with success code
+    process.exit(0)
   } catch (error) {
     console.error('❌ Script encountered an error:', error)
-    process.exit(1) // Explicitly exit with failure code
+    process.exit(1)
   }
 }
 
-// Execute the main function
 main()
