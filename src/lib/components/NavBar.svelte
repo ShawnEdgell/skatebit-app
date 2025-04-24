@@ -29,13 +29,6 @@
   <div class="flex w-full justify-between">
     <!-- Left area: Draggable logo and navigation links -->
     <div class="flex items-center">
-      <!-- The XLFM logo is draggable and has a default cursor -->
-      <h1
-        class="mr-2 text-2xl font-black tracking-tight"
-        style="cursor: default;"
-      >
-        XLFM
-      </h1>
       <!-- Navigation links remain clickable -->
       <ul class="menu menu-horizontal" style="-webkit-app-region: no-drag;">
         <li>

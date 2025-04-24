@@ -1,0 +1,43 @@
+# .github/workflows/cache-maps.yml
+name: Daily Mod.io → Firestore Cache
+
+on:
+  schedule:
+    # Run at 03:00 and 15:00 UTC every day (adjust as needed)
+    # Note: Scheduled workflows may be delayed during periods of high GitHub Actions load.
+    - cron: '0 3,15 * * *'
+
+  workflow_dispatch: # Allows manual triggering from the Actions tab
+
+jobs:
+  cache:
+    name: Update Firestore Mod Cache
+    runs-on: ubuntu-latest
+    # Set default shell to bash for better cross-platform compatibility if needed
+    # defaults:
+    #   run:
+    #     shell: bash
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4 # Use latest major version
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest # Or specify a fixed version e.g., "1.0.25"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile # Use lockfile for reproducible builds
+
+      - name: Verify script path exists
+        run: ls -l ./scripts/runCache.ts # Simple check to catch path errors early
+
+      - name: Run cache update script
+        env:
+          # Map GitHub Secrets to Environment Variables for the script
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          MODIO_API_KEY: ${{ secrets.MODIO_API_KEY }}
+          MODIO_DOMAIN: ${{ secrets.MODIO_DOMAIN }}
+        # Execute the TypeScript script directly using Bun
+        run: bun run ./scripts/runCache.ts
