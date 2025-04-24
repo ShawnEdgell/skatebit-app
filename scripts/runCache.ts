@@ -2,6 +2,7 @@
 
 import * as admin from 'firebase-admin'
 // Adjust the import path based on your project structure
+console.log('DEBUG: Imported firebase-admin object:', admin)
 import { cacheAllMapModsToFirestore } from '../src/lib/api/modioCache'
 
 async function main() {
