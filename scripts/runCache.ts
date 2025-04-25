@@ -1,10 +1,10 @@
 // scripts/runCache.ts
-import * as admin from 'firebase-admin'
-// Import specific functions we need from the admin SDK's sub-packages
+import * as admin from 'firebase-admin' // Keep for potential other admin uses, though not strictly needed below
 import { initializeApp, cert, getApp, App } from 'firebase-admin/app'
-import { getFirestore } from 'firebase-admin/firestore' // Import getFirestore
+import { getFirestore, FieldValue } from 'firebase-admin/firestore' // Import FieldValue if used within cacheAllMapModsToFirestore
 
-import { cacheAllMapModsToFirestore } from '../src/lib/api/modioCache' // Adjust path
+// Adjust the import path based on your project structure
+import { cacheAllMapModsToFirestore } from '../src/lib/api/modioCache'
 
 async function main() {
   console.log('🚀 Starting Firestore cache update script...')
@@ -27,36 +27,27 @@ async function main() {
     console.log(
       'Initializing Firebase Admin SDK (using getApp/initializeApp)...',
     )
-
-    let adminApp: App // Define variable to hold the App instance
-
+    let adminApp: App
     try {
-      // Try to get the existing default app instance
-      adminApp = getApp()
+      adminApp = getApp() // Try getting existing default app
       console.log('Firebase Admin SDK already initialized.')
     } catch (error: any) {
-      // If getApp() throws, no default app exists, so initialize it
       if (error.code === 'app/no-app') {
+        // If no app exists, initialize
         console.log('No existing Firebase app found, initializing new one...')
-        adminApp = initializeApp({
-          credential: cert(serviceAccount), // Use cert() from firebase-admin/app
-          // databaseURL: `https://${serviceAccount.project_id}.firebaseio.com` // Optional
-        })
+        adminApp = initializeApp({ credential: cert(serviceAccount) })
         console.log('Firebase Admin SDK initialized successfully.')
       } else {
-        // Rethrow unexpected errors from getApp()
         throw error
-      }
+      } // Rethrow other errors
     }
 
-    // Get the Firestore instance from the initialized app
-    const db = getFirestore(adminApp)
+    const db = getFirestore(adminApp) // Get Firestore instance
     console.log('Firestore Admin instance obtained.')
 
-    // 3. Run the Caching Logic
+    // Run the Caching Logic
     console.log('Calling cacheAllMapModsToFirestore function...')
-    // Pass the Admin DB instance and API credentials
-    await cacheAllMapModsToFirestore(db, modioApiKey, modioDomain) // Pass db directly
+    await cacheAllMapModsToFirestore(db, modioApiKey, modioDomain)
 
     console.log('✅ Script finished successfully.')
     process.exit(0)
