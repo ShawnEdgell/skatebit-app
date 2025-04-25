@@ -5,6 +5,8 @@
     currentPath as currentPathStore,
   } from '$lib/stores/explorerStore'
   import { handleError } from '$lib/utils/errorHandler'
+  import { get } from 'svelte/store'
+  import { CornerLeftUp } from 'lucide-svelte'
 
   export let currentPath: string | null | undefined = ''
   export let absoluteBasePath: string = ''
@@ -68,7 +70,7 @@
     normalizePath(currentPath || '') !== normalizePath(absoluteBasePath || '')
 
   async function handleGoBack() {
-    const curr = $currentPathStore
+    const curr = get(currentPathStore)
     if (!curr || !canGoBack) return
     try {
       const pathParts = curr.split(/[\/\\]/).filter(Boolean)
@@ -98,20 +100,7 @@
     disabled={!canGoBack}
     aria-label="Go up one level"
   >
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke-width="1.5"
-      stroke="currentColor"
-      class="h-4 w-4"
-    >
-      <path
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        d="M9 9l6-6m0 0l6 6m-6-6v12a6 6 0 01-12 0v-3"
-      />
-    </svg>
+    <CornerLeftUp class="h-4 w-4" stroke-width={1.5} />
   </button>
 
   <div class="z-10 flex items-center overflow-hidden" aria-label="Breadcrumb">
@@ -134,6 +123,9 @@
           class:text-base-content={true}
           class:cursor-default={!segment.isNavigable ||
             index === pathSegments.length - 1}
+          on:click={() => handleSegmentClick(segment)}
+          aria-current={index === pathSegments.length - 1 ? 'page' : undefined}
+          disabled={!segment.isNavigable || index === pathSegments.length - 1}
         >
           {segment.name}
         </button>

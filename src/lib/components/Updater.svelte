@@ -3,7 +3,7 @@
   import { check, Update } from '@tauri-apps/plugin-updater'
   import { relaunch } from '@tauri-apps/plugin-process'
   import { getVersion } from '@tauri-apps/api/app'
-  import { writable, derived } from 'svelte/store'
+  import { writable } from 'svelte/store'
 
   export const ssr = false
 

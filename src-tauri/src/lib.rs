@@ -13,8 +13,8 @@ mod watcher;
 
 use std::{collections::HashSet, sync::Mutex};
 use tokio::sync::mpsc::channel;
+
 use state::{WatcherCommand, WatcherState};
-use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -29,20 +29,6 @@ pub fn run() {
     };
 
     tauri::Builder::default()
-         // --- REPLACE the old init() line with this block ---
-        .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
-            println!("Second instance detected. Args: {argv:?}, CWD: {cwd}"); // Optional logging
-            // Try to get the main window (ensure label is 'main' in tauri.conf.json)
-            if let Some(window) = app.get_webview_window("main") {
-                // Bring the existing window to the foreground
-                let _ = window.show().map_err(|e| eprintln!("Failed to show window: {}", e));
-                let _ = window.unminimize().map_err(|e| eprintln!("Failed to unminimize window: {}", e));
-                let _ = window.set_focus().map_err(|e| eprintln!("Failed to focus window: {}", e));
-                println!("Focused existing main window.");
-            } else {
-                eprintln!("Main window not found when handling second instance.");
-            }
-        }))
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { themeChange } from 'theme-change'
+  import { ChevronDown } from 'lucide-svelte' // Import Lucide icon
 
   type Theme = {
     label: string
@@ -42,18 +43,9 @@
 </script>
 
 <div title="Theme" class="dropdown dropdown-end">
-  <div tabindex="0" role="button" class="flex items-center gap-2">
+  <div tabindex="0" role="button" class="flex items-center gap-1.5">
     <span>Theme</span>
-    <svg
-      width="12px"
-      height="12px"
-      class="inline-block h-2 w-2 fill-current opacity-60"
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 2048 2048"
-    >
-      <path d="M1799 349l242 241-1017 1017L7 590l242-241 775 775 775-775z"
-      ></path>
-    </svg>
+    <ChevronDown class="inline-block h-3.5 w-3.5 opacity-80" />
   </div>
   <ul
     tabindex="0"

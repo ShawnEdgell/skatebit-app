@@ -67,7 +67,6 @@
     "store:default",
     "opener:default",
     "process:default",
-    "deep-link:default",
     "http:default"
   ]
 }

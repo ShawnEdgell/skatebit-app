@@ -1,7 +1,6 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
   import { join } from '@tauri-apps/api/path'
-  import type { FsEntry } from '$lib/types/fsTypes'
   import { formatFileSize } from '$lib/utils/formatter'
   import { normalizePath } from '$lib/services/pathService'
   import { handleError, handleSuccess } from '$lib/utils/errorHandler'
@@ -12,36 +11,36 @@
     entries,
     explorerError,
     setPath,
-    refresh, // <-- IMPORT refresh
+    refresh,
   } from '$lib/stores/explorerStore'
-  import { get } from 'svelte/store' // <-- IMPORT get
+  import { get } from 'svelte/store'
+  // Import Lucide icons
+  import { Folder, File, Pencil, Trash2 } from 'lucide-svelte'
 
   export let loading: boolean = false
 
   async function handleOpenDirectory(folderName: string) {
-    // ... unchanged ...
-    if (!$currentPath) return handleError('Current path is not set', 'Open')
-    const newPath = await join($currentPath, folderName)
+    if (!get(currentPath)) return handleError('Current path is not set', 'Open') // Use get() here
+    const newPath = await join(get(currentPath), folderName)
     await setPath(normalizePath(newPath))
   }
 
   async function handleCreateDirectory() {
-    const path = get(currentPath) // Get current value to avoid reactivity issues in async ops
+    const path = get(currentPath)
     if (!path) return handleError('Invalid target path', 'Create Dir')
     const normPath = normalizePath(path)
     try {
       await invoke('create_directory_rust', { absolutePath: normPath })
       handleSuccess(`Folder created at ${normPath}`, 'File Operation')
-      // --- EXPLICITLY REFRESH after creation ---
-      await refresh(normPath) // Refresh the path that was just created
+      await refresh(normPath)
     } catch (err) {
       handleError(err, `Failed to create folder at ${normPath}`)
     }
   }
 
   async function onRename(name: string, itemPath: string) {
-    // ... unchanged ...
-    if (!$currentPath || $currentPath.startsWith('/error')) {
+    const currentPathVal = get(currentPath) // Get current value
+    if (!currentPathVal || currentPathVal.startsWith('/error')) {
       handleError('Cannot rename: Current path is invalid.', 'Rename Setup')
       return
     }
@@ -55,7 +54,8 @@
       onSave: async (newInputValue?: string) => {
         const newName = newInputValue?.trim()
         if (!newName || newName === name) return
-        const exists = $entries.find(
+        const currentEntries = get(entries) // Get current value
+        const exists = currentEntries.find(
           (e) => e?.name?.toLowerCase() === newName.toLowerCase(),
         )
         if (exists) {
@@ -101,9 +101,8 @@
   }
 
   async function onDelete(name: string, itemPath: string) {
-    // ... unchanged ...
     const normItem = normalizePath(itemPath)
-    const normBase = normalizePath($explorerDirectory)
+    const normBase = normalizePath(get(explorerDirectory)) // Get current value
     if (!normItem || (normBase && normItem === normBase)) {
       handleError(
         'Invalid deletion target or attempting to delete base directory.',
@@ -128,13 +127,6 @@
         }
       },
     })
-  }
-
-  function safeName(entry: FsEntry | undefined | null): string {
-    return entry?.name ?? ''
-  }
-  function isActionable(entry: FsEntry | undefined | null): boolean {
-    return !!entry && entry.name !== null
   }
 </script>
 
@@ -174,7 +166,11 @@
                   on:click={() => handleOpenDirectory(entry.name!)}
                   title={entry.name}
                 >
-                  <span class="text-info text-xl">📁</span>
+                  <Folder
+                    class="text-info flex-shrink-0"
+                    size={20}
+                    stroke-width={1.5}
+                  />
                   <span class="flex-1 truncate">{entry.name}</span>
                   {#if entry.size != null}
                     <span class="badge badge-xs badge-ghost ml-auto">
@@ -184,9 +180,13 @@
                 </button>
               {:else}
                 <div
-                  class="group flex min-w-0 flex-1 cursor-pointer items-center gap-3 px-2 py-1"
+                  class="group flex min-w-0 flex-1 cursor-default items-center gap-3 px-2 py-1"
                 >
-                  <span class="text-base-content/80 text-xl">📄</span>
+                  <File
+                    class="text-base-content/80 flex-shrink-0"
+                    size={20}
+                    stroke-width={1.5}
+                  />
                   <span class="flex-1 truncate">{entry.name}</span>
                   {#if entry.size != null}
                     <span class="badge badge-xs badge-ghost ml-auto">
@@ -204,7 +204,7 @@
                     onRename(entry.name!, entry.path)}
                   disabled={!entry.name}
                 >
-                  ✏️
+                  <Pencil class="h-3 w-3" stroke-width={1.5} />
                 </button>
                 <button
                   title="Delete"
@@ -213,7 +213,7 @@
                     onDelete(entry.name!, entry.path)}
                   disabled={!entry.name}
                 >
-                  🗑️
+                  <Trash2 class="h-3 w-3" stroke-width={1.5} />
                 </button>
               </div>
             </div>

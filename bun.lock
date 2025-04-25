@@ -6,6 +6,7 @@
       "dependencies": {
         "@lucide/svelte": "^0.501.0",
         "@tailwindcss/vite": "^4.1.3",
+        "@tanstack/svelte-query": "^5.74.4",
         "@tauri-apps/api": "^2.5.0",
         "@tauri-apps/plugin-deep-link": "~2",
         "@tauri-apps/plugin-dialog": "^2.2.1",
@@ -19,8 +20,8 @@
         "@tauri-apps/plugin-updater": "^2.0.0",
         "daisyui": "^5.0.12",
         "firebase": "^11.6.0",
-        "firebase-admin": "^13.3.0",
         "flexsearch": "^0.8.151",
+        "lucide-svelte": "^0.503.0",
         "tailwindcss": "^4.1.3",
         "theme-change": "^2.5.0",
       },
@@ -36,6 +37,7 @@
         "eslint-config-prettier": "^10.1.2",
         "eslint-plugin-prettier": "^5.2.6",
         "eslint-plugin-svelte3": "^4.0.0",
+        "firebase-admin": "^13.3.0",
         "prettier": "^3.5.3",
         "prettier-plugin-svelte": "^3.3.3",
         "prettier-plugin-tailwindcss": "^0.6.11",
@@ -354,6 +356,10 @@
     "@tailwindcss/typography": ["@tailwindcss/typography@0.5.16", "", { "dependencies": { "lodash.castarray": "^4.4.0", "lodash.isplainobject": "^4.0.6", "lodash.merge": "^4.6.2", "postcss-selector-parser": "6.0.10" }, "peerDependencies": { "tailwindcss": ">=3.0.0 || insiders || >=4.0.0-alpha.20 || >=4.0.0-beta.1" } }, "sha512-0wDLwCVF5V3x3b1SGXPCDcdsbDHMBe+lkFzBRaHeLvNi+nrrnZ1lA18u+OTWO8iSWU2GxUOCvlXtDuqftc1oiA=="],
 
     "@tailwindcss/vite": ["@tailwindcss/vite@4.1.3", "", { "dependencies": { "@tailwindcss/node": "4.1.3", "@tailwindcss/oxide": "4.1.3", "tailwindcss": "4.1.3" }, "peerDependencies": { "vite": "^5.2.0 || ^6" } }, "sha512-lUI/QaDxLtlV52Lho6pu07CG9pSnRYLOPmKGIQjyHdTBagemc6HmgZxyjGAQ/5HMPrNeWBfTVIpQl0/jLXvWHQ=="],
+
+    "@tanstack/query-core": ["@tanstack/query-core@5.74.4", "", {}, "sha512-YuG0A0+3i9b2Gfo9fkmNnkUWh5+5cFhWBN0pJAHkHilTx6A0nv8kepkk4T4GRt4e5ahbtFj2eTtkiPcVU1xO4A=="],
+
+    "@tanstack/svelte-query": ["@tanstack/svelte-query@5.74.4", "", { "dependencies": { "@tanstack/query-core": "5.74.4" }, "peerDependencies": { "svelte": "^3.54.0 || ^4.0.0 || ^5.0.0" } }, "sha512-qbbjgXYo4qvK2bIriRPq/jQwxz+qPwWo7EbbqEkt1eKbyTyRxgO+1oCsKXLuYbC1pp1a1WBZSorn53CdFBrE8A=="],
 
     "@tauri-apps/api": ["@tauri-apps/api@2.5.0", "", {}, "sha512-Ldux4ip+HGAcPUmuLT8EIkk6yafl5vK0P0c0byzAKzxJh7vxelVtdPONjfgTm96PbN24yjZNESY8CKo8qniluA=="],
 
@@ -790,6 +796,8 @@
     "lru-cache": ["lru-cache@6.0.0", "", { "dependencies": { "yallist": "^4.0.0" } }, "sha512-Jo6dJ04CmSjuznwJSS3pUeWmd/H0ffTlkXXgwZi+eq1UCmqQwCh+eLsYOYCwY991i2Fah4h1BEMCx4qThGbsiA=="],
 
     "lru-memoizer": ["lru-memoizer@2.3.0", "", { "dependencies": { "lodash.clonedeep": "^4.5.0", "lru-cache": "6.0.0" } }, "sha512-GXn7gyHAMhO13WSKrIiNfztwxodVsP8IoZ3XfrJV4yH2x0/OeTO/FIaAHTY5YekdGgW94njfuKmyyt1E0mR6Ug=="],
+
+    "lucide-svelte": ["lucide-svelte@0.503.0", "", { "peerDependencies": { "svelte": "^3 || ^4 || ^5.0.0-next.42" } }, "sha512-oT1idMbgJKCCLWI4U7bdUYUZqxS78fiTGJuKGZ5u0NJNyuiUErDu3G7sXkYpfDwwspeid7gZSjrlJbTINEfErw=="],
 
     "magic-string": ["magic-string@0.30.17", "", { "dependencies": { "@jridgewell/sourcemap-codec": "^1.5.0" } }, "sha512-sNPKHvyjVf7gyjwS4xGTaW/mCnF8wnjtifKBEhxfZ7E/S8tQ0rssrwGNn6q8JH/ohItJfSQp9mBtQYuTlH5QnA=="],
 
