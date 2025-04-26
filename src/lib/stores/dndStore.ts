@@ -36,7 +36,7 @@ async function dragDropEventHandler(event: any): Promise<void> {
       await handleDroppedPaths(paths, target.path)
 
       if (target.path === get(mapsDirectory)) {
-        await refreshLocalMaps(target.path, 'drop')
+        await refreshLocalMaps()
       }
     } catch (err) {
       handleError(err, `Processing drop on ${target.path}`)

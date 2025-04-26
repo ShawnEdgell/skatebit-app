@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { themeChange } from 'theme-change'
-  import { ChevronDown } from 'lucide-svelte' // Import Lucide icon
+  import { ChevronDown } from 'lucide-svelte'
 
   type Theme = {
     label: string
@@ -21,19 +21,16 @@
     { label: 'Sunset', value: 'sunset' },
     { label: 'Dim', value: 'dim' },
     { label: 'Cyberpunk', value: 'cyberpunk' },
-    { label: 'silk', value: 'silk' },
-    { label: 'nord', value: 'nord' },
+    { label: 'Silk', value: 'silk' },
+    { label: 'Nord', value: 'nord' },
   ]
 
   let selectedTheme: string = themes[0].value
 
   onMount(() => {
     themeChange(false)
-
     const currentTheme = document.documentElement.getAttribute('data-theme')
-    if (currentTheme) {
-      selectedTheme = currentTheme
-    }
+    if (currentTheme) selectedTheme = currentTheme
   })
 
   function handleChange() {
@@ -43,9 +40,9 @@
 </script>
 
 <div title="Theme" class="dropdown dropdown-end">
-  <div tabindex="0" role="button" class="flex items-center gap-1.5">
+  <div tabindex="0" role="button" class="flex items-center gap-1">
     <span>Theme</span>
-    <ChevronDown class="inline-block h-3.5 w-3.5 opacity-80" />
+    <ChevronDown class="inline-block h-3.5 w-3.5 opacity-60" />
   </div>
   <ul
     tabindex="0"

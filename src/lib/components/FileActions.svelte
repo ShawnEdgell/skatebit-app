@@ -3,12 +3,12 @@
   import { invoke } from '@tauri-apps/api/core'
   import { join } from '@tauri-apps/api/path'
   import { revealItemInDir } from '@tauri-apps/plugin-opener'
-  import { FolderOpen, FolderPlus, FilePlus, Upload } from 'lucide-svelte'
   import type { FsEntry } from '$lib/types/fsTypes'
   import { currentPath, entries, refresh } from '$lib/stores/explorerStore'
   import { openModal, toastStore } from '$lib/stores/uiStore'
   import { normalizePath } from '$lib/services/pathService'
   import { handleError, handleSuccess } from '$lib/utils/errorHandler'
+  import { FolderOpen, FolderPlus, FilePlus, UploadCloud } from 'lucide-svelte'
 
   const dispatch = createEventDispatcher()
 
@@ -19,7 +19,7 @@
   async function createNewItem(itemType: 'folder' | 'file') {
     const isFolder = itemType === 'folder'
     const typeCapitalized = isFolder ? 'Folder' : 'File'
-    const typeLower = isFolder ? 'folder' : 'file'
+    const typeLower = typeCapitalized.toLowerCase()
 
     if (!$currentPath || $currentPath.startsWith('/error')) {
       handleError(
@@ -59,16 +59,13 @@
           return
         }
 
-        let newPath = ''
         try {
-          newPath = await join($currentPath, trimmed)
+          const newPath = await join($currentPath, trimmed)
           await invoke(
             isFolder ? 'create_directory_rust' : 'create_empty_file_rust',
             { absolutePath: normalizePath(newPath) },
           )
-
           await refresh()
-
           handleSuccess(
             `${typeCapitalized} "${trimmed}" created.`,
             'File Operation',
@@ -130,6 +127,6 @@
     aria-label="Upload Files"
     on:click={onUploadClick}
   >
-    <Upload class="h-4 w-4" aria-hidden="true" />
+    <UploadCloud class="h-4 w-4" aria-hidden="true" />
   </button>
 </div>

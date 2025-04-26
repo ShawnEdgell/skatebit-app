@@ -1,6 +1,7 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
   import { join } from '@tauri-apps/api/path'
+  import type { FsEntry } from '$lib/types/fsTypes'
   import { formatFileSize } from '$lib/utils/formatter'
   import { normalizePath } from '$lib/services/pathService'
   import { handleError, handleSuccess } from '$lib/utils/errorHandler'
@@ -14,14 +15,14 @@
     refresh,
   } from '$lib/stores/explorerStore'
   import { get } from 'svelte/store'
-  // Import Lucide icons
-  import { Folder, File, Pencil, Trash2 } from 'lucide-svelte'
 
-  export let loading: boolean = false
+  import { Folder, FileText, Edit2, Trash2 } from 'lucide-svelte'
+
+  export let loading = false
 
   async function handleOpenDirectory(folderName: string) {
-    if (!get(currentPath)) return handleError('Current path is not set', 'Open') // Use get() here
-    const newPath = await join(get(currentPath), folderName)
+    if (!$currentPath) return handleError('Current path is not set', 'Open')
+    const newPath = await join($currentPath, folderName)
     await setPath(normalizePath(newPath))
   }
 
@@ -39,10 +40,11 @@
   }
 
   async function onRename(name: string, itemPath: string) {
-    const currentPathVal = get(currentPath) // Get current value
-    if (!currentPathVal || currentPathVal.startsWith('/error')) {
-      handleError('Cannot rename: Current path is invalid.', 'Rename Setup')
-      return
+    if (!$currentPath || $currentPath.startsWith('/error')) {
+      return handleError(
+        'Cannot rename: Current path is invalid.',
+        'Rename Setup',
+      )
     }
     openModal({
       title: `Rename "${name}"`,
@@ -54,9 +56,8 @@
       onSave: async (newInputValue?: string) => {
         const newName = newInputValue?.trim()
         if (!newName || newName === name) return
-        const currentEntries = get(entries) // Get current value
-        const exists = currentEntries.find(
-          (e) => e?.name?.toLowerCase() === newName.toLowerCase(),
+        const exists = $entries.find(
+          (e) => !!e.name && e.name.toLowerCase() === newName.toLowerCase(),
         )
         if (exists) {
           const t = exists.isDirectory ? 'folder' : 'file'
@@ -68,16 +69,17 @@
         }
         const normOld = normalizePath(itemPath)
         if (!normOld) {
-          handleError('Could not normalize original item path.', 'Rename')
-          return
+          return handleError(
+            'Could not normalize original item path.',
+            'Rename',
+          )
         }
         const parent = normOld.slice(0, normOld.lastIndexOf('/')) || '/'
         let newAbsolute = ''
         try {
           newAbsolute = normalizePath(await join(parent, newName))
         } catch (e) {
-          handleError(e, 'Computing new path for rename')
-          return
+          return handleError(e, 'Computing new path for rename')
         }
         if (!newAbsolute || newAbsolute === normOld) {
           toastStore.addToast(
@@ -102,18 +104,16 @@
 
   async function onDelete(name: string, itemPath: string) {
     const normItem = normalizePath(itemPath)
-    const normBase = normalizePath(get(explorerDirectory)) // Get current value
+    const normBase = normalizePath($explorerDirectory)
     if (!normItem || (normBase && normItem === normBase)) {
-      handleError(
+      return handleError(
         'Invalid deletion target or attempting to delete base directory.',
         'Deletion',
       )
-      return
     }
     openModal({
       title: 'Confirm Deletion',
       message: `Move "${name}" to Recycle Bin?`,
-      confirmOnly: false,
       confirmText: 'Delete',
       cancelText: 'Cancel',
       confirmClass: 'btn-error',
@@ -149,52 +149,36 @@
         <span class="loading loading-spinner loading-lg"></span>
       </div>
     {/if}
+
     {#if !loading && $entries.length === 0}
       <div class="flex h-full items-center justify-center p-4">
         <p class="text-info mb-4">This folder is empty.</p>
       </div>
-    {:else if $entries.length > 0}
+    {:else}
       <ul>
         {#each $entries as entry (entry.path)}
           <li>
             <div
               class="hover:bg-base-300 flex w-full items-center justify-between gap-2 rounded-lg"
             >
-              {#if entry.isDirectory}
-                <button
-                  class="group flex min-w-0 flex-1 cursor-pointer items-center gap-3 px-2 py-1 text-left"
-                  on:click={() => handleOpenDirectory(entry.name!)}
-                  title={entry.name}
-                >
-                  <Folder
-                    class="text-info flex-shrink-0"
-                    size={20}
-                    stroke-width={1.5}
-                  />
-                  <span class="flex-1 truncate">{entry.name}</span>
-                  {#if entry.size != null}
-                    <span class="badge badge-xs badge-ghost ml-auto">
-                      {formatFileSize(entry.size)}
-                    </span>
-                  {/if}
-                </button>
-              {:else}
-                <div
-                  class="group flex min-w-0 flex-1 cursor-default items-center gap-3 px-2 py-1"
-                >
-                  <File
-                    class="text-base-content/80 flex-shrink-0"
-                    size={20}
-                    stroke-width={1.5}
-                  />
-                  <span class="flex-1 truncate">{entry.name}</span>
-                  {#if entry.size != null}
-                    <span class="badge badge-xs badge-ghost ml-auto">
-                      {formatFileSize(entry.size)}
-                    </span>
-                  {/if}
-                </div>
-              {/if}
+              <button
+                class="group flex min-w-0 flex-1 cursor-pointer items-center gap-3 px-2 py-1 text-left"
+                on:click={() =>
+                  entry.isDirectory ? handleOpenDirectory(entry.name!) : null}
+                title={entry.name}
+              >
+                {#if entry.isDirectory}
+                  <Folder class="text-info h-5 w-5" />
+                {:else}
+                  <FileText class="text-base-content/80 h-5 w-5" />
+                {/if}
+                <span class="flex-1 truncate">{entry.name}</span>
+                {#if entry.size != null}
+                  <span class="badge badge-xs badge-ghost ml-auto">
+                    {formatFileSize(entry.size)}
+                  </span>
+                {/if}
+              </button>
 
               <div class="flex gap-1">
                 <button
@@ -204,7 +188,7 @@
                     onRename(entry.name!, entry.path)}
                   disabled={!entry.name}
                 >
-                  <Pencil class="h-3 w-3" stroke-width={1.5} />
+                  <Edit2 class="h-4 w-4" />
                 </button>
                 <button
                   title="Delete"
@@ -213,18 +197,13 @@
                     onDelete(entry.name!, entry.path)}
                   disabled={!entry.name}
                 >
-                  <Trash2 class="h-3 w-3" stroke-width={1.5} />
+                  <Trash2 class="h-4 w-4" />
                 </button>
               </div>
             </div>
           </li>
         {/each}
       </ul>
-    {/if}
-    {#if loading && $entries.length > 0}
-      <div class="flex items-center justify-center px-4 py-2">
-        <span class="loading loading-spinner loading-md"></span>
-      </div>
     {/if}
   {/if}
 </div>

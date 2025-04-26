@@ -4,58 +4,53 @@
   import { isMapsSymlinked } from '$lib/stores/globalPathsStore'
   import { setPath } from '$lib/stores/explorerStore'
   import { handleError } from '$lib/utils/errorHandler'
-  import type { ComponentType, SvelteComponent } from 'svelte'
-
+  import type { SvelteComponent } from 'svelte'
   import {
     MapPin,
     Shirt,
-    Palette,
+    Layers2,
     BarChart2,
-    PersonStanding,
-    Sparkles,
+    User,
+    Activity,
     Bone,
     Footprints,
-    Link, // <-- Import the Link icon
+    Link2,
   } from 'lucide-svelte'
 
-  export let currentPath: string = ''
-  export let baseFolder: string = ''
+  export let currentPath = ''
+  export let baseFolder = ''
 
   $: normalizedCurrentPath = normalizePath(currentPath)
 
-  interface TabInfo {
+  interface Tab {
     label: string
     subfolder: string
-    icon: ComponentType<SvelteComponent>
+    Icon: typeof SvelteComponent
+    showLinkIndicator?: boolean
   }
 
-  const tabs: TabInfo[] = [
-    { label: 'Maps', subfolder: 'Maps', icon: MapPin },
-    { label: 'Gear', subfolder: 'Gear', icon: Shirt },
+  const tabs: Tab[] = [
+    { label: 'Maps', subfolder: 'Maps', Icon: MapPin, showLinkIndicator: true },
+    { label: 'Gear', subfolder: 'Gear', Icon: Shirt },
     {
       label: 'XLGM Assets',
       subfolder: 'XLGearModifier/Asset Packs',
-      icon: Palette,
+      Icon: Layers2,
     },
-    { label: 'Stats', subfolder: 'XXLMod3/StatsCollections', icon: BarChart2 },
-    {
-      label: 'Stance',
-      subfolder: 'XXLMod3/StanceCollections',
-      icon: PersonStanding,
-    },
-    { label: 'Steeze', subfolder: 'XXLMod3/SteezeCollections', icon: Sparkles },
-    { label: 'BonedOllieMod', subfolder: 'BonedOllieMod', icon: Bone },
+    { label: 'Stats', subfolder: 'XXLMod3/StatsCollections', Icon: BarChart2 },
+    { label: 'Stance', subfolder: 'XXLMod3/StanceCollections', Icon: User },
+    { label: 'Steeze', subfolder: 'XXLMod3/SteezeCollections', Icon: Activity },
+    { label: 'BonedOllieMod', subfolder: 'BonedOllieMod', Icon: Bone },
     {
       label: 'Walking Mod',
       subfolder: 'walking-mod/animations',
-      icon: Footprints,
+      Icon: Footprints,
     },
   ]
 
   async function handleSwitchTab(subfolder: string) {
     if (!baseFolder || baseFolder.startsWith('/error')) {
-      handleError('Base path not initialized', 'Switch Tab')
-      return
+      return handleError('Base path not initialized', 'Switch Tab')
     }
     try {
       const newAbsolutePath = normalizePath(await join(baseFolder, subfolder))
@@ -68,32 +63,28 @@
 
 <section>
   <div
-    class="bg-base-200 rounded-box z-10 flex w-64 flex-col items-start space-y-1 p-2 shadow-md"
+    class="bg-base-200 rounded-box z-10 flex w-64 flex-col items-center space-y-1 p-2 shadow-md"
   >
-    {#each tabs as tab (tab.subfolder)}
+    {#each tabs as tab}
       {@const expectedPath = normalizePath(`${baseFolder}/${tab.subfolder}`)}
       {@const isActive = normalizedCurrentPath === expectedPath}
 
       <button
         type="button"
-        class="btn btn-ghost h-auto w-full justify-between p-3 text-left"
+        class="btn btn-ghost h-auto w-full justify-between p-3"
         class:btn-active={isActive}
         class:bg-primary={isActive}
         class:text-primary-content={isActive}
         on:click={() => handleSwitchTab(tab.subfolder)}
         title={tab.label}
       >
-        <span class="flex items-center gap-2">
-          <svelte:component this={tab.icon} size={16} class="flex-shrink-0" />
+        <span class="flex items-center gap-2 text-lg">
+          <svelte:component this={tab.Icon} class="h-5 w-5" />
           <span class="text-sm font-medium normal-case">{tab.label}</span>
         </span>
 
-        {#if tab.subfolder === 'Maps' && $isMapsSymlinked}
-          <Link
-            class="text-info h-4 w-4 flex-shrink-0"
-            stroke-width={2}
-            aria-hidden="true"
-          />
+        {#if tab.showLinkIndicator && $isMapsSymlinked}
+          <Link2 class="text-info h-4 w-4" />
         {/if}
       </button>
     {/each}
