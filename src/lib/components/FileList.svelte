@@ -152,7 +152,7 @@
 
     {#if !loading && $entries.length === 0}
       <div class="flex h-full items-center justify-center p-4">
-        <p class="text-info mb-4">This folder is empty.</p>
+        <p class="text-info mb-4 text-sm">This folder is empty.</p>
       </div>
     {:else}
       <ul>

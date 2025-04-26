@@ -44,18 +44,20 @@
   }
 </script>
 
-<div class="flex h-full flex-col items-center justify-center space-y-4">
-  {#if user}
-    <img src={user.photoURL} alt="avatar" class="h-12 w-12 rounded-full" />
-    <p>Hello, {user.displayName}</p>
-    <button on:click={logout} class="btn btn-error"> Logout </button>
-  {:else}
-    <button on:click={login} class="btn btn-primary">
-      Sign in with Google
-    </button>
-  {/if}
+{#if user}
+  <div class="flex justify-between">
+    <div class="flex items-center gap-2">
+      <img src={user.photoURL} alt="avatar" class="h-6 w-6 rounded-full" />
+      <p class="text-xs">Hello, {user.displayName}!</p>
+    </div>
+    <button on:click={logout} class="btn btn-error btn-xs"> Logout </button>
+  </div>
+{:else}
+  <button on:click={login} class="btn btn-sm btn-primary">
+    Sign in with Google
+  </button>
+{/if}
 
-  {#if error}
-    <p class="text-error mt-1">{error}</p>
-  {/if}
-</div>
+{#if error}
+  <p class="text-error mt-1">{error}</p>
+{/if}

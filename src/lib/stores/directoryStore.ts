@@ -2,31 +2,23 @@ import { writable, get, type Readable, type Writable } from 'svelte/store'
 import { listen } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
 import { browser } from '$app/environment'
-import type {
-  DirectoryListingResult,
-  FsEntry,
-  ListingStatus,
-} from '$lib/types/fsTypes' // <-- Import missing types
-import { handleError } from '$lib/utils/errorHandler' // <-- Import handleError if used in catch
+import type { DirectoryListingResult } from '$lib/types/fsTypes'
+import { handleError } from '$lib/utils/errorHandler'
 
 export interface DirectoryStore<E> {
   entries: Writable<E[]>
   loading: Writable<boolean>
   error: Writable<string | null>
   currentPath: Writable<string>
-  /** Reloads the given path (or the currentPath if omitted) */
   refresh: (path?: string) => Promise<void>
-  /** Switches to a new path, starts watching it, then loads it */
   setPath: (path: string) => Promise<void>
 }
 
-export function createDirectoryStore<E, R extends DirectoryListingResult>( // Constrain R slightly if always used with status
+export function createDirectoryStore<E, R extends DirectoryListingResult>(
   basePathStore: Readable<string>,
   opts: {
     loadFn: (fullPath: string) => Promise<R>
-    extract: (
-      res: R,
-    ) => E[] /** If true, uses `update_maps_watched_path` instead of remove/add */
+    extract: (res: R) => E[]
     useMapsWatcher?: boolean
   },
 ): DirectoryStore<E> {
@@ -57,8 +49,6 @@ export function createDirectoryStore<E, R extends DirectoryListingResult>( // Co
       }
     } catch (e) {
       console.warn('[directoryStore] watcher command failed', e)
-      // Optionally use handleError here if preferred over console.warn
-      // handleError(e, '[directoryStore] Watcher command failed');
     }
 
     if (browser) {
@@ -70,7 +60,6 @@ export function createDirectoryStore<E, R extends DirectoryListingResult>( // Co
             manualUpdateInProgress = false
             return
           }
-          // Check if currentPath has a value before calling startsWith
           const currentPathValue = get(currentPath)
           if (
             currentPathValue &&
@@ -88,16 +77,13 @@ export function createDirectoryStore<E, R extends DirectoryListingResult>( // Co
     if (prev && prev !== dir) {
       await _watch(prev, dir)
     } else if (!prev && dir) {
-      // Ensure dir is not empty
       await _watch(null, dir)
     }
     if (dir) {
-      // Only set path and refresh if dir is valid
       currentPath.set(dir)
       markManualUpdate()
       await refresh(dir)
     } else {
-      // Handle empty/invalid dir case if needed (e.g., clear state)
       currentPath.set('')
       entries.set([])
       error.set('Invalid directory path provided to setPath.')
@@ -108,12 +94,12 @@ export function createDirectoryStore<E, R extends DirectoryListingResult>( // Co
   async function refresh(explicit?: string) {
     const dir =
       (explicit?.trim() ||
-        get(currentPath)?.trim() || // Add null check
-        get(basePathStore)?.trim()) ?? // Add null check
+        get(currentPath)?.trim() ||
+        get(basePathStore)?.trim()) ??
       ''
     if (!dir) {
       entries.set([])
-      error.set('No directory path specified for refresh.') // Set error
+      error.set('No directory path specified for refresh.')
       return
     }
 
@@ -123,38 +109,31 @@ export function createDirectoryStore<E, R extends DirectoryListingResult>( // Co
     loading.set(true)
     error.set(null)
     try {
-      const res = await opts.loadFn(dir) // R is expected to be DirectoryListingResult based on usage
+      const res = await opts.loadFn(dir)
 
-      // Use explicit checks and type guard for status
       if (res && typeof res === 'object' && 'status' in res) {
-        const resultWithStatus = res as DirectoryListingResult // Type assertion after check
+        const resultWithStatus = res as DirectoryListingResult
         if (resultWithStatus.status === 'doesNotExist') {
-          // Use string comparison or import ListingStatus enum
           const pathInError = resultWithStatus.path || dir
           error.set(`This folder does not exist yet: ${pathInError}`)
           entries.set([])
         } else {
-          // Status is not DoesNotExist, or status field doesn't exist
           entries.set(opts.extract(res))
-          // Ensure error is null only if load was successful AND status wasn't DoesNotExist
           if (!('status' in res) || res.status !== 'doesNotExist') {
             error.set(null)
           }
         }
       } else {
-        // Fallback if result doesn't have a status property (shouldn't happen with current Rust code)
         console.warn(
           "[directoryStore] Result from loadFn missing 'status' property.",
         )
-        entries.set(opts.extract(res)) // Assume success if status missing? Or set error?
-        error.set(null) // Assuming success if status is missing
+        entries.set(opts.extract(res))
+        error.set(null)
       }
-      // Only update currentPath if we didn't hit the 'doesNotExist' case? Or always update?
-      // Keeping original logic: always update path if refresh was called for it.
       currentPath.set(dir)
     } catch (e: any) {
       console.error('[directoryStore] load error', e)
-      handleError(e, `[directoryStore] load error for ${dir}`) // Use handleError
+      handleError(e, `[directoryStore] load error for ${dir}`)
       error.set(e.message ?? String(e))
       entries.set([])
     } finally {
@@ -162,12 +141,8 @@ export function createDirectoryStore<E, R extends DirectoryListingResult>( // Co
     }
   }
 
-  // Use effect cleanup for listeners? Maybe not needed if component handles it
-  // onDestroy(() => { unlisten?.(); }); // Consider if needed here or just in layout
-
   basePathStore.subscribe((bp) => {
     if (bp?.trim() && browser) {
-      // Ensure runs only in browser
       void setPath(bp.trim())
     }
   })
