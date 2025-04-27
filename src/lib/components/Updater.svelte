@@ -88,8 +88,8 @@
   </div>
 {/if}
 
-<!-- <footer
+<footer
   class="text-base-content/40 fixed inset-x-0 bottom-0 p-4 text-xs font-semibold"
 >
   Current Version: {$currentVersion}
-</footer> -->
+</footer>

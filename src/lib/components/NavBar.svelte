@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Window } from '@tauri-apps/api/window'
   import ThemeController from './ThemeController.svelte'
+  import LoginAvatar from './LoginAvatar.svelte'
   import FolderSelector from './FolderSelector.svelte'
   import { page } from '$app/stores'
   import { Minus, Maximize2, X } from 'lucide-svelte'
@@ -17,7 +18,7 @@
   const navLinks: NavLink[] = [
     { href: '/', title: 'Folders', text: 'Folders' },
     { href: '/modio', title: 'Maps', text: 'Maps' },
-    { href: '/stats', title: 'Stats', text: 'Stats (dev)', dev: true },
+    { href: '/stats', title: 'Stats', text: 'Stats' },
   ]
 
   // Filter out dev-only links in production
@@ -75,6 +76,7 @@
       <ul class="menu menu-horizontal mr-2">
         <li><FolderSelector /></li>
         <li><ThemeController /></li>
+        <LoginAvatar />
       </ul>
       <div class="flex space-x-2">
         {#each windowControls as control (control.action)}

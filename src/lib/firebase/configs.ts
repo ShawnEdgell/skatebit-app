@@ -11,7 +11,7 @@ import {
   arrayRemove,
   increment,
   type DocumentData,
-  Timestamp, // <-- Change 'import type' to regular import
+  Timestamp, // <-- Changed to regular import
   type FieldValue, // <-- Import FieldValue type
 } from 'firebase/firestore'
 import { auth, db } from './firebase'
@@ -26,9 +26,10 @@ export type ConfigMeta = {
   createdAt: Timestamp | FieldValue
   likesBy: string[]
   downloadCount: number
+  description?: string // <-- Added optional description
   // Add optional updatedAt, allow FieldValue for writes
   updatedAt?: Timestamp | FieldValue
-  xml?: string
+  xml?: string // Only present when fetching single doc with XML
 }
 
 /**
@@ -37,16 +38,19 @@ export type ConfigMeta = {
 export async function listConfigMeta(category: string): Promise<ConfigMeta[]> {
   const snap = await getDocs(collection(db, 'configs', category, 'files'))
   return snap.docs.map((d) => {
+    // Cast to Partial to handle potentially missing fields in older data
     const data = d.data() as Partial<ConfigMeta>
     return {
       fileName: data.fileName ?? d.id,
       author: data.author ?? { uid: 'unknown', name: 'Unknown' },
-      // Provide a client-side Timestamp fallback if needed, ensuring it's Timestamp type after read
+      // Provide a client-side Timestamp fallback if needed
       createdAt: data.createdAt ?? Timestamp.now(),
       likesBy: data.likesBy ?? [],
       downloadCount: data.downloadCount ?? 0,
-      updatedAt: data.updatedAt, // Pass through updatedAt if it exists
+      description: data.description, // <-- Read description if it exists
+      updatedAt: data.updatedAt,
       // xml is not fetched here
+      // Ensure the final object matches ConfigMeta structure
     } as ConfigMeta
   })
 }
@@ -61,23 +65,25 @@ export async function fetchConfigXml(
   const ref = doc(db, 'configs', category, 'files', fileName)
   const snap = await getDoc(ref)
   if (!snap.exists()) return null
+  // Assume 'xml' field exists if document exists, adjust if needed
   return (snap.data() as DocumentData).xml as string
 }
 
 /**
- * Create or overwrite a config
+ * Create or overwrite a config, now including an optional description
  */
 export async function saveConfigXml(
   category: string,
   fileName: string,
   xml: string,
+  description?: string, // <-- Added optional description parameter
 ) {
   const u = auth.currentUser
   if (!u) throw new Error('Not signed in')
   const ref = doc(db, 'configs', category, 'files', fileName)
   const snap = await getDoc(ref)
 
-  // Use Partial<ConfigMeta> for the object being set, TS is now okay with FieldValue
+  // Use Partial<ConfigMeta> for the object being set
   const dataToSet: Partial<ConfigMeta> = {
     fileName,
     xml,
@@ -85,13 +91,28 @@ export async function saveConfigXml(
     updatedAt: serverTimestamp(), // Add/update the updatedAt timestamp
   }
 
-  if (!snap.exists()) {
-    // Set initial values only for new documents
-    dataToSet.createdAt = serverTimestamp() // This is now assignable
-    dataToSet.likesBy = []
-    dataToSet.downloadCount = 0
+  // Only add description if it's provided and not empty
+  if (description && description.trim().length > 0) {
+    dataToSet.description = description.trim() // <-- Add description if present
   }
 
+  if (!snap.exists()) {
+    // Set initial values only for new documents
+    dataToSet.createdAt = serverTimestamp()
+    dataToSet.likesBy = []
+    dataToSet.downloadCount = 0
+    // If description wasn't provided for a new doc, it won't be set initially
+  } else {
+    // If updating and no description provided, ensure it doesn't overwrite
+    // an existing description unless explicitly setting it to empty/null.
+    // The current logic only adds it if provided, otherwise leaves it untouched
+    // due to { merge: true }. If you want to explicitly clear it, add:
+    // else if (!description || description.trim().length === 0) {
+    //   dataToSet.description = null; // Or deleteField() if preferred
+    // }
+  }
+
+  // Use merge: true to update existing fields and add new ones
   await setDoc(ref, dataToSet, { merge: true })
 }
 
@@ -104,14 +125,16 @@ export async function incrementDownloadCount(
 ) {
   const ref = doc(db, 'configs', category, 'files', fileName)
   try {
+    // Increment count, or set to 1 if field doesn't exist yet
     await updateDoc(ref, { downloadCount: increment(1) })
   } catch (error: any) {
     if (error.code === 'not-found') {
       console.warn(
         `Document ${fileName} not found for download count increment.`,
       )
+      // Optionally create the doc with count 1? Or just ignore.
     } else {
-      throw error
+      throw error // Re-throw other errors
     }
   }
 }
@@ -130,18 +153,33 @@ export async function toggleLikeConfigXml(category: string, fileName: string) {
     throw new Error(`Config "${fileName}" not found.`)
   }
 
-  // Cast needed here as read data will always be Timestamp
-  const configData = snap.data() as Omit<
-    ConfigMeta,
-    'createdAt' | 'updatedAt'
-  > & { createdAt: Timestamp; updatedAt?: Timestamp }
-  const currentLikes: string[] = configData.likesBy || []
+  // Read likes array, default to empty if missing
+  const currentLikes: string[] = (snap.data() as DocumentData).likesBy || []
 
   if (currentLikes.includes(u.uid)) {
+    // User currently likes it, remove like
     await updateDoc(ref, { likesBy: arrayRemove(u.uid) })
   } else {
+    // User doesn't like it, add like
     await updateDoc(ref, { likesBy: arrayUnion(u.uid) })
   }
+}
+
+/**
+ * Update just the metadata (e.g. description) for a given config.
+ */
+export async function updateConfigMeta(
+  category: string,
+  fileName: string,
+  updates: Partial<Pick<ConfigMeta, 'fileName' | 'description'>>,
+) {
+  const u = auth.currentUser
+  if (!u) throw new Error('Not signed in')
+  const ref = doc(db, 'userConfigs', u.uid, category, fileName)
+  await updateDoc(ref, {
+    ...updates,
+    updatedAt: serverTimestamp(),
+  })
 }
 
 /**
@@ -158,12 +196,8 @@ export async function deleteConfigXml(category: string, fileName: string) {
     throw new Error(`Config "${fileName}" not found.`)
   }
 
-  // Cast needed here as read data will always be Timestamp
-  const configData = snap.data() as Omit<
-    ConfigMeta,
-    'createdAt' | 'updatedAt'
-  > & { createdAt: Timestamp; updatedAt?: Timestamp }
-
+  // Check author field for permission
+  const configData = snap.data() as Partial<ConfigMeta> // Use Partial for safety
   if (configData.author?.uid !== u.uid) {
     throw new Error('You are not authorized to delete this config.')
   }

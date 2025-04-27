@@ -119,7 +119,9 @@
     <p class="text-base-content/70 w-md">
       The local folder for {category.name} doesn't seem to exist:
     </p>
-    <p class="text-base-content/70 bg-base-200 rounded p-2 font-mono text-sm">
+    <p
+      class="text-base-content/70 bg-base-200 rounded-box p-2 font-mono text-sm"
+    >
       {localPath || 'N/A'}
     </p>
     <p class="text-base-content/70 w-md">{$explorerError}</p>
@@ -137,7 +139,9 @@
     <p class="text-base-content/70 w-md">
       Could not load local files for {category.name}:
     </p>
-    <p class="text-base-content/70 bg-base-200 rounded p-2 font-mono text-sm">
+    <p
+      class="text-base-content/70 bg-base-200 rounded-box p-2 font-mono text-sm"
+    >
       {localPath || 'N/A'}
     </p>
     <p class="text-base-content/70 w-md">{$explorerError}</p>
