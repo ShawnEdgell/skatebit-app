@@ -156,23 +156,28 @@
 
         <form on:submit|preventDefault={saveProfile} class="space-y-4">
           <div>
-            <label for="bio" class="label">
+            <label for="bio" class="label pb-1">
               <span class="label-text font-medium">Bio</span>
             </label>
             <textarea
               id="bio"
-              class="textarea w-full"
+              class="textarea textarea-bordered w-full"
               rows="3"
               placeholder="Tell us a little about yourself..."
               bind:value={$profileData.bio}
               maxlength="200"
+              aria-describedby="bio-helper"
             ></textarea>
-            <label class="label">
+
+            <div class="label pt-1">
               <span class="label-text-alt"></span>
-              <span class="label-text-alt text-base-content/60 text-xs"
-                >Max 200 characters</span
+              <span
+                id="bio-helper"
+                class="label-text-alt text-base-content/60 text-xs"
               >
-            </label>
+                Max 200 characters
+              </span>
+            </div>
           </div>
 
           <h3 class="pt-4 text-lg font-semibold">Social Links</h3>

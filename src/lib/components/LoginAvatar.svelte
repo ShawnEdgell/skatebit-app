@@ -3,7 +3,7 @@
   import { auth } from '$lib/firebase/firebase'
   import { signOut } from 'firebase/auth'
   import { handleError } from '$lib/utils/errorHandler'
-  import { User } from 'lucide-svelte' // Use the Lucide User icon
+  import { UserCircle } from 'lucide-svelte' // Use the Lucide User icon
   import LoginButtonGoogle from '$lib/components/LoginButtonGoogle.svelte'
 
   async function logout() {
@@ -31,7 +31,7 @@
           class="h-full w-full rounded-full object-cover"
         />
       {:else}
-        <User class="h-6 w-6" stroke-width={1.5} />
+        <UserCircle class="h-full w-full" />
       {/if}
     </div>
   </label>

@@ -1,7 +1,10 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte'
   import type { User } from 'firebase/auth'
-  import HubListItem from './HubListItem.svelte'
+  // Corrected import: Use named import or direct import
+  import HubListItem from './HubListItem.svelte' // Svelte often allows direct import like this
+  // Or, more explicitly for non-default exports:
+  // import { HubListItem } from './HubListItem.svelte'; // This would require HubListItem to be explicitly exported if it wasn't the component itself
   import type { ConfigMeta } from '$lib/firebase/configs'
   import type { Category } from './CategorySelector.svelte'
 
@@ -19,13 +22,7 @@
 
   // Generic function to forward events from list items
   function forwardEvent(event: CustomEvent) {
-    // Log ALL events being forwarded for debugging
     // console.log(`[HubList] forwardEvent received event: type=${event.type}, detail=`, event.detail);
-
-    // Specifically check if it's the one we care about
-    // if (event.type === 'showDetails') {
-    //     console.log('[HubList] Forwarding showDetails event...');
-    // }
     dispatch(event.type, event.detail)
   }
 </script>

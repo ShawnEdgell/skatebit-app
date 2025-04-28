@@ -9,7 +9,7 @@
   let description = config.description || ''
 
   function save() {
-    dispatch('confirm', {
+    dispatch('save', {
       ...config,
       fileName: displayName.trim(),
       description: description.trim(),
@@ -34,7 +34,7 @@
     ></textarea>
   </div>
   <div class="flex justify-end gap-2">
-    <button class="btn btn-secondary btn-sm" on:click={cancel}>Cancel</button>
+    <button class="btn btn-secondary btn-sm" on:click={cancel}> Cancel </button>
     <button
       class="btn btn-primary btn-sm"
       on:click={save}

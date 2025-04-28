@@ -2,19 +2,19 @@ import {
   collection,
   doc,
   getDocs,
-  getDoc,
+  getDoc, // Import getDoc
   setDoc,
   updateDoc,
   deleteDoc,
-  serverTimestamp, // Keep serverTimestamp
+  serverTimestamp,
   arrayUnion,
   arrayRemove,
   increment,
   type DocumentData,
-  Timestamp, // <-- Changed to regular import
-  type FieldValue, // <-- Import FieldValue type
+  Timestamp,
+  type FieldValue,
 } from 'firebase/firestore'
-import { auth, db } from './firebase'
+import { auth, db } from './firebase' // Your firebase config import
 
 /**
  * Metadata shape for each XML config in Firestore
@@ -22,13 +22,11 @@ import { auth, db } from './firebase'
 export type ConfigMeta = {
   fileName: string
   author: { uid: string; name: string | null }
-  // Allow FieldValue during writes, reads will be Timestamp
   createdAt: Timestamp | FieldValue
   likesBy: string[]
   downloadCount: number
-  description?: string // <-- Added optional description
-  // Add optional updatedAt, allow FieldValue for writes
-  updatedAt?: Timestamp | FieldValue
+  description?: string // Optional description
+  updatedAt?: Timestamp | FieldValue // Optional update timestamp
   xml?: string // Only present when fetching single doc with XML
 }
 
@@ -47,8 +45,8 @@ export async function listConfigMeta(category: string): Promise<ConfigMeta[]> {
       createdAt: data.createdAt ?? Timestamp.now(),
       likesBy: data.likesBy ?? [],
       downloadCount: data.downloadCount ?? 0,
-      description: data.description, // <-- Read description if it exists
-      updatedAt: data.updatedAt,
+      description: data.description, // Read description if it exists
+      updatedAt: data.updatedAt, // Pass through updatedAt if it exists
       // xml is not fetched here
       // Ensure the final object matches ConfigMeta structure
     } as ConfigMeta
@@ -76,10 +74,11 @@ export async function saveConfigXml(
   category: string,
   fileName: string,
   xml: string,
-  description?: string, // <-- Added optional description parameter
+  description?: string, // Added optional description parameter
 ) {
   const u = auth.currentUser
   if (!u) throw new Error('Not signed in')
+  // Use the CORRECT path
   const ref = doc(db, 'configs', category, 'files', fileName)
   const snap = await getDoc(ref)
 
@@ -93,7 +92,7 @@ export async function saveConfigXml(
 
   // Only add description if it's provided and not empty
   if (description && description.trim().length > 0) {
-    dataToSet.description = description.trim() // <-- Add description if present
+    dataToSet.description = description.trim() // Add description if present
   }
 
   if (!snap.exists()) {
@@ -101,18 +100,9 @@ export async function saveConfigXml(
     dataToSet.createdAt = serverTimestamp()
     dataToSet.likesBy = []
     dataToSet.downloadCount = 0
-    // If description wasn't provided for a new doc, it won't be set initially
-  } else {
-    // If updating and no description provided, ensure it doesn't overwrite
-    // an existing description unless explicitly setting it to empty/null.
-    // The current logic only adds it if provided, otherwise leaves it untouched
-    // due to { merge: true }. If you want to explicitly clear it, add:
-    // else if (!description || description.trim().length === 0) {
-    //   dataToSet.description = null; // Or deleteField() if preferred
-    // }
+    // Description is only added if provided above
   }
-
-  // Use merge: true to update existing fields and add new ones
+  // Use setDoc with merge: true for create or update logic here
   await setDoc(ref, dataToSet, { merge: true })
 }
 
@@ -123,6 +113,7 @@ export async function incrementDownloadCount(
   category: string,
   fileName: string,
 ) {
+  // Use the CORRECT path
   const ref = doc(db, 'configs', category, 'files', fileName)
   try {
     // Increment count, or set to 1 if field doesn't exist yet
@@ -145,6 +136,7 @@ export async function incrementDownloadCount(
 export async function toggleLikeConfigXml(category: string, fileName: string) {
   const u = auth.currentUser
   if (!u) throw new Error('Not signed in')
+  // Use the CORRECT path
   const ref = doc(db, 'configs', category, 'files', fileName)
   const snap = await getDoc(ref)
 
@@ -166,20 +158,80 @@ export async function toggleLikeConfigXml(category: string, fileName: string) {
 }
 
 /**
- * Update just the metadata (e.g. description) for a given config.
+ * Update specific metadata fields (like description) for a given config.
+ * ADDED DETAILED LOGGING FOR DEBUGGING PERMISSIONS.
  */
 export async function updateConfigMeta(
   category: string,
   fileName: string,
-  updates: Partial<Pick<ConfigMeta, 'fileName' | 'description'>>,
+  // Only allow updating 'description'. 'updatedAt' is added automatically.
+  updates: Partial<Pick<ConfigMeta, 'description'>>,
 ) {
+  const functionName = '[updateConfigMeta]' // For easier log filtering
   const u = auth.currentUser
-  if (!u) throw new Error('Not signed in')
-  const ref = doc(db, 'userConfigs', u.uid, category, fileName)
-  await updateDoc(ref, {
-    ...updates,
-    updatedAt: serverTimestamp(),
-  })
+
+  // --- Log 1: Check Authentication State ---
+  if (!u) {
+    console.error(
+      `${functionName} Update failed: User not signed in according to auth.currentUser.`,
+    )
+    throw new Error('Not signed in')
+  }
+  console.log(`${functionName} User authenticated: UID = ${u.uid}`)
+
+  // --- Log 2: Define Document Reference ---
+  const ref = doc(db, 'configs', category, 'files', fileName)
+  console.log(`${functionName} Target document path: ${ref.path}`)
+
+  try {
+    // --- Log 3: Fetch Existing Document Data ---
+    console.log(
+      `${functionName} Fetching existing document to verify author...`,
+    )
+    const docSnap = await getDoc(ref)
+
+    if (!docSnap.exists()) {
+      console.error(`${functionName} Document not found at path: ${ref.path}`)
+      throw new Error(`Config "${fileName}" not found.`)
+    }
+
+    const existingData = docSnap.data() as Partial<ConfigMeta>
+    const authorUidInDoc = existingData.author?.uid
+    console.log(
+      `${functionName} Author UID in fetched document: ${authorUidInDoc}`,
+    )
+
+    // --- Log 4: Compare UIDs ---
+    if (u.uid !== authorUidInDoc) {
+      // This check should ideally be redundant if rules are correct, but good for debugging
+      console.error(
+        `${functionName} CRITICAL: UID Mismatch! Current user ${u.uid} is NOT the author ${authorUidInDoc}. Update will likely fail.`,
+      )
+      // Optionally throw an error here to stop before the update attempt
+      // throw new Error('UID Mismatch detected before update attempt.');
+    } else {
+      console.log(`${functionName} UIDs match. Proceeding with update attempt.`)
+    }
+
+    // --- Log 5: Prepare Update Data ---
+    const dataToUpdate = {
+      ...updates, // Include the allowed fields (e.g., description)
+      updatedAt: serverTimestamp(), // Always add/update the timestamp
+    }
+    console.log(`${functionName} Data being sent to updateDoc:`, dataToUpdate)
+
+    // --- Perform the update ---
+    await updateDoc(ref, dataToUpdate)
+    console.log(`${functionName} updateDoc called successfully for ${fileName}`)
+  } catch (error) {
+    // Log the error before re-throwing or handling
+    console.error(
+      `${functionName} Error during updateDoc for ${fileName}:`,
+      error,
+    )
+    // Re-throw the error so the calling function (handleSaveEdit) catches it
+    throw error
+  }
 }
 
 /**
@@ -188,7 +240,7 @@ export async function updateConfigMeta(
 export async function deleteConfigXml(category: string, fileName: string) {
   const u = auth.currentUser
   if (!u) throw new Error('Not signed in')
-
+  // Use the CORRECT path
   const ref = doc(db, 'configs', category, 'files', fileName)
   const snap = await getDoc(ref)
 

@@ -25,15 +25,23 @@ function filterByPlatform(mod: Mod): boolean {
 }
 
 export const fetchModsPage = async (page: number): Promise<Mod[]> => {
+  const docId = `page_${page}` // Define the document ID
+  const docPath = `mods/${docId}` // Define the full path for logging
   try {
-    const snap = await getDoc(doc(db, 'mods', `page_${page}`))
-    if (!snap.exists()) return []
+    console.log(`[fetchModsPage] Attempting to get doc: ${docPath}`) // Log the correct path
+    const docRef = doc(db, 'mods', docId) // Use the docId variable
+    const snap = await getDoc(docRef)
+    if (!snap.exists()) {
+      console.log(`[fetchModsPage] Document not found: ${docPath}`)
+      return []
+    }
     const data = snap.data()
     const mods = Array.isArray(data?.mods) ? (data.mods as Mod[]) : []
     return mods.filter(filterByPlatform)
   } catch (e) {
-    handleError(e, `fetchModsPage (page ${page})`)
-    return []
+    // Pass the error and context to the handler
+    handleError(e, `fetchModsPage (page ${page}) - Path: ${docPath}`)
+    return [] // Return empty array on error
   }
 }
 
@@ -43,18 +51,28 @@ export const fetchAllMods = async (): Promise<Mod[]> => {
   let more = true
 
   while (more && page <= 50) {
+    // Limit to 50 pages to prevent infinite loops
     console.log(`Fetching mods page ${page}…`)
-    const batch = await fetchModsPage(page)
-    console.log(`→ got ${batch.length}`)
-    all = all.concat(batch)
-
-    if (
-      batch.length === 0 ||
-      batch.length < FIRESTORE_PAGE_SIZE_ESTIMATE * 0.8
-    ) {
-      more = false
-    } else {
-      page++
+    try {
+      // Add try-catch around fetchModsPage call
+      const batch = await fetchModsPage(page)
+      console.log(`→ got ${batch.length}`)
+      if (batch.length === 0) {
+        more = false // Stop if a page returns 0 mods
+      } else {
+        all = all.concat(batch)
+        // Adjust stopping condition if needed
+        if (batch.length < FIRESTORE_PAGE_SIZE_ESTIMATE * 0.5) {
+          // Stop if significantly less than expected
+          more = false
+        } else {
+          page++
+        }
+      }
+    } catch (error) {
+      // Error is already handled within fetchModsPage, but we can log here too
+      console.error(`Error fetching page ${page} in fetchAllMods, stopping.`)
+      more = false // Stop fetching on error
     }
   }
 
@@ -79,12 +97,12 @@ export const sortMods = (mods: Mod[], sortType: SortType): Mod[] =>
 export function mapModToFsEntry(mod: Mod) {
   return {
     name: mod.name,
-    path: `/modio/${mod.id}`,
+    path: `/modio/${mod.id}`, // Example path structure
     isDirectory: false,
     size: mod.modfile?.filesize ?? null,
-    modified: mod.date_updated,
+    modified: mod.date_updated, // Assuming this is a Unix timestamp
     thumbnailPath: mod.logo?.thumb_320x180 ?? null,
-    thumbnailMimeType: null,
+    thumbnailMimeType: null, // Usually not available directly
   }
 }
 
