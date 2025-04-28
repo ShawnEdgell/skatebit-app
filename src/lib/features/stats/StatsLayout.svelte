@@ -3,7 +3,6 @@
   import { writable, get, derived } from 'svelte/store'
   import type { Writable, Unsubscriber } from 'svelte/store'
   import { Timestamp } from 'firebase/firestore'
-  import type { User as AuthUser } from 'firebase/auth'
 
   import { explorerDirectory } from '$lib/stores/globalPathsStore'
   import { user as userStore } from '$lib/stores/authStore'

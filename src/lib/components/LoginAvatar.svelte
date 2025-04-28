@@ -18,7 +18,7 @@
 <div class="dropdown dropdown-end px-2">
   <label tabindex="0" class="btn btn-ghost btn-circle avatar">
     <div
-      class="ring-secondary ring-offset-base-100 flex w-10 items-center justify-center rounded-full ring-offset-2 hover:ring {!$userStore ||
+      class="ring-secondary ring-offset-base-100 flex w-8 items-center justify-center rounded-full ring-offset-2 hover:ring {!$userStore ||
       !$userStore.photoURL
         ? 'bg-base-100 text-base-content'
         : ''}"

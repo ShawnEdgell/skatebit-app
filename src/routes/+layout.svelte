@@ -14,7 +14,6 @@
   import ToastManager from '$lib/components/ToastManager.svelte'
   import Updater from '$lib/components/Updater.svelte'
   import GlobalDropOverlay from '$lib/components/GlobalDropOverlay.svelte'
-
   import {
     isDraggingOver,
     activeDropTargetInfo,
@@ -27,10 +26,9 @@
     initializeExplorerPaths,
     explorerDirectory,
   } from '$lib/stores/globalPathsStore'
-
-  // ← import setPath instead of nonexistent refreshExplorer
   import { setPath } from '$lib/stores/explorerStore'
   import { refreshModioMaps } from '$lib/stores/mapsStore'
+  import { page } from '$app/stores' // <— added
 
   let unlistenInstallation: () => void
   let unsubscribeWatch: () => void
@@ -40,7 +38,6 @@
       await initializeGlobalPaths()
       await initializeExplorerPaths()
 
-      // grab the base folder and call setPath to load & watch it
       const base = get(explorerDirectory)
       if (base) {
         await setPath(base)
@@ -51,7 +48,6 @@
         handleError(e, '[Layout] Loading Mod.io Maps'),
       )
 
-      // ensure Tauri also watches the mapsDirectory
       unsubscribeWatch = mapsDirectory.subscribe((dir) => {
         if (dir && !dir.startsWith('/error')) {
           invoke('add_watched_path', { path: dir }).catch((e) =>
@@ -101,12 +97,20 @@
 <CrudModal />
 <Toast />
 <ToastManager />
-<GlobalDropOverlay show={$isDraggingOver} targetInfo={$activeDropTargetInfo} />
+
+<!-- Temporary fix -->
+{#if !$page.url.pathname.startsWith('/stats')}
+  <GlobalDropOverlay
+    show={$isDraggingOver}
+    targetInfo={$activeDropTargetInfo}
+  />
+{/if}
+
 <Updater />
 
 <div class="flex h-screen flex-col">
   <NavBar />
-  <div class="flex-1">
+  <div class="h-full overflow-hidden">
     <slot />
   </div>
 </div>
