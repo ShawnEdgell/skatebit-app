@@ -19,6 +19,7 @@
     { href: '/', title: 'Folders', text: 'Folders' },
     { href: '/modio', title: 'Maps', text: 'Maps' },
     { href: '/stats', title: 'Stats', text: 'Stats' },
+    { href: '/mods', title: 'Mods', text: 'Mods' },
   ]
 
   // Filter out dev-only links in production

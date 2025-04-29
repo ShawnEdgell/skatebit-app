@@ -8,7 +8,7 @@ import { doc, getDoc } from 'firebase/firestore'
  */
 export const load = async (): Promise<{ mapMods: Mod[] }> => {
   try {
-    const docRef = doc(db, 'maps_v2', 'page_1')
+    const docRef = doc(db, 'mods_v2', 'page_1')
     const snapshot = await getDoc(docRef)
     let mapMods: Mod[] = []
     if (snapshot.exists()) {
@@ -19,7 +19,7 @@ export const load = async (): Promise<{ mapMods: Mod[] }> => {
     }
     return { mapMods }
   } catch (error) {
-    console.error('Error fetching cached maps:', error)
+    console.error('Error fetching cached mods:', error)
     return { mapMods: [] }
   }
 }

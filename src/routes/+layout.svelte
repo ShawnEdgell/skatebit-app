@@ -26,15 +26,16 @@
     initializeExplorerPaths,
     explorerDirectory,
   } from '$lib/stores/globalPathsStore'
+  import { ensureSkaterXLPath } from '$lib/utils/initSkaterXLPath'
   import { setPath } from '$lib/stores/explorerStore'
   import { refreshModioMaps } from '$lib/stores/mapsStore'
-  import { page } from '$app/stores' // <— added
 
   let unlistenInstallation: () => void
   let unsubscribeWatch: () => void
 
   onMount(async () => {
     try {
+      await ensureSkaterXLPath()
       await initializeGlobalPaths()
       await initializeExplorerPaths()
 
@@ -97,14 +98,7 @@
 <CrudModal />
 <Toast />
 <ToastManager />
-
-<!-- Temporary fix -->
-{#if !$page.url.pathname.startsWith('/stats')}
-  <GlobalDropOverlay
-    show={$isDraggingOver}
-    targetInfo={$activeDropTargetInfo}
-  />
-{/if}
+<GlobalDropOverlay show={$isDraggingOver} targetInfo={$activeDropTargetInfo} />
 
 <Updater />
 

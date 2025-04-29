@@ -24,59 +24,53 @@ function filterByPlatform(mod: Mod): boolean {
   })
 }
 
-export const fetchModsPage = async (page: number): Promise<Mod[]> => {
-  const docId = `page_${page}` // Define the document ID
-  const docPath = `mods/${docId}` // Define the full path for logging
+export const fetchMapsPage = async (page: number): Promise<Mod[]> => {
+  const docId = `page_${page}`
+  const docPath = `maps_v2/${docId}`
   try {
-    console.log(`[fetchModsPage] Attempting to get doc: ${docPath}`) // Log the correct path
-    const docRef = doc(db, 'mods', docId) // Use the docId variable
+    console.log(`[fetchMapsPage] Attempting to get doc: ${docPath}`)
+    const docRef = doc(db, 'maps_v2', docId)
     const snap = await getDoc(docRef)
     if (!snap.exists()) {
-      console.log(`[fetchModsPage] Document not found: ${docPath}`)
+      console.log(`[fetchMapsPage] Document not found: ${docPath}`)
       return []
     }
     const data = snap.data()
-    const mods = Array.isArray(data?.mods) ? (data.mods as Mod[]) : []
-    return mods.filter(filterByPlatform)
+    const maps = Array.isArray(data?.maps) ? (data.maps as Mod[]) : []
+    return maps.filter(filterByPlatform)
   } catch (e) {
-    // Pass the error and context to the handler
-    handleError(e, `fetchModsPage (page ${page}) - Path: ${docPath}`)
-    return [] // Return empty array on error
+    handleError(e, `fetchMapsPage (page ${page}) - Path: ${docPath}`)
+    return []
   }
 }
 
-export const fetchAllMods = async (): Promise<Mod[]> => {
+export const fetchAllMaps = async (): Promise<Mod[]> => {
   let all: Mod[] = []
   let page = 1
   let more = true
 
   while (more && page <= 50) {
-    // Limit to 50 pages to prevent infinite loops
-    console.log(`Fetching mods page ${page}…`)
+    console.log(`Fetching maps page ${page}…`)
     try {
-      // Add try-catch around fetchModsPage call
-      const batch = await fetchModsPage(page)
+      const batch = await fetchMapsPage(page)
       console.log(`→ got ${batch.length}`)
       if (batch.length === 0) {
-        more = false // Stop if a page returns 0 mods
+        more = false
       } else {
         all = all.concat(batch)
-        // Adjust stopping condition if needed
         if (batch.length < FIRESTORE_PAGE_SIZE_ESTIMATE * 0.5) {
-          // Stop if significantly less than expected
           more = false
         } else {
           page++
         }
       }
     } catch (error) {
-      // Error is already handled within fetchModsPage, but we can log here too
-      console.error(`Error fetching page ${page} in fetchAllMods, stopping.`)
-      more = false // Stop fetching on error
+      console.error(`Error fetching page ${page} in fetchAllMaps, stopping.`)
+      more = false
     }
   }
 
-  console.log(`Finished fetching. Total mods: ${all.length}`)
+  console.log(`✅ Finished fetching. Total maps: ${all.length}`)
   return all
 }
 
@@ -91,22 +85,22 @@ const sortMap = {
 
 export type SortType = keyof typeof sortMap
 
-export const sortMods = (mods: Mod[], sortType: SortType): Mod[] =>
-  mods.slice().sort(sortMap[sortType])
+export const sortMaps = (maps: Mod[], sortType: SortType): Mod[] =>
+  maps.slice().sort(sortMap[sortType])
 
-export function mapModToFsEntry(mod: Mod) {
+export function mapToFsEntry(mod: Mod) {
   return {
     name: mod.name,
-    path: `/modio/${mod.id}`, // Example path structure
+    path: `/modio/${mod.id}`,
     isDirectory: false,
     size: mod.modfile?.filesize ?? null,
-    modified: mod.date_updated, // Assuming this is a Unix timestamp
+    modified: mod.date_updated,
     thumbnailPath: mod.logo?.thumb_320x180 ?? null,
-    thumbnailMimeType: null, // Usually not available directly
+    thumbnailMimeType: null,
   }
 }
 
-export async function fetchAllModsAsFsEntries() {
-  const mods = await fetchAllMods()
-  return mods.map(mapModToFsEntry)
+export async function fetchAllMapsAsFsEntries() {
+  const maps = await fetchAllMaps()
+  return maps.map(mapToFsEntry)
 }

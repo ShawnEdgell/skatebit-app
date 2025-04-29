@@ -8,8 +8,9 @@
   import { convertFileSrc } from '@tauri-apps/api/core'
   import { handleError } from '$lib/utils/errorHandler'
 
+  export let localMod: FsEntry
+
   const dispatch = createEventDispatcher()
-  export let localMap: FsEntry
 
   let assetUrl = ''
   let isVisible = false
@@ -32,27 +33,27 @@
     return () => observer.disconnect()
   })
 
-  $: if (isVisible && localMap.thumbnailPath) {
+  $: if (isVisible && localMod.thumbnailPath) {
     try {
-      assetUrl = convertFileSrc(localMap.thumbnailPath)
+      assetUrl = convertFileSrc(localMod.thumbnailPath)
     } catch {
       assetUrl = ''
     }
-  } else if (!localMap.thumbnailPath) {
+  } else if (!localMod.thumbnailPath) {
     assetUrl = ''
   }
 
   async function openInExplorer() {
-    if (!localMap.path) return
+    if (!localMod.path) return
     try {
-      await revealItemInDir(normalizePath(localMap.path))
+      await revealItemInDir(normalizePath(localMod.path))
     } catch (error) {
-      handleError(error, `Failed to open ${localMap.name} in explorer`)
+      handleError(error, `Failed to open ${localMod.name} in explorer`)
     }
   }
 
-  function deleteMap() {
-    dispatch('requestDelete', { path: localMap.path, name: localMap.name })
+  function deleteMod() {
+    dispatch('requestDelete', { path: localMod.path, name: localMod.name })
   }
 </script>
 
@@ -60,13 +61,13 @@
   {#if isVisible}
     <BaseCard
       imageUrl={assetUrl}
-      imageAlt={localMap.name ?? ''}
-      fallbackContent={localMap.isDirectory ? '📁' : '📄'}
+      imageAlt={localMod.name ?? ''}
+      fallbackContent={localMod.isDirectory ? '📁' : '📄'}
       fallbackClass="text-5xl"
-      badgeText={localMap.size != null ? formatFileSize(localMap.size) : ''}
-      title={localMap.name ??
-        (localMap.isDirectory ? 'Unnamed Folder' : 'Unnamed Map')}
-      cardTitleAttr={localMap.path ?? ''}
+      badgeText={localMod.size != null ? formatFileSize(localMod.size) : ''}
+      title={localMod.name ??
+        (localMod.isDirectory ? 'Unnamed Folder' : 'Unnamed Mod')}
+      cardTitleAttr={localMod.path ?? ''}
     >
       <svelte:fragment slot="info" />
 
@@ -81,7 +82,7 @@
         <button
           title="Delete"
           class="btn btn-error btn-sm pointer-events-auto"
-          on:click|stopPropagation={deleteMap}
+          on:click|stopPropagation={deleteMod}
         >
           Delete
         </button>

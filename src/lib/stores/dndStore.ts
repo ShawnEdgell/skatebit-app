@@ -10,10 +10,18 @@ export const isDraggingOver = writable(false)
 export const activeDropTargetInfo = writable<{
   path: string | null
   label: string | null
+  customMessage?: string | null
 }>({
   path: null,
   label: null,
+  customMessage: null,
 })
+
+// 🆕 NEW
+export const customDropHandler = writable<
+  ((paths: string[]) => Promise<void> | void) | null
+>(null)
+export const acceptedExtensions = writable<string[] | null>(null)
 
 let unlistenDragDrop: (() => void) | null = null
 
@@ -25,21 +33,46 @@ async function dragDropEventHandler(event: any): Promise<void> {
 
   if (type === 'drop') {
     const target = get(activeDropTargetInfo)
+    const customHandler = get(customDropHandler)
+    const extensions = get(acceptedExtensions)
     isDraggingOver.set(false)
 
-    if (!paths?.length || !target.path) {
-      handleError('No files or target folder for drop.', 'File Drop')
+    if (!paths?.length) {
+      handleError('No files dropped.', 'File Drop')
       return
     }
 
-    try {
-      await handleDroppedPaths(paths, target.path)
+    // 🆕 If extensions are required, validate
+    if (extensions && extensions.length > 0) {
+      const validPaths = paths.filter((path: string) =>
+        extensions.some((ext) =>
+          path.toLowerCase().endsWith(ext.toLowerCase()),
+        ),
+      )
 
-      if (target.path === get(mapsDirectory)) {
-        await refreshLocalMaps()
+      if (validPaths.length === 0) {
+        handleError('No valid files dropped.', 'File Drop')
+        return
+      }
+      paths.splice(0, paths.length, ...validPaths)
+    }
+
+    try {
+      if (customHandler) {
+        console.log('[DND] Using custom drop handler.')
+        await customHandler(paths)
+      } else if (target.path) {
+        console.log('[DND] Using default path handler.')
+        await handleDroppedPaths(paths, target.path)
+
+        if (target.path === get(mapsDirectory)) {
+          await refreshLocalMaps()
+        }
+      } else {
+        console.warn('[DND] No target path or custom handler set.')
       }
     } catch (err) {
-      handleError(err, `Processing drop on ${target.path}`)
+      handleError(err, `Processing drop`)
     }
   }
 }

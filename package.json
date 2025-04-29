@@ -31,6 +31,7 @@
     "flexsearch": "^0.8.151",
     "lucide-svelte": "^0.503.0",
     "tailwindcss": "^4.1.3",
+    "tauri-plugin-store-api": "^0.0.0",
     "theme-change": "^2.5.0"
   },
   "devDependencies": {

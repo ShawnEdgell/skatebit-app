@@ -1,7 +1,7 @@
 <script lang="ts">
   import MapList from './components/MapList.svelte'
   import LocalMapList from './components/LocalMapList.svelte'
-  import ListToolbar from './components/ListToolBar.svelte'
+  import ListToolbar from '$lib/components/ListToolBar.svelte'
 
   import { page } from '$app/stores'
   import { browser } from '$app/environment'

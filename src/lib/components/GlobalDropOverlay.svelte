@@ -1,8 +1,13 @@
 <script lang="ts">
   export let show = false
-  export let targetInfo: { path: string | null; label: string | null } = {
+  export let targetInfo: {
+    path: string | null
+    label: string | null
+    customMessage?: string | null
+  } = {
     path: null,
     label: null,
+    customMessage: null,
   }
 
   $: targetDisplay = targetInfo.label
@@ -17,13 +22,14 @@
   >
     <div class="rounded-box bg-base-100 p-8 text-center shadow-md">
       <p class="text-base-content text-xl font-bold">
-        Drop files or folders here
+        {targetInfo.customMessage || 'Drop files or folders here'}
       </p>
-      {#if targetInfo.path}
+
+      {#if targetInfo.path && !targetInfo.customMessage}
         <p class="text-base-content/70 mt-2 text-sm">
           Target: {targetDisplay}
         </p>
-      {:else}
+      {:else if !targetInfo.customMessage}
         <p class="text-base-content/70 mt-2 text-sm">
           No active drop target defined for this view.
         </p>

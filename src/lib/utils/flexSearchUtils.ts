@@ -137,5 +137,69 @@ export class ModSearchIndex {
   }
 }
 
+export class ModsSearchIndex {
+  private index = new FlexSearch.Document({
+    tokenize: 'forward',
+    cache: true,
+    document: {
+      id: 'id',
+      index: ['name', 'summary', 'tagNames'],
+      store: [
+        'id',
+        'name',
+        'summary',
+        'profile_url',
+        'date_updated',
+        'tagNames',
+        'imageUrl',
+      ],
+    },
+  })
+
+  add(mods: Mod[]): void {
+    for (const m of mods) {
+      if (typeof m.id !== 'number' || !m.name) continue
+      const doc: StoredModData = {
+        id: m.id,
+        name: m.name,
+        summary: m.summary ?? '',
+        profile_url: m.profile_url,
+        date_updated: m.date_updated,
+        tagNames: m.tags?.map((t) => t.name).join(' ') ?? '',
+        imageUrl: m.logo?.thumb_320x180 ?? null,
+      }
+      try {
+        ;(this.index as any).add(m.id, doc)
+      } catch (err) {
+        console.error('[ModsSearchIndex] add failed', m.id, err, doc)
+      }
+    }
+  }
+
+  clear(): void {
+    ;(this.index as any).clear()
+  }
+
+  async search(query: string, limit = 100): Promise<StoredModData[]> {
+    const hits = (await (this.index as any).searchAsync(query, limit, {
+      enrich: true,
+    })) as Array<{ result: Array<{ id: number; doc: StoredModData }> }>
+
+    const seen = new Set<number>()
+    const out: StoredModData[] = []
+
+    for (const block of hits) {
+      if (!Array.isArray(block.result)) continue
+      for (const { id, doc } of block.result) {
+        if (seen.has(id)) continue
+        seen.add(id)
+        out.push(doc)
+      }
+    }
+    return out
+  }
+}
+
 export const localMapsSearchIndex = new LocalMapsSearchIndex()
 export const modioMapsSearchIndex = new ModSearchIndex()
+export const modsSearchIndex = new ModsSearchIndex()

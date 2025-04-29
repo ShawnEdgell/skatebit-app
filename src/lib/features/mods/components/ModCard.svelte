@@ -4,14 +4,13 @@
   import { open } from '@tauri-apps/plugin-shell'
   import { get } from 'svelte/store'
   import { downloadProgress } from '$lib/stores/downloadProgressStore'
-  import { formatFileSize, formatRelativeTime } from '$lib/utils/formatter'
   import { handleError } from '$lib/utils/errorHandler'
-  import { mapsDirectory } from '$lib/stores/globalPathsStore'
   import { normalizePath } from '$lib/services/pathService'
-  import type { Mod } from '$lib/types/modioTypes'
+  import { modsDirectory } from '$lib/stores/globalPathsStore'
+  import { formatFileSize, formatRelativeTime } from '$lib/utils/formatter'
   import BaseCard from '$lib/components/BaseCard.svelte'
 
-  export let mod: Mod
+  export let mod: any
 
   let isInstalling = false
 
@@ -20,8 +19,8 @@
     isInstalling = true
 
     try {
-      const mapsRoot = get(mapsDirectory)
-      if (!mapsRoot || mapsRoot.startsWith('/error')) {
+      const modsRoot = get(modsDirectory)
+      if (!modsRoot || modsRoot.startsWith('/error')) {
         throw new Error('Maps folder path is invalid.')
       }
 
@@ -30,7 +29,7 @@
 
       const docDirResult = await documentDir()
       const docDir = normalizePath(docDirResult || '')
-      const normMapsRoot = normalizePath(mapsRoot)
+      const normMapsRoot = normalizePath(modsRoot)
 
       const destination = normMapsRoot.startsWith(docDir)
         ? normMapsRoot.slice(docDir.length).replace(/^[/\\]+/, '') || '.'

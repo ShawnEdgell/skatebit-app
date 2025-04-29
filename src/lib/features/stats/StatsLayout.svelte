@@ -21,6 +21,20 @@
     updateConfigMeta,
     type ConfigMeta,
   } from '$lib/firebase/configs'
+  import {
+    activeDropTargetInfo,
+    acceptedExtensions,
+    customDropHandler,
+  } from '$lib/stores/dndStore'
+  import { readTextFile } from '@tauri-apps/plugin-fs'
+  import { basename } from '@tauri-apps/api/path'
+  import {
+    selectedFilePath,
+    selectedFileContent,
+    selectedOriginalName,
+    uploadFileName,
+    uploadDescription,
+  } from '$lib/stores/uploadFormStore'
 
   import CategorySelector from './components/CategorySelector.svelte'
   import UploadForm from './components/UploadForm.svelte'
@@ -284,6 +298,27 @@
   onMount(() => {
     loadConfigs()
     hasMounted = true
+
+    activeDropTargetInfo.set({
+      path: null,
+      label: 'Upload Stats XML',
+      customMessage: 'Drop your XML files here',
+    })
+    acceptedExtensions.set(['.xml'])
+    customDropHandler.set(async (paths: string[]) => {
+      if (paths.length > 0) {
+        const xmlPath = paths[0]
+        const xmlContent = await readTextFile(xmlPath)
+
+        const name = await basename(xmlPath)
+        selectedFilePath.set(xmlPath)
+        selectedFileContent.set(xmlContent)
+        selectedOriginalName.set(name)
+        uploadFileName.set(name.replace(/\.(xml|config)$/i, ''))
+        uploadDescription.set('')
+      }
+    })
+
     categoryUnsubscribe = selectedCategory.subscribe((value) => {
       if (hasMounted && value && typeof sessionStorage !== 'undefined') {
         try {
@@ -307,9 +342,13 @@
   onDestroy(() => {
     if (categoryUnsubscribe) categoryUnsubscribe()
     if (sortUnsubscribe) sortUnsubscribe()
+    activeDropTargetInfo.set({ path: null, label: null })
+    acceptedExtensions.set(null)
+    customDropHandler.set(null)
   })
 
   $: if ($selectedCategory && hasMounted) {
+    isLoadingList.set(true)
     loadConfigs()
   }
 </script>
