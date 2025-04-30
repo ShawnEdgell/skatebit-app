@@ -7,10 +7,16 @@ import {
 } from '$lib/stores/globalPathsStore'
 
 export async function ensureSkaterXLPath() {
+  const isTauri = '__TAURI__' in window
+  if (!isTauri) {
+    console.warn('[initSkaterXLPath] Not running in Tauri — skipping.')
+    return
+  }
+
   // Load any saved path first
   await loadSkaterXLPath()
 
-  const currentPath = get(skaterXLGamePath) // 🔥 GET the actual value!
+  const currentPath = get(skaterXLGamePath)
 
   if (!currentPath || currentPath.trim() === '') {
     try {

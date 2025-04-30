@@ -2,7 +2,7 @@ import { writable, get } from 'svelte/store'
 import { browser } from '$app/environment'
 import { listen } from '@tauri-apps/api/event'
 import { modsDirectory } from './globalPathsStore'
-import { loadLocalMaps } from '$lib/services/fileService'
+import { loadLocalMods } from '$lib/services/fileService'
 import { normalizePath } from '$lib/services/pathService'
 import { handleError } from '$lib/utils/errorHandler'
 import { modsSearchIndex } from '$lib/utils/flexSearchUtils'
@@ -26,7 +26,7 @@ async function _loadLocalMods(dir: string) {
   localModsLoading.set(true)
   localModsError.set(null)
   try {
-    const res = (await loadLocalMaps(
+    const res = (await loadLocalMods(
       normalizePath(dir),
     )) as DirectoryListingResult
     localMods.set(res.entries)

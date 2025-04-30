@@ -7,6 +7,11 @@ export const loadLocalMaps = async (absolutePath: string) =>
     relativeMapsPath: normalizePath(absolutePath),
   })
 
+export const loadLocalMods = async (absolutePath: string) =>
+  invoke<DirectoryListingResult>('list_local_mods', {
+    relativeMapsPath: normalizePath(absolutePath),
+  })
+
 export const loadDirectoryEntries = async (absolutePath: string) =>
   invoke<DirectoryListingResult>('list_directory_entries', {
     absolutePath: normalizePath(absolutePath),

@@ -8,6 +8,8 @@ mod models;
 mod state;
 mod utils;
 mod watcher;
+mod path_finder;
+mod mod_commands;
 
 use std::{collections::HashSet, sync::Mutex};
 use tokio::sync::mpsc::channel;
@@ -110,10 +112,12 @@ pub fn run() {
             map_commands::create_maps_symlink,
             map_commands::remove_maps_symlink,
             map_commands::list_local_maps,
+            mod_commands::list_local_mods,
             installer_commands::download_and_install,
             watcher::add_watched_path,
             watcher::remove_watched_path,
             watcher::update_maps_watched_path,
+            path_finder::find_skaterxl_path,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

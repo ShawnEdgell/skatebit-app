@@ -16,12 +16,28 @@ export const localMapsLoading = writable(false)
 export const localMapsError = writable<string | null>(null)
 
 let manualUpdateInProgress = false
+let isLoadingLocal = false
+let lastDir = ''
+let allowAutoLoad = true
+let hasInitialized = false
+
+export function suppressAutoLoad() {
+  allowAutoLoad = false
+}
+
+export function resumeAutoLoad() {
+  allowAutoLoad = true
+}
+
 function markManualUpdate() {
   manualUpdateInProgress = true
 }
 
 /** Centralized load logic */
-async function _loadLocal(dir: string) {
+async function _loadLocal(dir: string, source = 'unknown') {
+  console.log(`[mapsStore] Loading local maps from ${source}:`, dir)
+  if (!allowAutoLoad || isLoadingLocal) return
+  isLoadingLocal = true
   localMapsLoading.set(true)
   localMapsError.set(null)
   try {
@@ -35,6 +51,7 @@ async function _loadLocal(dir: string) {
     localMaps.set([])
   } finally {
     localMapsLoading.set(false)
+    isLoadingLocal = false
   }
 }
 
@@ -43,23 +60,26 @@ export async function refreshLocalMaps() {
   const dir = get(mapsDirectory).trim()
   if (!dir) return
   markManualUpdate()
-  await _loadLocal(dir)
+  await _loadLocal(dir, 'manual')
 }
 
 // initial load + watch mapsDirectory changes
-if (browser) {
+if (browser && !hasInitialized) {
+  hasInitialized = true
+  console.log('[mapsStore] Top-level browser init triggered')
+
   const init = get(mapsDirectory).trim()
   if (init) {
     markManualUpdate()
-    _loadLocal(init).catch(console.error)
+    _loadLocal(init, 'init').catch(console.error)
   }
 
   mapsDirectory.subscribe((d) => {
     const dir = d.trim()
-    if (dir) {
-      markManualUpdate()
-      _loadLocal(dir).catch(console.error)
-    }
+    if (!dir || dir === lastDir || isLoadingLocal) return
+    lastDir = dir
+    markManualUpdate()
+    _loadLocal(dir, 'mapsDirectory.subscribe').catch(console.error)
   })
 
   // other explicit triggers
@@ -67,7 +87,7 @@ if (browser) {
     const dir = get(mapsDirectory)
     if (dir) {
       markManualUpdate()
-      _loadLocal(dir).catch(console.error)
+      _loadLocal(dir, 'maps-changed').catch(console.error)
     }
   }).catch(console.error)
 
@@ -80,7 +100,7 @@ if (browser) {
       manualUpdateInProgress = false
       return
     }
-    _loadLocal(dir).catch(console.error)
+    _loadLocal(dir, 'rust-fs-change').catch(console.error)
   }).catch(console.error)
 }
 

@@ -347,7 +347,12 @@ pub fn list_local_maps(
     log::info!("[map_commands::list_local_maps] Pruning thumbnail cache...");
     match app_handle.path().app_cache_dir() {
         Ok(cache_base_dir) => {
-            let thumbnail_cache_dir = cache_base_dir.join("thumbnails");
+            let subfolder = if maps_folder_path.to_string_lossy().to_lowercase().contains("mods") {
+                "mods"
+            } else {
+                "maps"
+            };
+            let thumbnail_cache_dir = cache_base_dir.join("thumbnails").join(subfolder);
             if thumbnail_cache_dir.is_dir() {
                 // Check if it IS a directory
                 match fs::read_dir(&thumbnail_cache_dir) {
