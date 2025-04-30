@@ -8,7 +8,10 @@
   import type { FsEntry } from '$lib/types/fsTypes'
   import { refreshLocalMods } from '$lib/stores/modsStore'
   import { open } from '@tauri-apps/plugin-dialog'
-  import { saveSkaterXLGamePath } from '$lib/stores/globalPathsStore'
+  import {
+    modsDirectory,
+    initializeGlobalPaths,
+  } from '$lib/stores/globalPathsStore'
 
   export let mods: FsEntry[] = []
   export let loading: boolean = false
@@ -20,7 +23,9 @@
   async function promptSetGamePath() {
     const selected = await open({ directory: true })
     if (typeof selected === 'string') {
-      await saveSkaterXLGamePath(selected)
+      modsDirectory.set(`${selected}/Mods`)
+      await initializeGlobalPaths()
+      await refreshLocalMods()
     }
   }
 

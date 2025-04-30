@@ -10,12 +10,29 @@ import { fetchAllMods } from '$lib/services/modsService'
 import { createSearchStore } from './searchStore'
 import type { FsEntry, DirectoryListingResult } from '$lib/types/fsTypes'
 import type { Mod } from '$lib/types/modioTypes'
+import { derived } from 'svelte/store'
 
 // ─── Local Mods ─────────────────────────────────────────────
 
 export const localMods = writable<FsEntry[]>([])
 export const localModsLoading = writable(false)
 export const localModsError = writable<string | null>(null)
+
+const trustedAuthorUsernames = new Set<string>([
+  'froquede',
+  'xlGURU',
+  'jbooogie',
+  'mcbtay',
+  'KleptoXL',
+  'Silentbaws',
+  'andreamatt',
+  'MateusSXL',
+  'SqueegeeDinoToy',
+  'billowper',
+  'STPN',
+  'SqueegeeDinoToy',
+  'billowper',
+])
 
 let manualUpdateInProgress = false
 function markManualUpdate() {
@@ -41,6 +58,7 @@ async function _loadLocalMods(dir: string) {
 
 export async function refreshLocalMods() {
   const dir = get(modsDirectory).trim()
+  console.log('[modsStore] manual refreshLocalMods called for:', dir)
   if (!dir) return
   markManualUpdate()
   await _loadLocalMods(dir)
@@ -55,6 +73,7 @@ if (browser) {
 
   modsDirectory.subscribe((d) => {
     const dir = d.trim()
+    console.log('[modsStore] modsDirectory subscribed change:', dir)
     if (dir) {
       markManualUpdate()
       _loadLocalMods(dir).catch(console.error)
@@ -107,6 +126,12 @@ export async function refreshModioMods() {
   }
 }
 
+export const trustedMods = derived(modioMods, ($mods) =>
+  $mods.filter((mod) =>
+    trustedAuthorUsernames.has(mod.submitted_by?.username ?? ''),
+  ),
+)
+
 // ─── Mod Search Store ───────────────────────────────────────
 
 export const modsSortOrder = writable<'recent' | 'popular' | 'downloads'>(
@@ -117,7 +142,7 @@ const modSearch = createSearchStore<
   Mod,
   'recent' | 'popular' | 'downloads',
   { id: number }
->(modioMods, modsSearchIndex, {
+>(trustedMods, modsSearchIndex, {
   sortStore: modsSortOrder,
   sortFn: (a, b, order) => {
     switch (order) {

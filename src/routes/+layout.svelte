@@ -26,7 +26,7 @@
     initializeExplorerPaths,
     explorerDirectory,
   } from '$lib/stores/globalPathsStore'
-  import { ensureSkaterXLPath } from '$lib/utils/initSkaterXLPath'
+
   import { setPath } from '$lib/stores/explorerStore'
   import { refreshModioMaps } from '$lib/stores/mapsStore'
 
@@ -35,7 +35,6 @@
 
   onMount(async () => {
     try {
-      await ensureSkaterXLPath()
       await initializeGlobalPaths()
       await initializeExplorerPaths()
 

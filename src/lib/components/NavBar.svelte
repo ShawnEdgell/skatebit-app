@@ -5,6 +5,7 @@
   import FolderSelector from './FolderSelector.svelte'
   import { page } from '$app/stores'
   import { Minus, Maximize2, X } from 'lucide-svelte'
+  import SetGamePath from './SetGamePath.svelte'
 
   const appWindow = Window.getCurrent()
 
@@ -75,6 +76,7 @@
 
     <div class="flex items-center" style="-webkit-app-region: no-drag;">
       <ul class="menu menu-horizontal mr-2">
+        <li><SetGamePath /></li>
         <li><FolderSelector /></li>
         <li><ThemeController /></li>
         <LoginAvatar />
