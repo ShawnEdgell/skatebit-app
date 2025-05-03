@@ -7,6 +7,7 @@
   } from '$lib/stores/globalPathsStore'
   import { refreshLocalMods } from '$lib/stores/modsStore'
   import { handleError } from '$lib/utils/errorHandler'
+  import { dev } from '$app/environment'
 
   async function handleSetPath() {
     try {
@@ -22,6 +23,8 @@
   }
 </script>
 
-<button title="Change Game Folder" on:click={handleSetPath}>
-  Change Game Folder
-</button>
+{#if dev}
+  <button title="Change Game Folder" on:click={handleSetPath}>
+    Change Game Folder
+  </button>
+{/if}
