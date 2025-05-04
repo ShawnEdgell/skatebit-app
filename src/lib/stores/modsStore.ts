@@ -1,4 +1,4 @@
-import { writable, get } from 'svelte/store'
+import { writable, get, derived } from 'svelte/store'
 import { browser } from '$app/environment'
 import { listen } from '@tauri-apps/api/event'
 import { modsDirectory } from './globalPathsStore'
@@ -6,11 +6,10 @@ import { loadLocalMods } from '$lib/services/fileService'
 import { normalizePath } from '$lib/services/pathService'
 import { handleError } from '$lib/utils/errorHandler'
 import { modsSearchIndex } from '$lib/utils/flexSearchUtils'
-import { fetchAllMods } from '$lib/services/modsService'
+import { fetchAllModioItems } from '$lib/services/modioCacheService'
 import { createSearchStore } from './searchStore'
 import type { FsEntry, DirectoryListingResult } from '$lib/types/fsTypes'
 import type { Mod } from '$lib/types/modioTypes'
-import { derived } from 'svelte/store'
 
 // ─── Local Mods ─────────────────────────────────────────────
 
@@ -30,8 +29,6 @@ const trustedAuthorUsernames = new Set<string>([
   'SqueegeeDinoToy',
   'billowper',
   'STPN',
-  'SqueegeeDinoToy',
-  'billowper',
 ])
 
 let manualUpdateInProgress = false
@@ -111,7 +108,7 @@ export async function refreshModioMods() {
   modioModsLoading.set(true)
   modioModsError.set(null)
   try {
-    const mods = await fetchAllMods()
+    const mods = await fetchAllModioItems('mods')
     modioMods.set(mods)
     if (browser) {
       modsSearchIndex.clear()

@@ -77,18 +77,27 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
  */
 export async function updateUserProfile(
   uid: string,
-  data: Partial<
-    Omit<UserProfile, 'uid' | 'email' | 'updatedAt' | 'name' | 'photoURL'>
-  > & { twitter?: string; twitch?: string }, // allow setting them
+  data: Pick<
+    UserProfile,
+    'bio' | 'discord' | 'tiktok' | 'youtube' | 'instagram'
+  >,
 ): Promise<void> {
   if (!uid) throw new Error('User ID is required')
   const profileRef = doc(db, 'userProfiles', uid)
 
-  // Only send the fields your rules allow (no uid here!)
   const payload = {
-    ...data,
+    bio: data.bio ?? '',
+    discord: data.discord ?? '',
+    tiktok: data.tiktok ?? '',
+    youtube: data.youtube ?? '',
+    instagram: data.instagram ?? '',
     updatedAt: serverTimestamp(),
   }
 
+  console.log(
+    '[updateUserProfile] Sending Payload:',
+    JSON.stringify(payload, null, 2),
+  )
+  console.log('[updateUserProfile] Target Path:', profileRef.path)
   await updateDoc(profileRef, payload)
 }

@@ -6,7 +6,7 @@ import { loadLocalMaps } from '$lib/services/fileService'
 import { normalizePath } from '$lib/services/pathService'
 import { handleError } from '$lib/utils/errorHandler'
 import { modioMapsSearchIndex } from '$lib/utils/flexSearchUtils'
-import { fetchAllMaps } from '$lib/services/modioService'
+import { fetchAllModioItems } from '$lib/services/modioCacheService'
 import type { FsEntry, DirectoryListingResult } from '$lib/types/fsTypes'
 import type { Mod } from '$lib/types/modioTypes'
 
@@ -114,7 +114,7 @@ export async function refreshModioMaps() {
   modioMapsLoading.set(true)
   modioMapsError.set(null)
   try {
-    const mods = await fetchAllMaps()
+    const mods = await fetchAllModioItems('maps')
     modioMaps.set(mods)
     if (browser) {
       modioMapsSearchIndex.clear()
