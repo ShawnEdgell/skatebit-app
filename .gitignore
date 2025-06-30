@@ -15,3 +15,5 @@ latest.json
 
 .eslintrc.cjs
 .eslintignore
+
+scripts

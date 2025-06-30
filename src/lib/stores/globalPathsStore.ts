@@ -1,16 +1,16 @@
 // src/lib/stores/globalPathsStore.ts
 import { writable, derived, get } from 'svelte/store'
-import { resolveDocPath } from '$lib/services/pathService'
+import { findSkaterXlPath } from '$lib/services/pathService';
 
-let _defaultMapsPath = ''
-let _defaultModsPath = ''
+let _defaultMapsPath = '';
+let _defaultModsPath = '';
 
-export const mapsDirectory = writable<string>('')
-export const modsDirectory = writable<string>('')
-export const explorerDirectory = writable<string>('')
+export const mapsDirectory = writable<string>('');
+export const modsDirectory = writable<string>('');
+export const explorerDirectory = writable<string>('');
 
 // Persistent Skater XL game path
-export const skaterXLGamePath = writable<string>('')
+export const skaterXLGamePath = writable<string>('');
 
 // Symlink detection
 export const isMapsSymlinked = derived(
@@ -18,53 +18,54 @@ export const isMapsSymlinked = derived(
   ($mapsDirectory) =>
     _defaultMapsPath !== '' &&
     $mapsDirectory.trim() !== _defaultMapsPath.trim(),
-)
+);
 
 export const isModsSymlinked = derived(
   modsDirectory,
   ($modsDirectory) =>
     _defaultModsPath !== '' &&
     $modsDirectory.trim() !== _defaultModsPath.trim(),
-)
+);
 
 export async function initializeGlobalPaths() {
-  console.log('[GlobalPathsStore] Initializing global paths...')
-  _defaultMapsPath = (await resolveDocPath('SkaterXL', 'Maps')) || ''
-  _defaultModsPath = (await resolveDocPath('SkaterXL', 'Mods')) || ''
+  console.log('[GlobalPathsStore] Initializing global paths...');
+  const skaterXlPath = await findSkaterXlPath();
+  _defaultMapsPath = skaterXlPath ? `${skaterXlPath}/Maps` : '';
+  _defaultModsPath = skaterXlPath ? `${skaterXlPath}/Mods` : '';
 
-  const currentGamePath = get(skaterXLGamePath)
+  const currentGamePath = get(skaterXLGamePath);
 
   // Maps dir: prefer custom, fallback to default
-  const storedMaps = localStorage.getItem('customMapsDirectory') || ''
+  const storedMaps = localStorage.getItem('customMapsDirectory') || '';
   mapsDirectory.update((current) => {
     if (!current || current.trim() === '') {
       return storedMaps && storedMaps !== _defaultMapsPath
         ? storedMaps
-        : _defaultMapsPath
+        : _defaultMapsPath;
     }
-    return current
-  })
+    return current;
+  });
 
   // Mods dir: use gamePath if set, else fallback to stored or default
-  const storedMods = localStorage.getItem('customModsDirectory') || ''
+  const storedMods = localStorage.getItem('customModsDirectory') || '';
   modsDirectory.update((current) => {
     if (!current || current.trim() === '') {
       if (storedMods && storedMods !== _defaultModsPath) {
-        return storedMods
+        return storedMods;
       } else if (currentGamePath?.trim()) {
-        return `${currentGamePath}/Mods`
+        return `${currentGamePath}/Mods`;
       } else {
-        return _defaultModsPath
+        return _defaultModsPath;
       }
     }
-    return current
-  })
+    return current;
+  });
 }
 
 export async function initializeExplorerPaths() {
-  const base = (await resolveDocPath('SkaterXL')) || ''
-  console.log('[explorerStore] resolved explorer base path:', base)
-  explorerDirectory.set(base)
+  const base = (await findSkaterXlPath()) || '';
+  console.log('[explorerStore] resolved explorer base path:', base);
+  explorerDirectory.set(base);
 }
 
 export function setSkaterXLGamePath(path: string) {

@@ -15,9 +15,6 @@ pub enum CommandError {
     #[error("Network Error: {0}")]
     Network(String),
 
-    #[error("Symlink Operation Error: {0}")]
-    Symlink(String),
-
     #[error("Download Error: Status {status_code} - {message}")]
     Download { status_code: u16, message: String },
 

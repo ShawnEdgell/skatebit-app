@@ -1,6 +1,6 @@
 [package]
 name = "XLFM"
-version = "1.2.2"
+version = "1.3.0-beta.0"
 description = "Skater XL File Manager"
 authors = ["Milky"]
 edition = "2021"
@@ -13,7 +13,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2.5.1", features = ["protocol-asset", "tray-icon"] }
+tauri = { version = "2.5.2", features = ["protocol-asset", "tray-icon"] }
 tauri-plugin-single-instance = "2"
 trash = "3.0"
 zip = "0.6"
@@ -27,6 +27,7 @@ walkdir = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-shell = "2"
 tauri-plugin-os = "2"
+tauri-plugin-deep-link = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "v2" }
 reqwest = { version = "0.11", features = ["json"] }
 directories = "4.0"
 notify = "8.0.0"
@@ -41,7 +42,10 @@ regex = "1.11.1"
 dirs = "6.0.0"
 url = "2.5.4"
 percent-encoding = "2"
+steamlocate = "2.0.1"
+dotenvy = "0.15.7"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-single-instance = "2"
 tauri-plugin-updater = "2"
+

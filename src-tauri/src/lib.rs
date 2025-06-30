@@ -1,5 +1,3 @@
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-
 mod error;
 mod fs_commands;
 mod installer_commands;
@@ -8,22 +6,21 @@ mod models;
 mod state;
 mod utils;
 mod watcher;
-mod path_finder;
+mod path_finder; // Re-added mod declaration
 mod mod_commands;
 
 use std::{collections::HashSet, sync::Mutex};
 use tokio::sync::mpsc::channel;
-
 use tauri::{
     Builder,
-    Manager,     // Keep Manager trait in scope for get_webview_window
-    WindowEvent, // Keep WindowEvent for pattern matching
-                 // Remove GlobalWindowEvent import
+    Manager,
+    WindowEvent,
+    menu::{MenuBuilder, MenuId},
+    tray::TrayIconBuilder,
+    RunEvent,
+    Listener,
 };
-use tauri::menu::{MenuBuilder, MenuId};
-use tauri::tray::TrayIconBuilder;
 use tauri_plugin_single_instance::init as single_instance_init;
-
 use state::{WatcherCommand, WatcherState};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -41,57 +38,49 @@ pub fn run() {
         update_tx: tx.clone(),
     };
 
-    Builder::default()
+    let tauri_app = Builder::default()
         .plugin(single_instance_init(|app, _argv, _cwd| {
             if let Some(w) = app.get_webview_window("main") {
                 let _ = w.show().and_then(|_| w.set_focus());
             }
         }))
-        // Revised on_window_event handler
-        .on_window_event(|handle, event| { // Use handle and event
-            // Match directly on the WindowEvent enum
+        .on_window_event(|handle, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
-                // Use the handle to get the specific window ('main')
                 if let Some(window) = handle.get_webview_window("main") {
-                    let _ = window.hide(); // Call hide on the retrieved window
+                    let _ = window.hide();
                 }
-                api.prevent_close(); // Prevent default close
+                api.prevent_close();
             }
         })
-            .setup(move |app| {
-    // start your file watcher
-    watcher::run_watcher(app.handle().clone(), rx);
+        .setup(move |app| {
+            watcher::run_watcher(app.handle().clone(), rx);
 
-    // build the tray menu
-    let tray_menu = MenuBuilder::new(app.handle())
-        .text(MenuId::new("show"), "Show XLFM")
-        .text(MenuId::new("quit"), "Quit")
-        .build()?;
+            let tray_menu = MenuBuilder::new(app.handle())
+                .text(MenuId::new("show"), "Show XLFM")
+                .text(MenuId::new("quit"), "Quit")
+                .build()?;
 
-    // grab the same icon you shipped under `icons/` in tauri.conf.json
-    let icon = app
-        .default_window_icon()                // returns Option<Icon>
-        .expect("default icon not configured")
-        .clone();
+            let icon = app
+                .default_window_icon()
+                .expect("default icon not configured")
+                .clone();
 
-    // build the tray with that icon
-    TrayIconBuilder::new()
-        .icon(icon)
-        .menu(&tray_menu)
-        .on_menu_event(|app_handle, event| {
-            if event.id == "show" {
-                if let Some(w) = app_handle.get_webview_window("main") {
-                    let _ = w.show().and_then(|_| w.set_focus());
-                }
-            } else if event.id == "quit" {
-                std::process::exit(0);
-            }
+            TrayIconBuilder::new()
+                .icon(icon)
+                .menu(&tray_menu)
+                .on_menu_event(|app_handle, event| {
+                    if event.id == "show" {
+                        if let Some(w) = app_handle.get_webview_window("main") {
+                            let _ = w.show().and_then(|_| w.set_focus());
+                        }
+                    } else if event.id == "quit" {
+                        app_handle.exit(0);
+                    }
+                })
+                .build(app)?;
+
+            Ok(())
         })
-        .build(app)?;        
-
-    Ok(())
-})
-
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_os::init())
@@ -99,6 +88,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_deep_link::init())
         .manage(watcher_state)
         .invoke_handler(tauri::generate_handler![
             fs_commands::handle_dropped_zip,
@@ -117,8 +107,25 @@ pub fn run() {
             watcher::add_watched_path,
             watcher::remove_watched_path,
             watcher::update_maps_watched_path,
-            path_finder::find_skaterxl_path,
+            path_finder::find_skaterxl_user_data_path
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+
+    #[cfg(not(mobile))]
+    tauri_app.listen("deep-link-received", move |event| {
+        let payload_str = event.payload();
+        log::info!("Deep link payload received: {}", payload_str);
+        if let Ok(url) = serde_json::from_str::<String>(payload_str) {
+            log::info!("Successfully parsed deep link URL: {}", url);
+        } else {
+            log::error!("Failed to parse deep link payload as a JSON string: {}", payload_str);
+        }
+    });
+
+    tauri_app.run(|_app_handle, event| {
+        if let RunEvent::ExitRequested { api, .. } = event {
+            api.prevent_exit();
+        }
+    });
 }

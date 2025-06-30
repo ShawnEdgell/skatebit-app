@@ -1,11 +1,9 @@
 <script lang="ts">
   import { Window } from '@tauri-apps/api/window'
   import ThemeController from './ThemeController.svelte'
-  import LoginAvatar from './LoginAvatar.svelte'
   import FolderSelector from './FolderSelector.svelte'
   import { page } from '$app/stores'
   import { Minus, Maximize2, X } from 'lucide-svelte'
-  import SetGamePath from './SetGamePath.svelte'
 
   const appWindow = Window.getCurrent()
 
@@ -18,9 +16,7 @@
 
   const navLinks: NavLink[] = [
     { href: '/', title: 'Folders', text: 'Folders' },
-    { href: '/modio', title: 'Maps', text: 'Maps' },
-    { href: '/stats', title: 'Stats', text: 'Stats' },
-    { href: '/mods', title: 'Mods', text: 'Mods', dev: true },
+    { href: '/modio', title: 'Maps', text: 'Maps' }
   ]
 
   // Filter out dev-only links in production
@@ -76,10 +72,8 @@
 
     <div class="flex items-center" style="-webkit-app-region: no-drag;">
       <ul class="menu menu-horizontal mr-2">
-        <li><SetGamePath /></li>
         <li><FolderSelector /></li>
         <li><ThemeController /></li>
-        <LoginAvatar />
       </ul>
       <div class="flex space-x-2">
         {#each windowControls as control (control.action)}

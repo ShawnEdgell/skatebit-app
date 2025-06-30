@@ -5,7 +5,6 @@
 use crate::error::{CommandError, CommandResult};
 use crate::models::*;
 use crate::utils::*;
-use junction;
 use std::{
     collections::{hash_map::DefaultHasher, HashMap, HashSet},
     ffi::OsStr,
