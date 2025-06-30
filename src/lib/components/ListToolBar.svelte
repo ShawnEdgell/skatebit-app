@@ -32,13 +32,13 @@
 </script>
 
 <div class="flex flex-wrap items-center gap-4">
-  <h2 class="mr-4 text-2xl font-bold">{title}</h2>
+  <h2 class="mr-4 text-xl font-bold">{title}</h2>
 
   <div class="flex flex-wrap items-center gap-2">
     {#each sortOptions as opt}
       <button
         type="button"
-        class="badge transition-colors {isDisabled
+        class="badge badge-sm transition-colors {isDisabled
           ? 'pointer-events-none opacity-50'
           : 'cursor-pointer'} {sortOrder === opt.value
           ? 'badge-primary'

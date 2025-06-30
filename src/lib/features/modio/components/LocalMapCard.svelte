@@ -56,7 +56,7 @@
   }
 </script>
 
-<div bind:this={el} class="relative aspect-video w-80 flex-shrink-0">
+<div bind:this={el} class="relative aspect-video flex-shrink-0">
   {#if isVisible}
     <BaseCard
       imageUrl={assetUrl}

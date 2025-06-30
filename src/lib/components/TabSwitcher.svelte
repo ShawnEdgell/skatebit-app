@@ -63,7 +63,7 @@
 
 <section>
   <div
-    class="bg-base-200 rounded-box z-10 flex w-64 flex-col items-center space-y-1 p-2 shadow-md"
+    class="bg-base-200 h-full rounded-box z-10 flex w-54 flex-col items-center space-y-1 p-2 shadow-md"
   >
     {#each tabs as tab}
       {@const expectedPath = normalizePath(`${baseFolder}/${tab.subfolder}`)}
@@ -80,7 +80,7 @@
       >
         <span class="flex items-center gap-2 text-lg">
           <svelte:component this={tab.Icon} class="h-5 w-5" />
-          <span class="text-sm font-medium normal-case">{tab.label}</span>
+          <span class="text-xs">{tab.label}</span>
         </span>
 
         {#if tab.showLinkIndicator && $isMapsSymlinked}

@@ -53,7 +53,7 @@
         <input
           type="radio"
           name="theme-dropdown"
-          class="theme-controller btn btn-ghost z-100 w-full justify-start"
+          class="theme-controller btn btn-sm btn-ghost z-100 w-full justify-start"
           aria-label={label}
           data-set-theme={value}
           {value}

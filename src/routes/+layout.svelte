@@ -12,7 +12,6 @@
   import CrudModal from '$lib/components/CrudModal.svelte'
   import Toast from '$lib/components/Toast.svelte'
   import ToastManager from '$lib/components/ToastManager.svelte'
-  import Updater from '$lib/components/Updater.svelte'
   import GlobalDropOverlay from '$lib/components/GlobalDropOverlay.svelte'
   import {
     isDraggingOver,
@@ -99,11 +98,9 @@
 <ToastManager />
 <GlobalDropOverlay show={$isDraggingOver} targetInfo={$activeDropTargetInfo} />
 
-<Updater />
-
 <div class="flex h-screen flex-col">
   <NavBar />
-  <div class="h-full overflow-hidden">
+  <div class="h-full overflow-y-scroll">
     <slot />
   </div>
 </div>

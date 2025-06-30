@@ -42,7 +42,7 @@
   }
 </script>
 
-<div class="relative h-51">
+<div class="relative">
   {#if loading && maps.length === 0}
     <!-- full‐container spinner on first load -->
     <div

@@ -48,7 +48,7 @@
 </script>
 
 <div
-  class="navbar bg-base-300 px-4"
+  class="navbar bg-base-300 pl-2 pr-4"
   style="-webkit-app-region: drag;"
   role="banner"
   on:dblclick={() => handleWindowAction('toggleMaximize')}

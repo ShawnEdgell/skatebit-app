@@ -12,7 +12,7 @@
 
 <div
   role="listitem"
-  class="card group bg-base-200 relative aspect-video w-80 flex-shrink-0 overflow-hidden shadow-md"
+  class="card group bg-base-200 relative aspect-video w-66 flex-shrink-0 overflow-hidden shadow-md"
   title={cardTitleAttr || title}
 >
   {#if imageUrl && !imageFailed}

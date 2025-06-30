@@ -49,7 +49,7 @@
 </script>
 
 <!-- CONTAINER: fixed height, relative positioning -->
-<div class="relative h-51">
+<div class="relative">
   <!-- FULL‑SCREEN SPINNER (only when first load) -->
   {#if loading && mods.length === 0}
     <div
