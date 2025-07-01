@@ -1,25 +1,20 @@
-// src/routes/modio/+page.server.ts
-import type { Mod } from '$lib/types/modioTypes'
-import { db } from '$lib/firebase/firebase'
-import { doc, getDoc } from 'firebase/firestore'
+import type { Mod } from '$lib/types/modioTypes';
+import type { PageServerLoad } from './$types';
 
-/**
- * Loads the first page of cached mods from Firestore.
- */
-export const load = async (): Promise<{ mapMods: Mod[] }> => {
+// This now points to your own local proxy
+const PROXY_API_URL = '/api/maps';
+
+export const load: PageServerLoad = async ({ fetch }) => {
   try {
-    const docRef = doc(db, 'maps_v2', 'page_1')
-    const snapshot = await getDoc(docRef)
-    let mapMods: Mod[] = []
-    if (snapshot.exists()) {
-      const data = snapshot.data()
-      if (data.mods) {
-        mapMods = data.mods
-      }
+    const response = await fetch(PROXY_API_URL);
+    if (!response.ok) {
+      throw new Error(`Proxy API request failed with status: ${response.status}`);
     }
-    return { mapMods }
+    const data = await response.json();
+    const mapMods: Mod[] = data.items || [];
+    return { mapMods };
   } catch (error) {
-    console.error('Error fetching cached maps:', error)
-    return { mapMods: [] }
+    console.error('Error fetching maps in page.server.ts:', error);
+    return { mapMods: [] };
   }
-}
+};

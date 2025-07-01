@@ -1,37 +1,31 @@
-import type { Mod } from '$lib/types/modioTypes'
-import { modioMaps } from './mapsStore'
-import { modioMapsSearchIndex } from '$lib/utils/flexSearchUtils'
-import { createSearchStore } from './searchStore'
-import { writable } from 'svelte/store'
+import { derived, writable } from 'svelte/store';
+import { modioMaps } from './mapsStore';
+import { modioMapsSearchIndex } from '$lib/utils/flexSearchUtils';
+import { sortMaps } from '$lib/services/modioCacheService';
+import type { Mod } from '$lib/types/modioTypes';
 
-export const modioSortOrder = writable<'recent' | 'popular' | 'downloads'>(
-  'recent',
-)
+export const modioSearchQuery = writable('');
 
-const modioSearch = createSearchStore<
-  Mod,
-  'recent' | 'popular' | 'downloads',
-  { id: number }
->(modioMaps, modioMapsSearchIndex, {
-  sortStore: modioSortOrder,
-  sortFn: (a, b, order) => {
-    switch (order) {
-      case 'popular':
-        return (
-          (a.stats?.popularity_rank_position ?? Infinity) -
-          (b.stats?.popularity_rank_position ?? Infinity)
-        )
-      case 'downloads':
-        return (b.stats?.downloads_total ?? 0) - (a.stats?.downloads_total ?? 0)
-      case 'recent':
-      default:
-        return (b.date_updated ?? 0) - (a.date_updated ?? 0)
-    }
+export type ModioSortValue = 'recent' | 'popular' | 'downloads';
+export const modioSortOrder = writable<ModioSortValue>('recent');
+
+export const modioSearchResults = derived(
+  [modioMaps, modioSearchQuery, modioSortOrder],
+  ([$modioMaps, $query, $sortOrder], set) => {
+    
+    const performSearch = async () => {
+      if ($query.trim()) {
+        const hits = await modioMapsSearchIndex.search($query);
+        const hitIds = new Set(hits.map(h => h.id));
+        const filteredMaps = $modioMaps.filter(mod => hitIds.has(mod.id));
+        set(sortMaps(filteredMaps, $sortOrder));
+      } else {
+        set(sortMaps($modioMaps, $sortOrder));
+      }
+    };
+
+    performSearch();
+    
   },
-  idField: 'id',
-  hitToId: (hit) => String(hit.id),
-})
-
-export const modioSearchQuery = modioSearch.query
-export const modioSearchSortKey = modioSearch.sortKey!
-export const modioSearchResults = modioSearch.results
+  [] as Mod[]
+);

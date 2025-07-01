@@ -46,7 +46,8 @@ export class LocalMapsSearchIndex {
     ;(this.index as any).clear()
   }
 
-  async search(query: string, limit = 100): Promise<FsEntry[]> {
+  // Set default limit to Infinity for all results
+  async search(query: string, limit: number = Infinity): Promise<FsEntry[]> {
     const hits = (await (this.index as any).searchAsync(query, limit, {
       enrich: true,
     })) as Array<{ result: Array<{ id: string; doc: StoredFsEntryData }> }>
@@ -117,7 +118,8 @@ export class ModSearchIndex {
     ;(this.index as any).clear()
   }
 
-  async search(query: string, limit = 100): Promise<StoredModData[]> {
+  // Set default limit to Infinity for all results
+  async search(query: string, limit: number = Infinity): Promise<StoredModData[]> {
     const hits = (await (this.index as any).searchAsync(query, limit, {
       enrich: true,
     })) as Array<{ result: Array<{ id: number; doc: StoredModData }> }>
@@ -137,7 +139,7 @@ export class ModSearchIndex {
   }
 }
 
-export class ModsSearchIndex {
+export class ModsSearchIndex { // Assuming this is for generic 'mods', not just 'maps'
   private index = new FlexSearch.Document({
     tokenize: 'forward',
     cache: true,
@@ -180,7 +182,8 @@ export class ModsSearchIndex {
     ;(this.index as any).clear()
   }
 
-  async search(query: string, limit = 100): Promise<StoredModData[]> {
+  // Set default limit to Infinity for all results
+  async search(query: string, limit: number = Infinity): Promise<StoredModData[]> {
     const hits = (await (this.index as any).searchAsync(query, limit, {
       enrich: true,
     })) as Array<{ result: Array<{ id: number; doc: StoredModData }> }>

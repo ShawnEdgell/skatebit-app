@@ -6,28 +6,16 @@
   import { listen } from '@tauri-apps/api/event'
   import { invoke } from '@tauri-apps/api/core'
   import { downloadProgress } from '$lib/stores/downloadProgressStore'
-  import { mapsDirectory } from '$lib/stores/globalPathsStore'
+  import { mapsDirectory, initializeGlobalPaths, initializeExplorerPaths, explorerDirectory } from '$lib/stores/globalPathsStore'
+  import { refreshModioMaps } from '$lib/stores/mapsStore'
   import type { InstallationProgress } from '$lib/types/downloadTypes'
   import NavBar from '$lib/components/NavBar.svelte'
   import CrudModal from '$lib/components/CrudModal.svelte'
   import Toast from '$lib/components/Toast.svelte'
   import ToastManager from '$lib/components/ToastManager.svelte'
   import GlobalDropOverlay from '$lib/components/GlobalDropOverlay.svelte'
-  import {
-    isDraggingOver,
-    activeDropTargetInfo,
-    attachGlobalDropListener,
-    detachGlobalDropListener,
-  } from '$lib/stores/dndStore'
-
-  import {
-    initializeGlobalPaths,
-    initializeExplorerPaths,
-    explorerDirectory,
-  } from '$lib/stores/globalPathsStore'
-
+  import { isDraggingOver, activeDropTargetInfo, attachGlobalDropListener, detachGlobalDropListener } from '$lib/stores/dndStore'
   import { setPath } from '$lib/stores/explorerStore'
-  import { refreshModioMaps } from '$lib/stores/mapsStore'
 
   let unlistenInstallation: () => void
   let unsubscribeWatch: () => void
@@ -43,6 +31,7 @@
       }
 
       await attachGlobalDropListener()
+
       refreshModioMaps().catch((e) =>
         handleError(e, '[Layout] Loading Mod.io Maps'),
       )

@@ -7,6 +7,7 @@
   export let mods: Mod[] = []
   export let visibleCount: number
   export let loading: boolean = false
+  export let searchQuery: string = ''
 
   const dispatch = createEventDispatcher()
   let scrollContainer: HTMLElement
@@ -44,13 +45,11 @@
   })
 
   onDestroy(() => {
-    observer.disconnect()
+    observer?.disconnect()
   })
 </script>
 
-<!-- CONTAINER: fixed height, relative positioning -->
 <div class="relative">
-  <!-- FULL‑SCREEN SPINNER (only when first load) -->
   {#if loading && mods.length === 0}
     <div
       class="bg-base-100/50 absolute inset-0 z-10 flex items-center justify-center"
@@ -59,35 +58,45 @@
     </div>
   {/if}
 
-  <!-- HORIZONTAL SCROLLER -->
-  <div
-    bind:this={scrollContainer}
-    use:draggable
-    class="scrollbar-thin flex h-full touch-pan-x flex-row gap-4 overflow-x-auto pb-2 select-none"
-    role="list"
-  >
-    {#each mods.slice(0, visibleCount) as mod (mod.id)}
-      <MapCard {mod} />
-    {/each}
-
-    {#if visibleCount < mods.length}
-      <div
-        bind:this={sentinel}
-        class="grid h-full min-w-[1px] flex-shrink-0 place-content-center p-4"
-        aria-hidden="true"
-      >
-        {#if loading}
-          <span class="loading loading-spinner loading-xs"></span>
+  {#if !loading && mods.length === 0}
+    <div class="absolute inset-0 flex items-center justify-center p-4 h-36">
+      <p class="text-base-content/60 text-center text-sm">
+        {#if searchQuery.trim()}
+          No maps matching “{searchQuery}”.
+        {:else}
+          No maps available from Mod.io.
         {/if}
-      </div>
-    {:else if !loading && mods.length > 0}
-      <div
-        class="grid h-full min-w-[50px] flex-shrink-0 place-content-center p-4"
-      >
-        <span class="text-base-content/50 text-xs whitespace-nowrap">
-          End of list
-        </span>
-      </div>
-    {/if}
-  </div>
+      </p>
+    </div>
+  {:else}
+    <div
+      bind:this={scrollContainer}
+      use:draggable
+      class="scrollbar-thin flex h-full touch-pan-x flex-row gap-4 overflow-x-auto pb-2 select-none"
+      role="list"
+    >
+      {#each mods.slice(0, visibleCount) as mod (mod.id)}
+        <MapCard {mod} />
+      {/each}
+
+      {#if visibleCount < mods.length}
+        <div
+          bind:this={sentinel}
+          class="grid h-full min-w-[1px] flex-shrink-0 place-content-center p-4"
+          aria-hidden="true"
+        >
+          {#if loading}
+            <span class="loading loading-spinner loading-xs"></span>
+          {/if}
+        </div>
+      {:else if !loading && mods.length > 0}
+        <div
+          class="grid h-full min-w-[50px] flex-shrink-0 place-content-center p-4"
+        >
+          <span class="text-base-content/50 text-xs whitespace-nowrap">
+          </span>
+        </div>
+      {/if}
+    </div>
+  {/if}
 </div>

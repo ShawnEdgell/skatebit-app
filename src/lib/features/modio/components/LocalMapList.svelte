@@ -54,7 +54,7 @@
 
   {#if !loading && maps.length === 0}
     <!-- empty state -->
-    <div class="absolute inset-0 flex items-center justify-center p-4">
+    <div class="absolute inset-0 flex items-center justify-center p-4 h-36">
       <p class="text-base-content/60 text-center text-sm">
         {#if searchQuery.trim()}
           No maps matching “{searchQuery}”.
