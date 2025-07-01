@@ -16,6 +16,7 @@
     "targets": ["nsis", "appimage", "dmg"]
   },
   "plugins": {
+    "http": null,
     "updater": {
       "active": true,
       "dialog": true,

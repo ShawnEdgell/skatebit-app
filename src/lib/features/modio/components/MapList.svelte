@@ -49,7 +49,7 @@
   })
 </script>
 
-<div class="relative h-40">
+<div class="relative h-39">
   {#if loading && mods.length === 0}
     <div
       class="bg-base-100/50 absolute inset-0 z-10 flex items-center justify-center"

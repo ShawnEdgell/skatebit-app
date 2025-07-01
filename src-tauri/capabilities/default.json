@@ -38,7 +38,6 @@
     "core:window:allow-maximize",
     "core:window:allow-minimize",
     "core:window:allow-toggle-maximize",
-
     "core:app:allow-version",
     "core:app:default",
     "dialog:default",
@@ -46,6 +45,12 @@
     "updater:default",
     "shell:default",
     "store:default",
-    "opener:default"
+    "opener:default",
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "https://api.skatebit.app/api/v1/skaterxl/maps" }
+      ]
+    }
   ]
 }

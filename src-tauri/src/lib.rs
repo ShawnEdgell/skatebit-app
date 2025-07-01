@@ -6,7 +6,7 @@ mod models;
 mod state;
 mod utils;
 mod watcher;
-mod path_finder; // Re-added mod declaration
+mod path_finder;
 mod mod_commands;
 
 use std::{collections::HashSet, sync::Mutex};
@@ -88,6 +88,8 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
+        // This line is required and has been added back in.
+        .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_deep_link::init())
         .manage(watcher_state)
         .invoke_handler(tauri::generate_handler![

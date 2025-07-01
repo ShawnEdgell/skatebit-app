@@ -32,6 +32,7 @@
 
       await attachGlobalDropListener()
 
+      // This line will now fetch the map data when the app starts.
       refreshModioMaps().catch((e) =>
         handleError(e, '[Layout] Loading Mod.io Maps'),
       )

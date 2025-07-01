@@ -1,7 +1,7 @@
+import { fetch } from '@tauri-apps/plugin-http';
 import type { Mod } from '$lib/types/modioTypes';
 
-// This now points to your local SvelteKit API route (proxy)
-const PROXY_API_URL = '/api/maps';
+const MAPS_API_URL = 'https://api.skatebit.app/api/v1/skaterxl/maps';
 
 const EXCLUDED_PLATFORMS = new Set(['PS4', 'PS5', 'XBOX', 'PLAYSTATION', 'NINTENDO']);
 
@@ -19,7 +19,9 @@ function filterByPlatform(mod: Mod): boolean {
 
 export async function fetchAllMaps(): Promise<Mod[]> {
   try {
-    const response = await fetch(PROXY_API_URL);
+    const response = await fetch(MAPS_API_URL, {
+      method: 'GET',
+    });
     if (!response.ok) {
       throw new Error(`API request failed: ${response.status}`);
     }
@@ -27,7 +29,7 @@ export async function fetchAllMaps(): Promise<Mod[]> {
     const list = Array.isArray(data.items) ? data.items : [];
     return list.filter(filterByPlatform);
   } catch (error) {
-    console.error(`Error fetching maps from proxy API:`, error);
+    console.error(`Error fetching maps from API via Tauri client:`, error);
     throw error;
   }
 }
