@@ -49,16 +49,16 @@
     on:close={handleCancel}
     on:keydown={handleKeydown}
   >
-    <div class="modal-box max-w-xl min-w-md p-6">
+    <div class="modal-box max-w-lg min-w-md p-4">
       <button
         type="button"
         on:click={handleCancel}
         class="btn btn-sm btn-circle absolute top-2 right-2"
         aria-label="Close modal">✕</button
       >
-      <h3 class="mb-4 text-2xl font-bold break-words">{$modalStore.title}</h3>
+      <h3 class="mb-3 text-lg font-bold break-words">{$modalStore.title}</h3>
       {#if $modalStore.message}
-        <div class="mb-4 break-words whitespace-pre-wrap">
+        <div class="mb-3 text-sm break-words whitespace-pre-wrap">
           {@html $modalStore.message}
         </div>
       {/if}
@@ -67,15 +67,15 @@
           type="text"
           placeholder={$modalStore.placeholder ?? ''}
           bind:value={$modalStore.inputValue}
-          class="input input-bordered w-full break-words"
+          class="input input-sm input-bordered w-full break-words"
         />
       {/if}
-      <div class="modal-action flex items-center">
+      <div class="modal-action mt-4 flex items-center">
         <div class="flex-grow">
           {#if $modalStore.secondaryText && $modalStore.onSecondary}
             <button
               type="button"
-              class="btn btn-secondary"
+              class="btn btn-sm btn-secondary"
               on:click={handleSecondary}
               disabled={isConfirmDisabled}
             >
@@ -85,13 +85,13 @@
         </div>
         <div class="flex space-x-2">
           {#if !$modalStore.confirmOnly}
-            <button type="button" class="btn btn-ghost" on:click={handleCancel}>
+            <button type="button" class="btn btn-sm btn-ghost" on:click={handleCancel}>
               {$modalStore.cancelText ?? 'Cancel'}
             </button>
           {/if}
           <button
             type="button"
-            class="btn {$modalStore.confirmClass ?? 'btn-primary'}"
+            class="btn btn-sm {$modalStore.confirmClass ?? 'btn-primary'}"
             on:click={handleSave}
             disabled={isConfirmDisabled}
           >
