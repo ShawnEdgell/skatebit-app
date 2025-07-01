@@ -49,7 +49,7 @@
   })
 </script>
 
-<div class="relative">
+<div class="relative h-40">
   {#if loading && mods.length === 0}
     <div
       class="bg-base-100/50 absolute inset-0 z-10 flex items-center justify-center"
@@ -59,7 +59,7 @@
   {/if}
 
   {#if !loading && mods.length === 0}
-    <div class="absolute inset-0 flex items-center justify-center p-4 h-36">
+    <div class="absolute inset-0 flex items-center justify-center p-4">
       <p class="text-base-content/60 text-center text-sm">
         {#if searchQuery.trim()}
           No maps matching “{searchQuery}”.
@@ -72,7 +72,7 @@
     <div
       bind:this={scrollContainer}
       use:draggable
-      class="scrollbar-thin flex h-full touch-pan-x flex-row gap-4 overflow-x-auto pb-2 select-none"
+      class="scrollbar-thin flex h-full touch-pan-x flex-row gap-4 overflow-x-auto pb-2 select-none overflow-hidden"
       role="list"
     >
       {#each mods.slice(0, visibleCount) as mod (mod.id)}

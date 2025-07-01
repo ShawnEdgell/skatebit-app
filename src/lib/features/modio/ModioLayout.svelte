@@ -101,7 +101,7 @@
 <svelte:head><title>Maps – XL Web Manager</title></svelte:head>
 
 <main class="bg-base-300 mx-auto flex h-full w-full flex-col gap-4 px-4 ">
-  <div class="bg-base-100 rounded-box flex flex-col gap-4 p-4 shadow-md h-72">
+  <div class="bg-base-100 rounded-box flex flex-col gap-4 p-4 shadow-md">
     <ListToolbar
       title="Mod.io Maps"
       searchQuery={$modioSearchQuery}
@@ -123,7 +123,7 @@
   </div>
   </div>
 
-  <div class="bg-base-100 rounded-box flex flex-col gap-4 p-4 shadow-md h-72">
+  <div class="bg-base-100 rounded-box flex flex-col gap-4 p-4 shadow-md">
     <ListToolbar
       title="Local Maps"
       searchQuery={$localSearchQuery}
